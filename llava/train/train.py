@@ -163,7 +163,8 @@ class TrainingArguments(transformers.TrainingArguments):
     auto_find_batch_size: bool = field(default=False)
     gradient_checkpointing: bool = field(default=True)
     verbose_logging: bool = field(default=False)
-    attn_implementation: str = field(default="flash_attention_2", metadata={"help": "Use transformers attention implementation."})
+    # attn_implementation: str = field(default='sdpa', metadata={"help": "Use transformers attention implementation."})
+    attn_implementation: str = field(default='flash_attention_2', metadata={"help": "Use transformers attention implementation."})
 
 
 # @dataclass
@@ -1152,14 +1153,14 @@ class LazySupervisedDataset(Dataset):
 
         elif "video" in sources[0]:
             video_file = self.list_data_dict[i]["video"]
-            video_folder = self.data_args.video_folder
+            video_folder = os.path.join(self.data_args.video_folder, sources[0]['dataset_name'])
             video_file = os.path.join(video_folder, video_file)
             suffix = video_file.split(".")[-1]
             if not os.path.exists(video_file):
                 print("File {} not exist!".format(video_file))
 
             try:
-                if "shareVideoGPTV" in video_file:
+                if "sharegpt4video" in video_file:
                     frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
                     frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
 
