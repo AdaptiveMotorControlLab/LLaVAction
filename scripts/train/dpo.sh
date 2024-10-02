@@ -20,9 +20,9 @@ ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node="${ARNOLD_WORKER_GPU}" --nno
     --model_name_or_path lmms-lab/LongVA-7B \
     --version $PROMPT_VERSION \
     --dpo_alpha 1.0 --beta 0.1 --gamma 0 \
-    --data_path="/data/llava_video/shareVideoGPTV/dpo/sft_dpo_17k.jsonl" \
+    --data_path="/data/llava_video/sharegpt4video/dpo/sft_dpo_17k.jsonl" \
     --image_folder /data/llava_data \
-    --video_folder /llava_video/shareVideoGPTV/frames/all_frames/ \
+    --video_folder /llava_video/sharegpt4video/frames/all_frames/ \
     --mm_tunable_parts="mm_vision_tower,mm_mlp_adapter,mm_language_model" \
     --vision_tower ${VISION_MODEL_VERSION} \
     --mm_projector_type mlp2x_gelu \

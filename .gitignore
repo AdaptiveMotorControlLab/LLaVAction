@@ -15,7 +15,6 @@ dist
 # Editor
 .idea
 *.swp
-.vscode
 
 # Other
 .DS_Store
@@ -71,3 +70,7 @@ playground/*.json
 mlx_configs/
 data_processing/
 # demo/
+
+
+experiments/
+*.out

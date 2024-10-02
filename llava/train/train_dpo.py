@@ -1109,7 +1109,7 @@ class DPODataset(Dataset):
                 input_prompt = input_prompt.replace(DEFAULT_IMAGE_TOKEN, DEFAULT_IMAGE_TOKEN * self.data_args.video_token)
                 sources, query_prompt = preprocess_multimodal_movie(copy.deepcopy([e["conversations"] for e in sources]), self.data_args, input_prompt)
             else:  # using videoreader
-                if "shareVideoGPTV" not in video_file and "liangke" not in video_file:
+                if "sharegpt4video" not in video_file and "liangke" not in video_file:
                     vr = VideoReader(video_file, ctx=cpu(0))
                     total_frame_num = len(vr)
                     avg_fps = round(vr.get_avg_fps() / self.data_args.video_fps)
