@@ -28,11 +28,12 @@ avaliable_datasets = ['CLEVR-Math(MathV360K)', 'FigureQA(MathV360K)', 'GEOS(Math
                       'vistext(cauldron)', 'visual7w(cauldron,llava_format)', 'visualmrc(cauldron)', 
                       'vqarad(cauldron,llava_format)', 'vsr(cauldron,llava_format)', 'websight(cauldron)']
 
-chossen_datasets = ['sharegpt4v(sam)', 'sharegpt4v(llava)']
+# chossen_datasets = ['sharegpt4v(sam)', 'sharegpt4v(llava)']
+chossen_datasets = ['geo3k']
 
-image_base = "/mediaPFM/data/haozhe/onevision/llava_data"
-json_base = "/mediaPFM/data/haozhe/onevision/llava_instruct"
-dataset_yaml = 'scripts/train/onevision.yaml'
+image_base = "/mnt/SV_storage/VFM/onevision/llava_data"
+json_base = "/mnt/SV_storage/VFM/onevision/llava_instruct"
+# dataset_yaml = 'scripts/train/onevision.yaml'
 
 # # open the yaml file
 # with open(dataset_yaml, 'r') as f:
