@@ -14,7 +14,7 @@ import warnings
 from decord import VideoReader, cpu
 
 
-def llava_inference(video_frames, tokenizer, model, image_processor, max_length,  gt,  num_frames=16):
+def llava_inference(video_frames, tokenizer, model, image_processor, max_length, mc_data, num_frames=16):
 
     model.eval()    
     device = "cuda"    
@@ -27,8 +27,8 @@ def llava_inference(video_frames, tokenizer, model, image_processor, max_length,
 
     conv_template = "qwen_1_5"
 
-    question = gt['question'][0]
-    option = gt['option'][0]
+    question = mc_data['question'][0]
+    option = mc_data['option'][0]
 
     question = f"{DEFAULT_IMAGE_TOKEN}\n{question}:{option}"   
 

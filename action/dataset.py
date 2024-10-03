@@ -15,6 +15,7 @@ import sys
 import os
 sys.path[0] = os.path.dirname(sys.path[0])
 from action.llava_ov_inference import llava_inference
+import json
 import logging
 
 
@@ -607,6 +608,9 @@ def get_args_parser():
     # llm size is type of string and can only be '7b' or '5b' etc.
     parser.add_argument('--llm_size', default='7b', type=str, help='llm size')
     parser.add_argument('--llava_num_frames', default=16, type=int, help='number of frames for llava')
+    ## avaion refinement 
+    parser.add_argument('--action_predictions', default=None, type=str, help='path to action predictions')
+    parser.add_argument('--topk_predictions', default = 5, type =int)
 
     return parser
 
@@ -624,6 +628,27 @@ def prepare_llava():
 
     return tokenizer, model, image_processor, max_length
 
+
+def get_topk_predictions(prediction_file, idx,  k):
+
+    with open(prediction_file, 'r') as f:
+        data = json.load(f)
+
+    letters = [chr(65+i) for i in range(26)][:k]
+    options = list(range(26))[:k]
+    
+    predictions = data[str(idx)]['predictions'][:k]
+
+    for i in range(len(options)):
+        options[i] = f'{letters[i]}. {predictions[i]}'
+            
+    
+    mc_data = {
+        'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer'},
+        'option': {0: options}        
+        }
+    return mc_data
+    
 
 if __name__ == '__main__':
     from moviepy.editor import ImageSequenceClip
@@ -651,10 +676,18 @@ if __name__ == '__main__':
     running_corrects = 0
     total_samples = 0
 
-    valid_letters = ['A', 'B', 'C', 'D', 'E']
+    if args.action_predictions:
+        valid_letters = [chr(65+i) for i in range(26)][args.topk_predictions]
+    else:
+        valid_letters = ['A', 'B', 'C', 'D', 'E']
 
+    if not args.action_predictions:        
+        log_filename = f'llava_ov_{args.llava_num_frames}f_{args.llm_size}.log'
+    else:
+        log_filename = f'llava_ov_{args.llava_num_frames}f_{args.llm_size}_action_{args.topk_predictions}.log'
+    
     # Set up logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=f'llava_ov_{args.llava_num_frames}f_{args.llm_size}.log', filemode='w')
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=log_filename, filemode='w')
 
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
@@ -671,11 +704,20 @@ if __name__ == '__main__':
 
     tokenizer, model, image_processor, max_length = prepare_llava()
     
-    for idx, (frames, gt) in tqdm(enumerate(val_dataloader)):
-        pred = llava_inference(frames, tokenizer, model, image_processor, max_length,  gt,  num_frames=args.llava_num_frames)
+    for idx, (frames, mc_data) in tqdm(enumerate(val_dataloader)):
+
+        gt = mc_data['answer'][0][0]
+        
+        gts.append(gt)
+        
+        if args.action_predictions:
+            mc_data = get_topk_predictions(args.action_predictions, idx, args.topk_predictions)
+            
+        pred = llava_inference(frames, tokenizer, model, image_processor, max_length, mc_data,  num_frames=args.llava_num_frames)
 
         # if valid letter is found in the prediction, then we will use that as the prediction
         found = False
+        
         for letter in valid_letters:
             if letter in pred:
                 pred = letter
@@ -684,11 +726,10 @@ if __name__ == '__main__':
         if not found:
             pred = 'N/A'
 
-        gts.append(gt['answer'][0][0])
         preds.append(pred)
 
         # Update running corrects and total samples
-        running_corrects += (pred == gt['answer'][0][0])
+        running_corrects += (pred == gt)
         total_samples += 1
 
         # Calculate and log running mean accuracy
