@@ -10,6 +10,10 @@ import argparse
 import decord
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from pathlib import Path
+import sys
+import os
+sys.path[0] = os.path.dirname(sys.path[0])
 
 
 def datetime2sec(str):
@@ -130,8 +134,9 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
         self.root = root
         self.metadata = metadata
         self.is_trimmed = is_trimmed
-        self.verb_file = f'/data/EK100/epic-kitchens-100-annotations/EPIC_100_verb_classes.csv'
-        self.noun_file = f'/data/EK100/epic-kitchens-100-annotations/EPIC_100_noun_classes.csv'
+        anno_root = Path(metadata).parent
+        self.verb_file = str(anno_root / 'EPIC_100_verb_classes.csv')
+        self.noun_file = str(anno_root / 'EPIC_100_noun_classes.csv')
         self.verb_df = pd.read_csv(self.verb_file)
         self.nouns_df = pd.read_csv(self.noun_file)
         self.nouns = self.nouns_df['key'].to_list()
@@ -484,8 +489,8 @@ def generate_label_map():
     vn_list = []
     mapping_vn2narration = {}
     for f in [
-        '/data/EK100/epic-kitchens-100-annotations/EPIC_100_train.csv',
-        '/data/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv',
+        '/media/data/haozhe/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_train.csv',
+        '/media/data/haozhe/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv',
     ]:
         csv_reader = csv.reader(open(f))
         _ = next(csv_reader)  # skip the header
@@ -617,7 +622,7 @@ if __name__ == '__main__':
     )
 
     val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False) 
-    from llava_ov_inference import llava_inference
+    from action.llava_ov_inference import llava_inference
     gts = []
     preds = []
     running_corrects = 0
@@ -644,5 +649,5 @@ if __name__ == '__main__':
     # get final accuracy 
     accuracy = np.mean(gts == preds)
     print('Final accuracy', accuracy)
-    with open('llava_ov_4f_0.5b_result.txt', 'w') as f:
+    with open('llava_ov_16f_7b_result.txt', 'w') as f:
         f.write(f'Final accuracy: {accuracy:.4f}\n')

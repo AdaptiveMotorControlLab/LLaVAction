@@ -36,8 +36,8 @@ torchrun --nproc_per_node=2 \
          --image_grid_pinpoints "(1x1),...,(6x6)" \
          --mm_patch_merge_type spatial_unpad \
          --bf16 True \
-         --run_name test \
-         --output_dir experiments/test \
+         --run_name test1 \
+         --output_dir experiments/test1 \
          --num_train_epochs 1 \
          --per_device_train_batch_size 1 \
          --per_device_eval_batch_size 4 \

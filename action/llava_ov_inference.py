@@ -15,7 +15,7 @@ from decord import VideoReader, cpu
 
 warnings.filterwarnings("ignore")
 # Load the OneVision model
-pretrained = "lmms-lab/llava-onevision-qwen2-0.5b-ov"
+pretrained = "lmms-lab/llava-onevision-qwen2-7b-ov"
 model_name = "llava_qwen"
 device = "cuda"
 device_map = "auto"
@@ -25,7 +25,6 @@ model.eval()
 
 def llava_inference(video_frames, gt):
     video_frames = video_frames[0]
-    video_frames = video_frames[::4]
     image_tensors = []
     frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].half().cuda()
     image_tensors.append(frames)

@@ -25,7 +25,7 @@
 //                 "--master_port=29500",
 //                 "llava/train/train_mem.py",
 //                 "--deepspeed", "scripts/zero3.json",
-//                 "--model_name_or_path", "lmms-lab/llava-onevision-qwen2-0.5b-ov",
+//                 "--model_name_or_path", "lmms-lab/llava-onevision-qwen2-7b-ov",
 //                 "--version", "qwen_1_5",
 //                 "--data_path", "scripts/train/onevision.yaml",
 //                 // "--image_folder", "/mediaPFM/data/haozhe/onevision/llava_data",
@@ -43,8 +43,8 @@
 //                 "--image_grid_pinpoints", "(1x1),...,(6x6)",
 //                 "--mm_patch_merge_type", "spatial_unpad",
 //                 "--bf16", "True",
-//                 "--run_name", "test",
-//                 "--output_dir", "experiments/test",
+//                 "--run_name", "test1",
+//                 "--output_dir", "experiments/test1",
 //                 "--num_train_epochs", "1",
 //                 "--per_device_train_batch_size", "1",
 //                 "--per_device_eval_batch_size", "4",
@@ -77,6 +77,29 @@
 // }
 
 
+// {
+//     // Use IntelliSense to learn about possible attributes.
+//     // Hover to view descriptions of existing attributes.
+//     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+//     "version": "0.2.0",
+//     "configurations": [
+//         {
+//             "name": "Python: Current File",
+//             "type": "debugpy",
+//             "request": "launch",
+//             "program": "docs/LLaVA_OneVision_Tutorials.py",
+//             "console": "integratedTerminal",
+//             "env":{"CUDA_VISIBLE_DEVICES":"0",
+//                    "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/libffi.so.7"},
+//             "justMyCode": false,
+//             // "args": [
+//             //     "--run_dir_name", "test",
+//             //     // "--use_big_decoder"
+//             // ]
+//         }
+//     ]
+// }
+
 {
     // Use IntelliSense to learn about possible attributes.
     // Hover to view descriptions of existing attributes.
@@ -87,15 +110,16 @@
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
-            "program": "docs/LLaVA_OneVision_Tutorials.py",
+            "program": "action/dataset.py",
             "console": "integratedTerminal",
-            "env":{"CUDA_VISIBLE_DEVICES":"0",
-                   "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/libffi.so.7"},
+            "env":{"CUDA_VISIBLE_DEVICES":"0"},
             "justMyCode": false,
-            // "args": [
-            //     "--run_dir_name", "test",
-            //     // "--use_big_decoder"
-            // ]
+            "args": [
+                "--root", "/mnt/SV_storage/VFM/EK100/EK100_320p_15sec_30fps_libx264",
+                "--train-metadata", "/mnt/SV_storage/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_train.csv",
+                "--val-metadata", "/mnt/SV_storage/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv",
+                // "--use_big_decoder"
+            ]
         }
     ]
 }
