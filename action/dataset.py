@@ -395,7 +395,9 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         rcc_params=(224,),
         sparse_sample=False,
         labels = None,
-        is_trimmed=True):
+        is_trimmed=True,
+        topk_predictions = 5    
+    ):
         super().__init__(dataset, root, metadata, is_trimmed=is_trimmed)
 
         self.transform = transform
@@ -416,6 +418,7 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
             for noun in self.nouns:
                 self.valid_gts.append(f'{verb} {noun}')
         self.labels = labels
+        self.topk_predictions = topk_predictions
         
     def __getitem__(self, i):
         frames, label = self.get_raw_item(
@@ -440,13 +443,16 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
 
         verb, noun = self.verbs[int(verb)], self.nouns[int(noun)]
 
-        letters = ['A', 'B', 'C', 'D', 'E']
-        options = [0,1,2,3,4]
+        letters = [chr(65+i) for i in range(26)][:self.topk_predictions]
+        options = list(range(26))[:self.topk_predictions]
+        
+        
         wrong_answer_indices = np.random.choice(len(self.valid_gts), size = 5, replace = False)
         wrong_answers = [self.valid_gts[index] for index in wrong_answer_indices]
         for i in range(len(wrong_answers)):
             options[i] =  f'{letters[i]}. {wrong_answers[i]}'
-        correct_answer_index =  np.random.choice(5, size=1, replace=False)[0]
+            
+        correct_answer_index =  np.random.choice(len(letters), size=1, replace=False)[0]
         correct_answer_letter = letters[correct_answer_index]
 
         options[correct_answer_index] = f'{correct_answer_letter}. {verb} {noun}'
@@ -454,7 +460,8 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         data = {
             'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer'},
             'option': {0: options},
-            'answer': {0: correct_answer_letter}
+            'answer': {0: correct_answer_letter},
+            'answer_name': {0: f'{verb} {noun}'}
         }
        
         return frames, data      
@@ -481,7 +488,8 @@ def get_downstream_dataset(transform, crop_size, args, subset='train', label_map
             threads=args.decode_threads,
             fast_rcc=args.fused_decode_crop, rcc_params=(crop_size, ),
             is_trimmed=not args.dataset == 'charades_ego',
-            labels = labels
+            labels = labels,
+            topk_predictions = args.topk_predictions
         )
     else:
         assert ValueError("subset should be either 'train' or 'val'")
@@ -677,7 +685,7 @@ if __name__ == '__main__':
     total_samples = 0
 
     if args.action_predictions:
-        valid_letters = [chr(65+i) for i in range(26)][args.topk_predictions]
+        valid_letters = [chr(65+i) for i in range(26)][:args.topk_predictions]
     else:
         valid_letters = ['A', 'B', 'C', 'D', 'E']
 
@@ -712,7 +720,8 @@ if __name__ == '__main__':
         
         if args.action_predictions:
             mc_data = get_topk_predictions(args.action_predictions, idx, args.topk_predictions)
-            
+
+        
         pred = llava_inference(frames, tokenizer, model, image_processor, max_length, mc_data,  num_frames=args.llava_num_frames)
 
         # if valid letter is found in the prediction, then we will use that as the prediction
@@ -725,6 +734,7 @@ if __name__ == '__main__':
                 break
         if not found:
             pred = 'N/A'
+
 
         preds.append(pred)
 
