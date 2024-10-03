@@ -13,9 +13,9 @@ from tqdm import tqdm
 from pathlib import Path
 import sys
 import os
+sys.path[0] = os.path.dirname(sys.path[0])
 from action.llava_ov_inference import llava_inference
 import logging
-sys.path[0] = os.path.dirname(sys.path[0])
 
 
 def datetime2sec(str):
@@ -491,7 +491,7 @@ def generate_label_map(args):
     vn_list = []
     mapping_vn2narration = {}
     anno_root = Path(args.train_metadata).parent
-    for f in [      ,
+    for f in [      
         anno_root / 'EPIC_100_train.csv',
         anno_root / 'EPIC_100_validation.csv',
     ]:
@@ -517,7 +517,7 @@ def generate_label_map(args):
     return labels, mapping_vn2act
 
 
-def get_args_parser(args):
+def get_args_parser():
     parser = argparse.ArgumentParser(description='AVION finetune ek100 cls', add_help=False)
     parser.add_argument('--dataset', default='ek100_cls', type=str, choices=['ek100_mir'])
     parser.add_argument('--root', default='/data/EK100/EK100_320p_15sec_30fps_libx264', type=str, help='path to train dataset root')
@@ -639,7 +639,7 @@ if __name__ == '__main__':
     valid_letters = ['A', 'B', 'C', 'D', 'E']
 
     # Set up logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=f'llava_ov_{llava_num_frames}f_{args.llm_size}.log', filemode='w')
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=f'llava_ov_{args.llava_num_frames}f_{args.llm_size}.log', filemode='w')
     logger = logging.getLogger(__name__)
 
     for idx, (frames, gt) in tqdm(enumerate(val_dataloader)):
