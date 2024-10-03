@@ -1,5 +1,5 @@
 from operator import attrgetter
-from llava.model.builder import load_pretrained_model
+
 from llava.mm_utils import get_model_name_from_path, process_images, tokenizer_image_token
 from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IGNORE_INDEX
 from llava.conversation import conv_templates, SeparatorStyle
@@ -13,22 +13,13 @@ import copy
 import warnings
 from decord import VideoReader, cpu
 
-def llava_inference(video_frames, gt, logger, num_frames=16, llm_size='7b'):
 
-    warnings.filterwarnings("ignore")
-    # Load the OneVision model
-    pretrained = f"lmms-lab/llava-onevision-qwen2-{llm_size}-ov"
-    logger.info(f"Loading model {pretrained}")
-    model_name = "llava_qwen"
-    device = "cuda"
-    device_map = "auto"
-    tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name, device_map=device_map, attn_implementation="sdpa")
+def llava_inference(video_frames, tokenizer, model, image_processor, max_length,  gt,  num_frames=16):
 
-    model.eval()
+    model.eval()    
+    device = "cuda"    
     video_frames = video_frames[0]
-
     temporal_stride = 16 // num_frames
-
     video_frames = video_frames[::temporal_stride]
     image_tensors = []
     frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].half().cuda()

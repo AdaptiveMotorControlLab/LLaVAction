@@ -610,6 +610,21 @@ def get_args_parser():
 
     return parser
 
+def prepare_llava():
+
+    import warnings
+    from llava.model.builder import load_pretrained_model    
+    warnings.filterwarnings("ignore")
+    # Load the OneVision model
+    #pretrained = f"lmms-lab/llava-onevision-qwen2-{llm_size}-ov"
+    model_name = "llava_qwen"
+
+    device_map = "auto"
+    tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name, device_map=device_map, attn_implementation="sdpa")
+
+    return tokenizer, model, image_processor, max_length
+
+
 if __name__ == '__main__':
     from moviepy.editor import ImageSequenceClip
     import torchvision
@@ -640,10 +655,24 @@ if __name__ == '__main__':
 
     # Set up logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=f'llava_ov_{args.llava_num_frames}f_{args.llm_size}.log', filemode='w')
+
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+
+    # Set the same format for console handler as well
+    console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
+    # Add the console handler to the root logger
+    logging.getLogger().addHandler(console_handler)
+    
     logger = logging.getLogger(__name__)
 
+    pretrained = f"lmms-lab/llava-onevision-qwen2-{args.llm_size}-ov"
+
+    tokenizer, model, image_processor, max_length = prepare_llava()
+    
     for idx, (frames, gt) in tqdm(enumerate(val_dataloader)):
-        pred = llava_inference(frames, gt, logger, num_frames=args.llava_num_frames, llm_size=args.llm_size)
+        pred = llava_inference(frames, tokenizer, model, image_processor, max_length,  gt,  num_frames=args.llava_num_frames)
 
         # if valid letter is found in the prediction, then we will use that as the prediction
         found = False
