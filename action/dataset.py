@@ -13,6 +13,8 @@ from tqdm import tqdm
 from pathlib import Path
 import sys
 import os
+from action.llava_ov_inference import llava_inference
+import logging
 sys.path[0] = os.path.dirname(sys.path[0])
 
 
@@ -484,13 +486,14 @@ def get_downstream_dataset(transform, crop_size, args, subset='train', label_map
         assert ValueError("subset should be either 'train' or 'val'")
 
 
-def generate_label_map():
+def generate_label_map(args):
     print("Preprocess ek100 action label space")
     vn_list = []
     mapping_vn2narration = {}
-    for f in [
-        '/media/data/haozhe/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_train.csv',
-        '/media/data/haozhe/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv',
+    anno_root = Path(args.train_metadata).parent
+    for f in [      ,
+        anno_root / 'EPIC_100_train.csv',
+        anno_root / 'EPIC_100_validation.csv',
     ]:
         csv_reader = csv.reader(open(f))
         _ = next(csv_reader)  # skip the header
@@ -514,7 +517,7 @@ def generate_label_map():
     return labels, mapping_vn2act
 
 
-def get_args_parser():
+def get_args_parser(args):
     parser = argparse.ArgumentParser(description='AVION finetune ek100 cls', add_help=False)
     parser.add_argument('--dataset', default='ek100_cls', type=str, choices=['ek100_mir'])
     parser.add_argument('--root', default='/data/EK100/EK100_320p_15sec_30fps_libx264', type=str, help='path to train dataset root')
@@ -600,6 +603,11 @@ def get_args_parser():
     parser.add_argument('--dist-backend', default='nccl', type=str)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--gpu', default=None, type=int, help='GPU id to use.')
+    # llava related
+    # llm size is type of string and can only be '7b' or '5b' etc.
+    parser.add_argument('--llm_size', default='7b', type=str, help='llm size')
+    parser.add_argument('--llava_num_frames', default=16, type=int, help='number of frames for llava')
+
     return parser
 
 if __name__ == '__main__':
@@ -615,39 +623,52 @@ if __name__ == '__main__':
     val_transform_gpu = torch.nn.Sequential(*gpu_val_transform_ls)
     crop_size = 336
 
-    labels, mapping_vn2act = generate_label_map() 
+    labels, mapping_vn2act = generate_label_map(args) 
     val_dataset = get_downstream_dataset(
         val_transform_gpu, crop_size, args, subset='val', label_mapping=mapping_vn2act,
         labels = labels
     )
 
     val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False) 
-    from action.llava_ov_inference import llava_inference
+
     gts = []
     preds = []
     running_corrects = 0
     total_samples = 0
 
+    valid_letters = ['A', 'B', 'C', 'D', 'E']
+
+    # Set up logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=f'llava_ov_{llava_num_frames}f_{args.llm_size}.log', filemode='w')
+    logger = logging.getLogger(__name__)
+
     for idx, (frames, gt) in tqdm(enumerate(val_dataloader)):
-        pred = llava_inference(frames, gt)
-        pred = pred[:pred.index('.')]
+        pred = llava_inference(frames, gt, logger, num_frames=args.llava_num_frames, llm_size=args.llm_size)
+
+        # if valid letter is found in the prediction, then we will use that as the prediction
+        found = False
+        for letter in valid_letters:
+            if letter in pred:
+                pred = letter
+                found = True
+                break
+        if not found:
+            pred = 'N/A'
+
         gts.append(gt['answer'][0][0])
         preds.append(pred)
 
         # Update running corrects and total samples
-        print (pred)
-        print (gt['answer'][0][0])
         running_corrects += (pred == gt['answer'][0][0])
         total_samples += 1
 
-        # Calculate and print running mean accuracy
+        # Calculate and log running mean accuracy
         running_accuracy = running_corrects / total_samples
-        print(f'Running accuracy after {total_samples} samples: {running_accuracy:.4f}')
+        logger.info(f'Running accuracy after {total_samples} samples: {running_accuracy:.4f}')
 
     gts = np.array(gts)
     preds = np.array(preds)
     # get final accuracy 
     accuracy = np.mean(gts == preds)
-    print('Final accuracy', accuracy)
-    with open('llava_ov_16f_7b_result.txt', 'w') as f:
-        f.write(f'Final accuracy: {accuracy:.4f}\n')
+    logger.info(f'Final accuracy: {accuracy:.4f}')
+   
