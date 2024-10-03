@@ -13,18 +13,23 @@ import copy
 import warnings
 from decord import VideoReader, cpu
 
-warnings.filterwarnings("ignore")
-# Load the OneVision model
-pretrained = "lmms-lab/llava-onevision-qwen2-7b-ov"
-model_name = "llava_qwen"
-device = "cuda"
-device_map = "auto"
-tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name, device_map=device_map, attn_implementation="sdpa")
+def llava_inference(video_frames, gt, logger, num_frames=16, llm_size='7b'):
 
-model.eval()
+    warnings.filterwarnings("ignore")
+    # Load the OneVision model
+    pretrained = f"lmms-lab/llava-onevision-qwen2-{llm_size}-ov"
+    logger.info(f"Loading model {pretrained}")
+    model_name = "llava_qwen"
+    device = "cuda"
+    device_map = "auto"
+    tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name, device_map=device_map, attn_implementation="sdpa")
 
-def llava_inference(video_frames, gt):
+    model.eval()
     video_frames = video_frames[0]
+
+    temporal_stride = 16 // num_frames
+
+    video_frames = video_frames[::temporal_stride]
     image_tensors = []
     frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].half().cuda()
     image_tensors.append(frames)
