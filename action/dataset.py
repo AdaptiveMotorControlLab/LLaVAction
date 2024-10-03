@@ -446,12 +446,13 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         letters = [chr(65+i) for i in range(26)][:self.topk_predictions]
         options = list(range(26))[:self.topk_predictions]
         
-        
+        # wrong answer can come from any valid gt
         wrong_answer_indices = np.random.choice(len(self.valid_gts), size = 5, replace = False)
         wrong_answers = [self.valid_gts[index] for index in wrong_answer_indices]
         for i in range(len(wrong_answers)):
             options[i] =  f'{letters[i]}. {wrong_answers[i]}'
-            
+
+        # correct answer must come from the available letters
         correct_answer_index =  np.random.choice(len(letters), size=1, replace=False)[0]
         correct_answer_letter = letters[correct_answer_index]
 
@@ -460,7 +461,9 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         data = {
             'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer'},
             'option': {0: options},
+            # the correct letter in mc
             'answer': {0: correct_answer_letter},
+            # for inspecting
             'answer_name': {0: f'{verb} {noun}'}
         }
        
@@ -637,10 +640,7 @@ def prepare_llava():
     return tokenizer, model, image_processor, max_length
 
 
-def get_topk_predictions(prediction_file, idx,  k):
-
-    with open(prediction_file, 'r') as f:
-        data = json.load(f)
+def get_topk_predictions(data, idx,  k):
 
     letters = [chr(65+i) for i in range(26)][:k]
     options = list(range(26))[:k]
@@ -711,6 +711,9 @@ if __name__ == '__main__':
     pretrained = f"lmms-lab/llava-onevision-qwen2-{args.llm_size}-ov"
 
     tokenizer, model, image_processor, max_length = prepare_llava()
+
+    with open(args.action_predictions, 'r') as f:
+        predictions = json.load(f)
     
     for idx, (frames, mc_data) in tqdm(enumerate(val_dataloader)):
 
@@ -719,7 +722,7 @@ if __name__ == '__main__':
         gts.append(gt)
         
         if args.action_predictions:
-            mc_data = get_topk_predictions(args.action_predictions, idx, args.topk_predictions)
+            mc_data = get_topk_predictions(predictions, idx, args.topk_predictions)
 
         
         pred = llava_inference(frames, tokenizer, model, image_processor, max_length, mc_data,  num_frames=args.llava_num_frames)
