@@ -67,8 +67,8 @@ datasets:
   #   sampling_strategy: "all"
   # - json_path: /mnt/bn/vl-research/data/llava_instruct/real_vision_flan/mathqa_29837.json
   #   sampling_strategy: "all"
-  - json_path: /media/data/haozhe/VFM/onevision/llava_instruct/geo3k.json
-  # - json_path: /mediaPFM/data/haozhe/onevision/llava_instruct/geo3k.json
+  # - json_path: /media/data/haozhe/VFM/onevision/llava_instruct/geo3k.json
+  - json_path: /mediaPFM/data/haozhe/onevision/llava_instruct/geo3k.json
     sampling_strategy: "all"
   # - json_path: /mnt/bn/vl-research/data/llava_instruct/real_vision_flan/geo170k_qa_converted_67833.json
   #   sampling_strategy: "first:10%"
