@@ -440,22 +440,24 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
             frames = self.transform(frames)
        
         verb, noun = label.split(':')
-
         verb, noun = self.verbs[int(verb)], self.nouns[int(noun)]
 
         letters = [chr(65+i) for i in range(26)][:self.topk_predictions]
         options = list(range(26))[:self.topk_predictions]
-        
+        option_names = []
         # wrong answer can come from any valid gt
         wrong_answer_indices = np.random.choice(len(self.valid_gts), size = 5, replace = False)
         wrong_answers = [self.valid_gts[index] for index in wrong_answer_indices]
         for i in range(len(wrong_answers)):
             options[i] =  f'{letters[i]}. {wrong_answers[i]}'
+            option_names.append(wrong_answers[i])
 
         # correct answer must come from the available letters
         correct_answer_index =  np.random.choice(len(letters), size=1, replace=False)[0]
         correct_answer_letter = letters[correct_answer_index]
 
+        option_names[correct_answer_index] = f'{verb} {noun}'
+        
         options[correct_answer_index] = f'{correct_answer_letter}. {verb} {noun}'
 
         data = {
@@ -467,7 +469,7 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
             'answer_name': {0: f'{verb} {noun}'}
         }
        
-        return frames, data      
+        return frames, data, option_names 
 
 
 def get_downstream_dataset(transform, crop_size, args, subset='train', label_mapping=None, labels = None):
@@ -644,18 +646,19 @@ def get_topk_predictions(data, idx,  k):
 
     letters = [chr(65+i) for i in range(26)][:k]
     options = list(range(26))[:k]
-    
-    predictions = data[str(idx)]['predictions'][:k]
 
+    predictions = data[str(idx)]['predictions'][:k]    
+    predictions = [e.replace(':', ' ') for e in predictions]
+        
     for i in range(len(options)):
         options[i] = f'{letters[i]}. {predictions[i]}'
-            
-    
+                
     mc_data = {
         'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer'},
         'option': {0: options}        
-        }
-    return mc_data
+        }    
+    
+    return mc_data, predictions
     
 
 if __name__ == '__main__':
@@ -712,21 +715,29 @@ if __name__ == '__main__':
 
     tokenizer, model, image_processor, max_length = prepare_llava()
 
-    with open(args.action_predictions, 'r') as f:
-        predictions = json.load(f)
+    if args.action_predictions:
+        with open(args.action_predictions, 'r') as f:
+            predictions = json.load(f)
+        
+    avaion_correct = 0
     
-    for idx, (frames, mc_data) in tqdm(enumerate(val_dataloader)):
+    for idx, (frames, mc_data, option_names) in tqdm(enumerate(val_dataloader)):
 
         gt = mc_data['answer'][0][0]
+
+        gt_name = mc_data['answer_name'][0][0]
         
-        gts.append(gt)
+        gts.append(gt_name)
         
         if args.action_predictions:
-            mc_data = get_topk_predictions(predictions, idx, args.topk_predictions)
-
+            mc_data, avaion_pred = get_topk_predictions(predictions, idx, args.topk_predictions)    
+            if gt_name == avaion_pred[0]:
+                avaion_correct+=1
+            else:
+                pass
         
         pred = llava_inference(frames, tokenizer, model, image_processor, max_length, mc_data,  num_frames=args.llava_num_frames)
-
+        
         # if valid letter is found in the prediction, then we will use that as the prediction
         found = False
         
@@ -738,17 +749,38 @@ if __name__ == '__main__':
         if not found:
             pred = 'N/A'
 
-
-        preds.append(pred)
+        if args.action_predictions:
+            if pred in valid_letters:
+                pred_index = valid_letters.index(pred)
+                pred_name = avaion_pred[pred_index]                
+            else:
+                pred_name = 'N/A'                
+        else:
+            if pred in valid_letters:
+                pred_index = valid_letters.index(pred)            
+                pred_name = option_names[pred_index][0]
+            else:
+                pred_name = 'N/A'
+            
+        print ('gt_name', gt_name)
+        print ('pred_name', pred_name)
+            
+        preds.append(pred_name)
 
         # Update running corrects and total samples
-        running_corrects += (pred == gt)
+        running_corrects += (pred_name == gt_name)
         total_samples += 1
 
         # Calculate and log running mean accuracy
         running_accuracy = running_corrects / total_samples
+
         logger.info(f'Running accuracy after {total_samples} samples: {running_accuracy:.4f}')
 
+        if args.action_predictions:
+            avaion_accuracy = avaion_correct / total_samples
+            logger.info(f'Running avaion accuracy after {total_samples} samples: {avaion_accuracy:.4f}')        
+        
+        
     gts = np.array(gts)
     preds = np.array(preds)
     # get final accuracy 

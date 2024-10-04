@@ -31,7 +31,7 @@ def llava_inference(video_frames, tokenizer, model, image_processor, max_length,
     option = mc_data['option'][0]
 
     question = f"{DEFAULT_IMAGE_TOKEN}\n{question}:{option}"   
-
+    
     conv = copy.deepcopy(conv_templates[conv_template])
     conv.append_message(conv.roles[0], question)
     conv.append_message(conv.roles[1], None)
