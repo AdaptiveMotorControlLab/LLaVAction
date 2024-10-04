@@ -445,15 +445,21 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         letters = [chr(65+i) for i in range(26)][:self.topk_predictions]
         options = list(range(26))[:self.topk_predictions]
         option_names = []
-        # wrong answer can come from any valid gt
-        wrong_answer_indices = np.random.choice(len(self.valid_gts), size = 5, replace = False)
+
+        # randomly sample topk actions from valid gts
+        
+        wrong_answer_indices = np.random.choice(len(self.valid_gts), size = args.topk_predictions, replace = False)
+        
         wrong_answers = [self.valid_gts[index] for index in wrong_answer_indices]
+        
         for i in range(len(wrong_answers)):
             options[i] =  f'{letters[i]}. {wrong_answers[i]}'
             option_names.append(wrong_answers[i])
 
         # correct answer must come from the available letters
+        
         correct_answer_index =  np.random.choice(len(letters), size=1, replace=False)[0]
+        
         correct_answer_letter = letters[correct_answer_index]
 
         option_names[correct_answer_index] = f'{verb} {noun}'
