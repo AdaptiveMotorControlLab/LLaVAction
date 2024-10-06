@@ -45,7 +45,7 @@ from llava.train.llava_trainer import LLaVATrainer
 from llava import conversation as conversation_lib
 from llava.model import *
 from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token
-from llava.utils import rank0_print, process_video_with_pyav, process_video_with_decord
+from llava.utils import rank0_print, process_video_with_pyav, process_video_with_decord, process_EK100_video_with_decord
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -1152,9 +1152,13 @@ class LazySupervisedDataset(Dataset):
             sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
 
         elif "video" in sources[0]:
-            video_file = self.list_data_dict[i]["video"]
+            video_info = self.list_data_dict[i]["video"]
             video_folder = os.path.join(self.data_args.video_folder, sources[0]['dataset_name'])
-            video_file = os.path.join(video_folder, video_file)
+            if 'EK100' in video_folder:
+                video_file = os.path.join(video_folder, video_info.split("-")[0], video_info.split("-")[1]+".MP4")
+            else:
+                video_file = os.path.join(video_folder, video_info)
+
             suffix = video_file.split(".")[-1]
             if not os.path.exists(video_file):
                 print("File {} not exist!".format(video_file))
@@ -1191,6 +1195,10 @@ class LazySupervisedDataset(Dataset):
                                 video.append(frame)
                         except IOError:
                             print(f"Failed to read frame at path: {frame_path}")
+                elif 'EK100' in video_file:
+                    start_second = float(self.list_data_dict[i]['start_timestamp'])
+                    end_second = float(self.list_data_dict[i]['end_timestamp'])
+                    video, video_time, frame_time, num_frames_to_sample = process_EK100_video_with_decord(video_file, self.data_args, start_second, end_second, 15)
                 else:
                     video, video_time, frame_time, num_frames_to_sample = process_video_with_decord(video_file, self.data_args)
 

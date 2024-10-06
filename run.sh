@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Export environment variables
-export CUDA_VISIBLE_DEVICES="0,1"
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
 export OMP_NUM_THREADS="8"
 export NCCL_IB_DISABLE="0"
 export NCCL_IB_GID_INDEX="3"
@@ -12,14 +12,14 @@ export ACCELERATE_CPU_AFFINITY="1"
 export WANDB_API_KEY="65aeda82a75f1eed29c8e9250b175fcc73dca0d7"
 
 # Run the command using torchrun
-torchrun --nproc_per_node=2 \
+torchrun --nproc_per_node=4 \
          --nnodes=1 \
          --node_rank=0 \
          --master_addr=127.0.0.1 \
          --master_port=29500 \
          llava/train/train_mem.py \
          --deepspeed scripts/zero3.json \
-         --model_name_or_path lmms-lab/llava-onevision-qwen2-7b-ov \
+         --model_name_or_path lmms-lab/llava-onevision-qwen2-0.5b-ov \
          --version qwen_1_5 \
          --data_path scripts/train/onevision.yaml \
          --image_folder /media/data/haozhe/VFM/onevision/llava_data/geo3k/ \
@@ -60,4 +60,4 @@ torchrun --nproc_per_node=2 \
          --torch_compile True \
          --torch_compile_backend inductor \
          --dataloader_drop_last True \
-         --frames_upbound 32  > test7b.out 2>&1
+         --frames_upbound 32  > train_kitchen0.5b.out 2>&1
