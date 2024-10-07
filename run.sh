@@ -36,8 +36,8 @@ torchrun --nproc_per_node=4 \
          --image_grid_pinpoints "(1x1),...,(6x6)" \
          --mm_patch_merge_type spatial_unpad \
          --bf16 True \
-         --run_name test1 \
-         --output_dir experiments/test1 \
+         --run_name EK100_test \
+         --output_dir experiments/EK100_test \
          --num_train_epochs 1 \
          --per_device_train_batch_size 1 \
          --per_device_eval_batch_size 4 \
@@ -60,4 +60,4 @@ torchrun --nproc_per_node=4 \
          --torch_compile True \
          --torch_compile_backend inductor \
          --dataloader_drop_last True \
-         --frames_upbound 32  > train_kitchen0.5b.out 2>&1
+         --frames_upbound 32  > train_kitchen_0.5b.out 2>&1
