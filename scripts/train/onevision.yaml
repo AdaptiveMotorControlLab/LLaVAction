@@ -68,8 +68,8 @@ datasets:
   # - json_path: /mnt/bn/vl-research/data/llava_instruct/real_vision_flan/mathqa_29837.json
   #   sampling_strategy: "all"
   # - json_path: /media/data/haozhe/VFM/onevision/llava_instruct/geo3k.json
-  - json_path: /mediaPFM/data/haozhe/onevision/llava_instruct/geo3k.json
-    sampling_strategy: "all"
+  # - json_path: /mediaPFM/data/haozhe/onevision/llava_instruct/geo3k.json
+  #   sampling_strategy: "all"
   # - json_path: /mnt/bn/vl-research/data/llava_instruct/real_vision_flan/geo170k_qa_converted_67833.json
   #   sampling_strategy: "first:10%"
   # - json_path: /mnt/bn/vl-research/data/llava_instruct/real_vision_flan/geo170k_align_converted_60252.json
@@ -183,4 +183,7 @@ datasets:
   # - json_path: /mnt/bn/vl-research/data/llava_instruct/real_vision_flan/0718_0_30_s_academic_mc_v0_1_all.json # will be released in next version of LLaVA-NeXT-Video
   #   sampling_strategy: all
   # - json_path: /media/data/haozhe/VFM/onevision/llava_instruct/sharegpt4video.json # download from sharegpt4video
-  #   sampling_strategy: all
+  # - json_path: /mediaPFM/data/haozhe/onevision/llava_instruct/sharegpt4video.json
+  #   sampling_strategy: "first:10%"
+  - json_path: /media/data/haozhe/VFM/onevision/llava_instruct/train_convs_narration.jsonl
+    sampling_strategy: all
