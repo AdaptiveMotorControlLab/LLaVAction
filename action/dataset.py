@@ -438,10 +438,12 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         # apply transformation
         if self.transform is not None:
             frames = self.transform(frames)
-       
+        
         verb, noun = label.split(':')
         verb, noun = self.verbs[int(verb)], self.nouns[int(noun)]
 
+        noun = noun.replace(':', ' ')
+        
         letters = [chr(65+i) for i in range(26)][:self.topk_predictions]
         options = list(range(26))[:self.topk_predictions]
         option_names = []
@@ -458,12 +460,10 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
 
         # correct answer must come from the available letters
         
-        correct_answer_index =  np.random.choice(len(letters), size=1, replace=False)[0]
-        
+        correct_answer_index =  np.random.choice(len(wrong_answers), size=1, replace=False)[0]        
         correct_answer_letter = letters[correct_answer_index]
 
-        option_names[correct_answer_index] = f'{verb} {noun}'
-        
+        option_names[correct_answer_index] = f'{verb} {noun}'        
         options[correct_answer_index] = f'{correct_answer_letter}. {verb} {noun}'
 
         data = {
@@ -633,7 +633,7 @@ def get_args_parser():
 
     return parser
 
-def prepare_llava():
+def prepare_llava(pretrained):
 
     import warnings
     from llava.model.builder import load_pretrained_model    
@@ -653,9 +653,11 @@ def get_topk_predictions(data, idx,  k):
     letters = [chr(65+i) for i in range(26)][:k]
     options = list(range(26))[:k]
 
-    predictions = data[str(idx)]['predictions'][:k]    
+    predictions = data[str(idx)]['predictions'][:k]
+    target =  data[str(idx)]['target']
+    
     predictions = [e.replace(':', ' ') for e in predictions]
-        
+    
     for i in range(len(options)):
         options[i] = f'{letters[i]}. {predictions[i]}'
                 
@@ -663,9 +665,10 @@ def get_topk_predictions(data, idx,  k):
         'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer'},
         'option': {0: options}        
         }    
+
+    return mc_data, predictions, target
     
-    return mc_data, predictions
-    
+
 
 if __name__ == '__main__':
     from moviepy.editor import ImageSequenceClip
@@ -719,7 +722,7 @@ if __name__ == '__main__':
 
     pretrained = f"lmms-lab/llava-onevision-qwen2-{args.llm_size}-ov"
 
-    tokenizer, model, image_processor, max_length = prepare_llava()
+    tokenizer, model, image_processor, max_length = prepare_llava(pretrained)
 
     if args.action_predictions:
         with open(args.action_predictions, 'r') as f:
@@ -736,12 +739,11 @@ if __name__ == '__main__':
         gts.append(gt_name)
         
         if args.action_predictions:
-            mc_data, avaion_pred = get_topk_predictions(predictions, idx, args.topk_predictions)    
-            if gt_name == avaion_pred[0]:
+            mc_data, avaion_pred, target = get_topk_predictions(predictions, idx, args.topk_predictions)
+            target = target.replace(':', ' ')
+            if target == avaion_pred[0]:
                 avaion_correct+=1
-            else:
-                pass
-        
+
         pred = llava_inference(frames, tokenizer, model, image_processor, max_length, mc_data,  num_frames=args.llava_num_frames)
         
         # if valid letter is found in the prediction, then we will use that as the prediction
@@ -756,25 +758,23 @@ if __name__ == '__main__':
             pred = 'N/A'
 
         if args.action_predictions:
-            if pred in valid_letters:
+            if found:
                 pred_index = valid_letters.index(pred)
-                pred_name = avaion_pred[pred_index]                
+                pred_name = avaion_pred[pred_index]
+                
             else:
                 pred_name = 'N/A'                
         else:
-            if pred in valid_letters:
+            if found:
                 pred_index = valid_letters.index(pred)            
                 pred_name = option_names[pred_index][0]
             else:
                 pred_name = 'N/A'
-            
-        print ('gt_name', gt_name)
-        print ('pred_name', pred_name)
-            
+                            
         preds.append(pred_name)
 
         # Update running corrects and total samples
-        running_corrects += (pred_name == gt_name)
+        running_corrects += (pred_name == target)
         total_samples += 1
 
         # Calculate and log running mean accuracy
