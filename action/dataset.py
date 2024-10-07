@@ -671,7 +671,6 @@ def get_topk_predictions(data, idx,  k):
 
 
 if __name__ == '__main__':
-    from moviepy.editor import ImageSequenceClip
     import torchvision
     import torchvision.transforms._transforms_video as transforms_video
     
