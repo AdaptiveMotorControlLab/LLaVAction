@@ -630,7 +630,8 @@ def get_args_parser():
     ## avaion refinement 
     parser.add_argument('--action_predictions', default=None, type=str, help='path to action predictions')
     parser.add_argument('--topk_predictions', default = 5, type =int)
-
+    parser.add_argument('--llava_checkpoint', default = None, type = str)
+    
     return parser
 
 def prepare_llava(pretrained):
@@ -639,7 +640,6 @@ def prepare_llava(pretrained):
     from llava.model.builder import load_pretrained_model    
     warnings.filterwarnings("ignore")
     # Load the OneVision model
-    #pretrained = f"lmms-lab/llava-onevision-qwen2-{llm_size}-ov"
     model_name = "llava_qwen"
 
     device_map = "auto"
@@ -722,6 +722,9 @@ if __name__ == '__main__':
 
     pretrained = f"lmms-lab/llava-onevision-qwen2-{args.llm_size}-ov"
 
+    if args.llava_checkpoint:
+        pretrained = args.llava_checkpoint
+    
     tokenizer, model, image_processor, max_length = prepare_llava(pretrained)
 
     if args.action_predictions:
