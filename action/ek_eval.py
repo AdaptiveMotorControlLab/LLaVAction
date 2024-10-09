@@ -667,7 +667,7 @@ def evaluate_on_EK100(eval_args, model= None, tokenizer= None, max_length= None,
     for idx, (frames, mc_data, option_names) in tqdm(enumerate(val_dataloader)):
         gt = mc_data['answer'][0][0]
         gt_name = mc_data['answer_name'][0][0]        
-        gts.append(gt_name)        
+                
         if eval_args.action_predictions:
             mc_data, avaion_pred, target = get_topk_predictions(predictions, idx, eval_args.topk_predictions)
             target = target.replace(':', ' ')
@@ -676,7 +676,7 @@ def evaluate_on_EK100(eval_args, model= None, tokenizer= None, max_length= None,
         # we don't want to evaluate the whole thing
         if finish_early and idx>9:
             break
-
+        
         pred = llava_inference(frames, tokenizer, model, image_processor, max_length, mc_data,  clip_length = eval_args.clip_length, num_frames=eval_args.llava_num_frames)
         
         # if valid letter is found in the prediction, then we will use that as the prediction
@@ -704,7 +704,7 @@ def evaluate_on_EK100(eval_args, model= None, tokenizer= None, max_length= None,
                 pred_name = option_names[pred_index][0]
             else:
                 pred_name = 'N/A'
-                            
+        gts.append(gt_name)                 
         preds.append(pred_name)
 
         # Update running corrects and total samples
