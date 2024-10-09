@@ -19,7 +19,7 @@ def llava_inference(video_frames, tokenizer, model, image_processor, max_length,
     model.eval()    
     device = "cuda"    
     video_frames = video_frames[0]
-    temporal_stride = 16 // num_frames
+    temporal_stride = 32 // num_frames
     video_frames = video_frames[::temporal_stride]
     image_tensors = []
     frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].half().cuda()

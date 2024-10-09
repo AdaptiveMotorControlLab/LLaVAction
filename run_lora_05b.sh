@@ -36,8 +36,8 @@ torchrun --nproc_per_node=4 \
          --image_grid_pinpoints "(1x1),...,(6x6)" \
          --mm_patch_merge_type spatial_unpad \
          --bf16 True \
-         --run_name EK100_test_new \
-         --output_dir experiments/EK100_test_new \
+         --run_name EK100_lora_05b_new \
+         --output_dir experiments/EK100_lora_05b_new \
          --num_train_epochs 1 \
          --per_device_train_batch_size 1 \
          --per_device_eval_batch_size 4 \
@@ -46,7 +46,7 @@ torchrun --nproc_per_node=4 \
          --save_strategy steps \
          --save_steps 1000 \
          --save_total_limit 1 \
-         --learning_rate 1e-5 \
+         --learning_rate 1e-4 \
          --weight_decay 0. \
          --warmup_ratio 0.03 \
          --lr_scheduler_type cosine \
@@ -60,4 +60,8 @@ torchrun --nproc_per_node=4 \
          --torch_compile True \
          --torch_compile_backend inductor \
          --dataloader_drop_last True \
-         --frames_upbound 32  > train_kitchen_0.5b_new.out 2>&1
+         --frames_upbound 32 \
+         --lora_enable True \
+         --lora_r 128 \
+         --lora_alpha 256 \
+         --mm_projector_lr 2e-5 > train_kitchen_lora_0.5b_new.out 2>&1
