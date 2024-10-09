@@ -90,13 +90,12 @@
 //             "request": "launch",
 //             "program": "docs/LLaVA_OneVision_Tutorials.py",
 //             "console": "integratedTerminal",
-//             "env":{"CUDA_VISIBLE_DEVICES":"0",
-//                    "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/libffi.so.7"},
+//             "env":{
+//                 "CUDA_VISIBLE_DEVICES":"0",
+//                 // "HF_HOME": "/mnt/SV_storage/VFM/huggingface",
+//                 // "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/libffi.so.7"
+//                 },
 //             "justMyCode": false,
-//             // "args": [
-//             //     "--run_dir_name", "test",
-//             //     // "--use_big_decoder"
-//             // ]
 //         }
 //     ]
 // }

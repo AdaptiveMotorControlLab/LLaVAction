@@ -71,6 +71,20 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                 lora_cfg_pretrained = LlavaMistralConfig.from_pretrained(model_path)
                 tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
                 model = LlavaMistralForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, attn_implementation=attn_implementation, **kwargs)
+            
+            elif "qwen" in model_name.lower() or "quyen" in model_name.lower():
+
+                tokenizer = AutoTokenizer.from_pretrained(model_base)
+                if "moe" in model_name.lower() or "A14B" in model_name.lower():
+                    from llava.model.language_model.llava_qwen_moe import LlavaQwenMoeConfig
+                    lora_cfg_pretrained = LlavaQwenMoeConfig.from_pretrained(model_path)
+                    model = LlavaQwenMoeForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, attn_implementation=attn_implementation, config=lora_cfg_pretrained, **kwargs)
+                else:
+                    from llava.model.language_model.llava_qwen import LlavaQwenConfig
+                    lora_cfg_pretrained = LlavaQwenConfig.from_pretrained(model_path)
+                    model = LlavaQwenForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True, attn_implementation=attn_implementation, config=lora_cfg_pretrained, **kwargs)
+
+            
             elif "gemma" in model_name.lower():
                 from llava.model.language_model.llava_gemma import LlavaGemmaConfig
 
