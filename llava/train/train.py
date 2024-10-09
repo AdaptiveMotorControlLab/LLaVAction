@@ -165,7 +165,7 @@ class TrainingArguments(transformers.TrainingArguments):
     verbose_logging: bool = field(default=False)
     # attn_implementation: str = field(default='sdpa', metadata={"help": "Use transformers attention implementation."})
     attn_implementation: str = field(default='flash_attention_2', metadata={"help": "Use transformers attention implementation."})
-
+    overwrite_output_dir: bool =True
 
 # @dataclass
 # class EvaluationArguments:
@@ -183,6 +183,25 @@ class TrainingArguments(transformers.TrainingArguments):
 #     gen_kwargs: Optional[str] = field(default="")
 #     log_samples_suffix: Optional[str] = field(default="")
 #     output_path: Optional[str] = field(default="./logs/")
+
+# for EK100
+@dataclass
+class EK100EvalArguments:
+    root: str = ""
+    action_predictions: str = ""
+    llava_num_frames: int = 16
+    llm_size:str = "0.5b"
+    val_metadata: str = ""
+    num_clips: int = 1
+    video_chunk_length: int = 15
+    clip_stride: int = 2
+    dataset: str =  'ek100_cls'
+    clip_length: int = 16
+    fused_decode_crop: bool= False
+    decode_threads: int = 1
+    topk_predictions: int = 5
+
+
 
 
 def maybe_zero_3(param, ignore_status=False, name=None):
@@ -258,6 +277,9 @@ def find_all_linear_names(model):
 
 def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: str):
     """Collects the state dict and dump to disk."""
+
+    # before save, let's do a evaluation first   
+
     if hasattr(trainer.args, "tune_mm_mlp_adapter") and trainer.args.tune_mm_mlp_adapter:
         check_only_save_mm_adapter_tunnable = True
     # only has mm_mlp_adapter and mm_vision_resampler in the tuneable parts
@@ -1455,11 +1477,13 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
     return model
 
 
+
+
 def train(attn_implementation=None):
     global local_rank
 
-    parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, EK100EvalArguments))
+    model_args, data_args, training_args, eval_args = parser.parse_args_into_dataclasses()
 
     if training_args.verbose_logging:
         rank0_print(f"Inspecting experiment hyperparameters:\n")
@@ -1699,8 +1723,14 @@ def train(attn_implementation=None):
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
-    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
-    trainer = LLaVATrainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
+    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)   
+
+    trainer = LLaVATrainer(model=model, 
+                           tokenizer = tokenizer, 
+                           eval_args = eval_args, 
+                           model_max_length = training_args.model_max_length,
+                           args=training_args, **data_module)
+    
 
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
@@ -1721,7 +1751,7 @@ def train(attn_implementation=None):
             model.save_pretrained(training_args.output_dir, state_dict=state_dict)
             torch.save(non_lora_state_dict, os.path.join(training_args.output_dir, "non_lora_trainables.bin"))
     else:
-        safe_save_model_for_hf_trainer(trainer=trainer, output_dir=training_args.output_dir)
+        safe_save_model_for_hf_trainer(trainer, training_args.output_dir)
 
     rank0_print(f"Model saved to {training_args.output_dir}")
 

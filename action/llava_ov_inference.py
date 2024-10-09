@@ -14,15 +14,23 @@ import warnings
 from decord import VideoReader, cpu
 
 
-def llava_inference(video_frames, tokenizer, model, image_processor, max_length, mc_data, num_frames=16):
+def llava_inference(video_frames, 
+    tokenizer, 
+    model, 
+    image_processor, 
+    max_length, 
+    mc_data,
+    clip_length = 16,
+    num_frames=16):
 
     model.eval()    
     device = "cuda"    
     video_frames = video_frames[0]
-    temporal_stride = 16 // num_frames
+    temporal_stride = clip_length // num_frames
     video_frames = video_frames[::temporal_stride]
     image_tensors = []
-    frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].half().cuda()
+    #frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].half().cuda()
+    frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].cuda().to(torch.bfloat16)
     image_tensors.append(frames)
 
     conv_template = "qwen_1_5"
@@ -30,7 +38,7 @@ def llava_inference(video_frames, tokenizer, model, image_processor, max_length,
     question = mc_data['question'][0]
     option = mc_data['option'][0]
 
-    question = f"{DEFAULT_IMAGE_TOKEN}\n{question}:{option}"   
+    question = f"{DEFAULT_IMAGE_TOKEN}\n{question}:{option}"     
     
     conv = copy.deepcopy(conv_templates[conv_template])
     conv.append_message(conv.roles[0], question)
