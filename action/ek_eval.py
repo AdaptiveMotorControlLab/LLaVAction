@@ -18,7 +18,7 @@ from action.llava_ov_inference import llava_inference
 import json
 import logging
 from llava.utils import rank0_print
-
+from action.utils import generate_label_map
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
@@ -453,8 +453,7 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
 
         # randomly sample topk actions from valid gts
         
-        wrong_answer_indices = np.random.choice(len(self.valid_gts), size = self.eval_args.topk_predictions, replace = False)
-        
+        wrong_answer_indices = np.random.choice(len(self.valid_gts), size = self.eval_args.topk_predictions, replace = False)        
         wrong_answers = [self.valid_gts[index] for index in wrong_answer_indices]
         
         for i in range(len(wrong_answers)):
@@ -499,37 +498,6 @@ def get_downstream_dataset(transform, crop_size, eval_args, subset='train', labe
         )
     else:
         assert ValueError("subset should be either 'train' or 'val'")
-
-
-def generate_label_map(eval_args):
-    print("Preprocess ek100 action label space")
-    vn_list = []
-    mapping_vn2narration = {}
-    anno_root = Path(eval_args.val_metadata).parent
-    for f in [      
-        anno_root / 'EPIC_100_train.csv',
-        anno_root / 'EPIC_100_validation.csv',
-    ]:
-        csv_reader = csv.reader(open(f))
-        _ = next(csv_reader)  # skip the header
-        for row in csv_reader:
-            
-            vn = '{}:{}'.format(int(row[10]), int(row[12]))
-            narration = row[8]
-            if vn not in vn_list:
-                vn_list.append(vn)
-            if vn not in mapping_vn2narration:
-                mapping_vn2narration[vn] = [narration]
-            else:
-                mapping_vn2narration[vn].append(narration)
-            # mapping_vn2narration[vn] = [narration]
-    vn_list = sorted(vn_list)
-    print('# of action= {}'.format(len(vn_list)))
-    mapping_vn2act = {vn: i for i, vn in enumerate(vn_list)}
-
-    labels = [list(set(mapping_vn2narration[vn_list[i]])) for i in range(len(mapping_vn2act))]
-    print(labels[:5])    
-    return labels, mapping_vn2act
 
 
 def get_args_parser():
@@ -596,9 +564,7 @@ def get_topk_predictions(data, idx,  k):
         'option': {0: options}        
         }    
 
-    return mc_data, predictions, target
-    
-
+    return mc_data, predictions, target    
 
 def evaluate_on_EK100(eval_args, model= None, tokenizer= None, max_length= None, image_processor= None):
 
@@ -611,7 +577,7 @@ def evaluate_on_EK100(eval_args, model= None, tokenizer= None, max_length= None,
 
     crop_size = 336
 
-    labels, mapping_vn2act = generate_label_map(eval_args) 
+    labels, mapping_vn2act, _, _ = generate_label_map(Path(eval_args.val_metadata).parent) 
     val_dataset = get_downstream_dataset(
         val_transform_gpu, crop_size, eval_args, subset='val', label_mapping=mapping_vn2act,
         labels = labels

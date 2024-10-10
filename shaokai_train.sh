@@ -38,8 +38,8 @@ torchrun --nproc_per_node=4 \
          --image_grid_pinpoints "(1x1),...,(6x6)" \
          --mm_patch_merge_type spatial_unpad \
          --bf16 True \
-         --run_name shaokai_llama_ov_0.5b_debug \
-         --output_dir experiments/shaokai_llama_ov_0.5b_debug \
+         --run_name shaokai_llama_ov_0.5b_random_mc \
+         --output_dir experiments/shaokai_llama_ov_0.5b_random_mc \
          --num_train_epochs 1 \
          --per_device_train_batch_size 1 \
          --per_device_eval_batch_size 4 \

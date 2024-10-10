@@ -216,9 +216,9 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                 else:
                     from llava.model.language_model.llava_qwen import LlavaQwenConfig
 
-                    if overwrite_config is not None:
+                    #if overwrite_config is not None:
+                    if True:
                         llava_cfg = LlavaQwenConfig.from_pretrained(model_path)
-                        rank0_print(f"Overwriting config with {overwrite_config}")
                         for k, v in overwrite_config.items():
                             setattr(llava_cfg, k, v)
                         model = LlavaQwenForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, attn_implementation=attn_implementation, config=llava_cfg, **kwargs)

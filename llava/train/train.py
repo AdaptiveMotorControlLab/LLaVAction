@@ -1733,7 +1733,9 @@ def train(attn_implementation=None):
     
 
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
-        trainer.train(resume_from_checkpoint=True)
+        #trainer.train(resume_from_checkpoint=True)
+        # for debug purpose, let's not resume
+        trainer.train()
     else:
         trainer.train()
     trainer.save_state()
