@@ -79,9 +79,6 @@ def generate_random_mc_conversation(options:list[str], gt_answer_letter, gt_answ
         {"from": "gpt", "value": f"{gt_answer_letter}. {gt_answer_name}"} 
     ]
 
-def generate_avion_mc_conversation():
-    pass
-
 
 def get_args():
     parser = argparse.ArgumentParser(description="For generating VQA for EPIC-KITCHEN")

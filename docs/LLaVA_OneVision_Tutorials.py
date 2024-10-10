@@ -73,11 +73,15 @@ from decord import VideoReader, cpu
 
 warnings.filterwarnings("ignore")
 # Load the OneVision model
-pretrained = "lmms-lab/llava-onevision-qwen2-7b-ov"
-model_name = "llava_qwen"
+# pretrained = "/mnt/SV_storage/VFM/huggingface/hub/models--lmms-lab--llava-onevision-qwen2-0.5b-ov/snapshots/381d9947148efb1e58a577f451c05705ceec666e"
+# pretrained = "/mnt/SV_storage/VFM/LLaVA-NeXT/experiments/EK100_quick_config"
+# model_base = None
+pretrained = "/mnt/SV_storage/VFM/LLaVA-NeXT/experiments/EK100_lora_quick_check"
+model_base = "/mnt/SV_storage/VFM/huggingface/hub/models--lmms-lab--llava-onevision-qwen2-0.5b-ov/snapshots/381d9947148efb1e58a577f451c05705ceec666e"
+model_name = "lora_llava_qwen"
 device = "cuda"
 device_map = "auto"
-tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name, device_map=device_map, attn_implementation="sdpa")
+tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, model_base, model_name, device_map=device_map, attn_implementation="sdpa")
 
 model.eval()
 
