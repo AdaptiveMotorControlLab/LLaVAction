@@ -18,7 +18,7 @@ from action.llava_ov_inference import llava_inference
 import json
 import logging
 from llava.utils import rank0_print
-from action.utils import generate_label_map
+from action.utils import generate_label_map, MultiChoiceGenerator, match_answer
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
@@ -142,9 +142,7 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
         self.verb_file = str(anno_root / 'EPIC_100_verb_classes.csv')
         self.noun_file = str(anno_root / 'EPIC_100_noun_classes.csv')
         self.verb_df = pd.read_csv(self.verb_file)
-        self.nouns_df = pd.read_csv(self.noun_file)
-        self.nouns = self.nouns_df['key'].to_list()
-        self.verbs = self.verb_df['key'].to_list()
+        self.nouns_df = pd.read_csv(self.noun_file)     
 
         if self.dataset == 'ego4d':
             with open(metadata, 'rb') as f:
@@ -258,130 +256,6 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
         return len(self.samples)
 
 
-class VideoCaptionDatasetCLIP(VideoCaptionDatasetBase):
-    def __init__(self, dataset, root, metadata, transform=None,
-                 is_training=True, tokenizer=None,
-                 chunk_len=300,
-                 clip_length=32, clip_stride=2,
-                 threads=1,
-                 fast_rrc=False,
-                 rrc_params=(224, (0.5, 1.0)),
-                 fast_rcc=False,
-                 rcc_params=(224,),
-                 subsample_stride=None):
-        super().__init__(dataset, root, metadata)
-
-        self.full_samples = self.samples.copy()
-        if isinstance(subsample_stride, int):
-            self.samples = self.samples[::subsample_stride]
-        self.transform = transform
-        self.is_training = is_training
-        self.tokenizer = tokenizer
-        self.chunk_len = chunk_len
-        self.clip_length = clip_length
-        self.clip_stride = clip_stride
-        self.threads = threads
-        self.fast_rrc = fast_rrc
-        self.rrc_params = rrc_params
-        self.fast_rcc = fast_rcc
-        self.rcc_params = rcc_params
-
-    def __getitem__(self, i):
-        frames, caption = self.get_raw_item(
-            i, is_training=self.is_training,
-            chunk_len=self.chunk_len,
-            clip_length=self.clip_length,
-            clip_stride=self.clip_stride,
-            threads=self.threads,
-            fast_rrc=self.fast_rrc,
-            rrc_params=self.rrc_params,
-            fast_rcc=self.fast_rcc,
-            rcc_params=self.rcc_params,
-        )
-
-        # ek100_mir will also output relevancy value
-        if isinstance(caption, tuple):
-            caption, relevancy = caption
-        else:
-            relevancy = 0.
-
-        # apply transformation
-        if self.transform is not None:
-            frames = self.transform(frames)
-
-        # tokenize caption
-        if self.tokenizer is not None:
-            caption = self.tokenizer(caption)[0]
-
-        if isinstance(caption, tuple):
-            caption, mask = caption
-            return frames, caption, mask, relevancy
-        else:
-            return frames, caption, relevancy
-
-
-class VideoClassyDataset(VideoCaptionDatasetBase):
-    def __init__(
-        self, dataset, root, metadata, transform=None,
-        is_training=True, label_mapping=None,
-        num_clips=1,
-        chunk_len=300,
-        clip_length=32, clip_stride=2,
-        threads=1,
-        fast_rrc=False,
-        rrc_params=(224, (0.5, 1.0)),
-        fast_rcc=False,
-        rcc_params=(224,),
-        sparse_sample=False,
-        is_trimmed=True):
-        super().__init__(dataset, root, metadata, is_trimmed=is_trimmed)
-
-        self.transform = transform
-        self.is_training = is_training
-        self.label_mapping = label_mapping
-        self.num_clips = num_clips
-        self.chunk_len = chunk_len
-        self.clip_length = clip_length
-        self.clip_stride = clip_stride
-        self.threads = threads
-        self.fast_rrc = fast_rrc
-        self.rrc_params = rrc_params
-        self.fast_rcc = fast_rcc
-        self.rcc_params = rcc_params
-        self.sparse_sample = sparse_sample
-
-    def __getitem__(self, i):
-        frames, label = self.get_raw_item(
-            i, is_training=self.is_training,
-            chunk_len=self.chunk_len,
-            num_clips=self.num_clips,
-            clip_length=self.clip_length,
-            clip_stride=self.clip_stride,
-            threads=self.threads,
-            fast_rrc=self.fast_rrc,
-            rrc_params=self.rrc_params,
-            fast_rcc=self.fast_rcc,
-            rcc_params=self.rcc_params,
-            sparse_sample=self.sparse_sample,
-        )
-
-        # apply transformation
-        if self.transform is not None:
-            frames = self.transform(frames)
-
-        if self.label_mapping is not None:
-            if isinstance(label, list):
-                # multi-label case
-                res_array = np.zeros(len(self.label_mapping))
-                for lbl in label:
-                    res_array[self.label_mapping[lbl]] = 1.
-                label = res_array
-            else:
-                label = self.label_mapping[label]
-
-        return frames, label
-
-
 class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
     def __init__(
         self, dataset, root, metadata, transform=None,
@@ -398,7 +272,9 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         labels = None,
         is_trimmed=True,
         eval_args = None,
-        topk_predictions = 5    
+        topk_predictions = 5,
+        verb_maps = None,
+        noun_maps = None
     ):
         super().__init__(dataset, root, metadata, is_trimmed=is_trimmed)
 
@@ -415,13 +291,14 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         self.fast_rcc = fast_rcc
         self.rcc_params = rcc_params
         self.sparse_sample = sparse_sample
-        self.valid_gts = []
         self.eval_args = eval_args
-        for verb in self.verbs:
-            for noun in self.nouns:
-                self.valid_gts.append(f'{verb} {noun}')
+        self.verb_maps = verb_maps
+        self.noun_maps = noun_maps
+        self.vn_list = list(self.label_mapping.keys())        
         self.labels = labels
         self.topk_predictions = topk_predictions
+        self.ann_root = Path(metadata).parent
+        self.mc_generator = MultiChoiceGenerator(self.ann_root)
         
     def __getitem__(self, i):
         frames, label = self.get_raw_item(
@@ -442,62 +319,10 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         if self.transform is not None:
             frames = self.transform(frames)
         
-        verb, noun = label.split(':')
-        verb, noun = self.verbs[int(verb)], self.nouns[int(noun)]
-
-        noun = noun.replace(':', ' ')
+        data = self.mc_generator.generate_multi_choice(label, self.topk_predictions)
         
-        letters = [chr(65+i) for i in range(26)][:self.topk_predictions]
-        options = list(range(26))[:self.topk_predictions]
-        option_names = []
+        return frames, data
 
-        # randomly sample topk actions from valid gts
-        
-        wrong_answer_indices = np.random.choice(len(self.valid_gts), size = self.eval_args.topk_predictions, replace = False)        
-        wrong_answers = [self.valid_gts[index] for index in wrong_answer_indices]
-        
-        for i in range(len(wrong_answers)):
-            options[i] =  f'{letters[i]}. {wrong_answers[i]}'
-            option_names.append(wrong_answers[i])
-
-        # correct answer must come from the available letters
-        
-        correct_answer_index =  np.random.choice(len(wrong_answers), size=1, replace=False)[0]        
-        correct_answer_letter = letters[correct_answer_index]
-
-        option_names[correct_answer_index] = f'{verb} {noun}'        
-        options[correct_answer_index] = f'{correct_answer_letter}. {verb} {noun}'
-
-        data = {
-            'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer'},
-            'option': {0: options},
-            # the correct letter in mc
-            'answer': {0: correct_answer_letter},
-            # for inspecting
-            'answer_name': {0: f'{verb} {noun}'}
-        }
-       
-        return frames, data, option_names 
-
-
-def get_downstream_dataset(transform, crop_size, eval_args, subset='train', label_mapping=None, labels = None):
-    
-    if subset == 'val':
-        return VideoMultiChoiceDataset(
-            eval_args.dataset, eval_args.root, eval_args.val_metadata, transform,
-            is_training=False, label_mapping=label_mapping,
-            num_clips=eval_args.num_clips,
-            chunk_len=eval_args.video_chunk_length,
-            clip_length=eval_args.clip_length, clip_stride=eval_args.clip_stride,
-            threads=eval_args.decode_threads,
-            fast_rcc=eval_args.fused_decode_crop, rcc_params=(crop_size, ),
-            is_trimmed=not eval_args.dataset == 'charades_ego',
-            labels = labels,
-            eval_args = eval_args,
-            topk_predictions = eval_args.topk_predictions
-        )
-    else:
-        assert ValueError("subset should be either 'train' or 'val'")
 
 
 def get_args_parser():
@@ -552,19 +377,25 @@ def get_topk_predictions(data, idx,  k):
     options = list(range(26))[:k]
 
     predictions = data[str(idx)]['predictions'][:k]
-    target =  data[str(idx)]['target']
-    
-    predictions = [e.replace(':', ' ') for e in predictions]
-    
+    new_predictions = []
+    for pred in predictions:
+        # the prediction looks like verb:noun1:noun2..
+        # we want to it look like verb noun1:noun2 
+        first_sep = pred.index(':')
+        prediction = pred[:first_sep] + ' ' + pred[first_sep+1:]
+        new_predictions.append(prediction)
+
+    predictions = new_predictions    
     for i in range(len(options)):
+              
         options[i] = f'{letters[i]}. {predictions[i]}'
                 
     mc_data = {
-        'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer. The letter is as A, B, C, ..'},
+        'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer.'},
         'option': {0: options}        
         }    
 
-    return mc_data, predictions, target    
+    return mc_data, predictions[0]
 
 def evaluate_on_EK100(eval_args, model= None, tokenizer= None, max_length= None, image_processor= None):
 
@@ -577,23 +408,29 @@ def evaluate_on_EK100(eval_args, model= None, tokenizer= None, max_length= None,
 
     crop_size = 336
 
-    labels, mapping_vn2act, _, _ = generate_label_map(Path(eval_args.val_metadata).parent) 
-    val_dataset = get_downstream_dataset(
-        val_transform_gpu, crop_size, eval_args, subset='val', label_mapping=mapping_vn2act,
-        labels = labels
-    )
+    labels, mapping_vn2act, verb_maps, noun_maps = generate_label_map(Path(eval_args.val_metadata).parent) 
+
+    val_dataset = VideoMultiChoiceDataset(
+                eval_args.dataset, eval_args.root, eval_args.val_metadata, val_transform_gpu,
+                is_training=False, label_mapping=mapping_vn2act,
+                num_clips=eval_args.num_clips,
+                chunk_len=eval_args.video_chunk_length,
+                clip_length=eval_args.clip_length, clip_stride=eval_args.clip_stride,
+                threads=eval_args.decode_threads,
+                fast_rcc=eval_args.fused_decode_crop, rcc_params=(crop_size, ),
+                is_trimmed=not eval_args.dataset == 'charades_ego',
+                labels = labels,
+                eval_args = eval_args,
+                topk_predictions = eval_args.topk_predictions,
+                verb_maps = verb_maps,
+                noun_maps = noun_maps,
+
+            )
 
     val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False) 
 
-    gts = []
-    preds = []
     running_corrects = 0
-    total_samples = 0
-
-    if eval_args.action_predictions:
-        valid_letters = [chr(65+i) for i in range(26)][:eval_args.topk_predictions]
-    else:
-        valid_letters = ['A', 'B', 'C', 'D', 'E']
+    total_samples = 0    
 
     if not eval_args.action_predictions:        
         log_filename = f'llava_ov_{eval_args.llava_num_frames}f_{eval_args.llm_size}.log'
@@ -630,69 +467,39 @@ def evaluate_on_EK100(eval_args, model= None, tokenizer= None, max_length= None,
         
     avaion_correct = 0    
     
-    for idx, (frames, mc_data, option_names) in tqdm(enumerate(val_dataloader)):
-        gt = mc_data['answer'][0][0]
-        gt_name = mc_data['answer_name'][0][0]        
+    for idx, (frames, mc_data) in tqdm(enumerate(val_dataloader)):
+
+        gt_name = mc_data['gt_answer_name'][0][0]
                 
         if eval_args.action_predictions:
-            mc_data, avaion_pred, target = get_topk_predictions(predictions, idx, eval_args.topk_predictions)
-            target = target.replace(':', ' ')
-            if target == avaion_pred[0]:
+            mc_data, avion_pred = get_topk_predictions(predictions, idx, eval_args.topk_predictions)
+            if gt_name == avion_pred:
                 avaion_correct+=1
+
         # we don't want to evaluate the whole thing
-        if finish_early and idx>9:
+        # let's evaluate 1000 samples to get the complete picture
+        if finish_early and idx>999:
             break
         
         pred = llava_inference(frames, tokenizer, model, image_processor, max_length, mc_data,  clip_length = eval_args.clip_length, num_frames=eval_args.llava_num_frames)
         
         # if valid letter is found in the prediction, then we will use that as the prediction
-        found = False
-        rank0_print ('llava pred', pred)
-        rank0_print ('gt_name', gt_name)
-        for letter in valid_letters:
-            if letter in pred:
-                pred = letter
-                found = True
-                break
-        if not found:
-            pred = 'N/A'
-
-        if eval_args.action_predictions:
-            if found:
-                pred_index = valid_letters.index(pred)
-                pred_name = avaion_pred[pred_index]
-                
-            else:
-                pred_name = 'N/A'                
-        else:
-            if found:
-                pred_index = valid_letters.index(pred)            
-                pred_name = option_names[pred_index][0]
-            else:
-                pred_name = 'N/A'
-        gts.append(gt_name)                 
-        preds.append(pred_name)
+        rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name)        
 
         # Update running corrects and total samples
-        running_corrects += (pred_name == target)
+        running_corrects += (match_answer(pred, gt_name))
         total_samples += 1
 
         # Calculate and log running mean accuracy
         running_accuracy = running_corrects / total_samples
 
-        logger.info(f'Running accuracy after {total_samples} samples: {running_accuracy:.4f}')
-
         if eval_args.action_predictions:
             avaion_accuracy = avaion_correct / total_samples
-            logger.info(f'Running avaion accuracy after {total_samples} samples: {avaion_accuracy:.4f}')        
+
         
-        
-    gts = np.array(gts)
-    preds = np.array(preds)
-    # get final accuracy 
-    accuracy = np.mean(gts == preds)
-    logger.info(f'Final accuracy: {accuracy:.4f}')
-    return accuracy
+    logger.info(f'Running avaion accuracy after {total_samples} samples: {avaion_accuracy:.4f}')         
+    logger.info(f'Final accuracy: {running_accuracy:.4f}')
+    return running_accuracy
 
 
 if __name__ == '__main__':

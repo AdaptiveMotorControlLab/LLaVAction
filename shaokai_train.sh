@@ -45,7 +45,7 @@ torchrun --nproc_per_node=4 \
          --per_device_eval_batch_size 4 \
          --gradient_accumulation_steps 2 \
          --evaluation_strategy steps \
-         --eval_steps 100\
+         --eval_steps 500\
          --save_strategy steps \
          --save_steps 1000 \
          --learning_rate 1e-5 \
