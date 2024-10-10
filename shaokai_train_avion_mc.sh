@@ -8,9 +8,7 @@ export NCCL_IB_GID_INDEX="3"
 export NCCL_SOCKET_IFNAME="eth0"
 export NCCL_DEBUG="INFO"
 export ACCELERATE_CPU_AFFINITY="1"
-# export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libffi.so.7"
 export WANDB_API_KEY="4474ec79de023b0c3ffb43588ab6163264f875db"
-experiment_name="shaokai_llama_ov_0.5b_debug"
 export HF_HOME=/data/shaokai
 
 
@@ -24,7 +22,7 @@ torchrun --nproc_per_node=4 \
          --deepspeed scripts/zero3.json \
          --model_name_or_path lmms-lab/llava-onevision-qwen2-0.5b-ov \
          --version qwen_1_5 \
-         --data_path scripts/train/EK100.yaml \
+         --data_path scripts/train/EK100_avion_mc.yaml \
          --video_folder /data/shaokai/\
          --mm_tunable_parts mm_vision_tower,mm_mlp_adapter,mm_language_model \
          --mm_vision_tower_lr 2e-6 \
@@ -38,8 +36,8 @@ torchrun --nproc_per_node=4 \
          --image_grid_pinpoints "(1x1),...,(6x6)" \
          --mm_patch_merge_type spatial_unpad \
          --bf16 True \
-         --run_name shaokai_llama_ov_0.5b_random_mc \
-         --output_dir experiments/shaokai_llama_ov_0.5b_random_mc \
+         --run_name shaokai_llama_ov_0.5b_avion_mc \
+         --output_dir experiments/shaokai_llama_ov_0.5b_avion_mc \
          --num_train_epochs 1 \
          --per_device_train_batch_size 1 \
          --per_device_eval_batch_size 4 \
@@ -64,7 +62,7 @@ torchrun --nproc_per_node=4 \
          --dataloader_drop_last True \
          --frames_upbound 32 \
          --root /data/shaokai/EK100 \
-         --action_predictions /data/shaokai/avaion_predictions.json \
+         --action_predictions /data/shaokai/avaion_predictions_test.json \
          --val_metadata /data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv \
          --llava_num_frames 16 \
-         --topk_predictions 5 > train_kitchen_0.5b.out 2>&1
+         --topk_predictions 5 > train_kitchen_0.5b_avion_mc.out 2>&1

@@ -2,7 +2,7 @@ import json
 import csv
 import os
 import argparse
-from action.utils import generate_label_map, MultiChoiceGenerator
+from action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator
 from pathlib import Path
 
 
@@ -12,7 +12,7 @@ def datetime2sec(str):
     hh, mm, ss = str.split(':')
     return int(hh) * 3600 + int(mm) * 60 + float(ss)
 
-def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive'):
+def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_prediction_path = ''):
     assert gen_type in GEN_TYPES
     # epic kitchen uses csv
     csv_reader = csv.reader(open(ann_file))
@@ -21,8 +21,12 @@ def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive'):
     ann_root = Path(ann_file).parent
     if gen_type == "random_mc":
         mc_generator = MultiChoiceGenerator(ann_root)
+    elif gen_type == 'avion_mc':
+        mc_generator = AvionMultiChoiceGenerator(ann_root)
+        with open(avion_prediction_path, 'r') as f:
+            avion_train_predictions = json.load(f)
 
-    for row in csv_reader:
+    for idx, row in enumerate(csv_reader):
         start_timestamp, end_timestamp = datetime2sec(row[4]), datetime2sec(row[5])
         
         pid, vid = row[1:3]
@@ -36,6 +40,14 @@ def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive'):
             # here we use the index
             vn_str = f'{row[10]}:{row[12]}'
             mc_data = mc_generator.generate_multi_choice(vn_str, 5)
+            options = mc_data['option'][0]
+            gt_answer_letter = mc_data['gt_answer_letter'][0]
+            gt_answer_name = mc_data['gt_answer_name'][0]
+            conversation = generate_random_mc_conversation(options, gt_answer_letter, gt_answer_name )
+        elif gen_type == "avion_mc":
+            vn_str = f'{row[10]}:{row[12]}'
+            avion_preds = avion_train_predictions[str(idx)]['predictions']
+            mc_data = mc_generator.generate_multi_choice(vn_str, avion_preds, 5)
             options = mc_data['option'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
@@ -67,24 +79,38 @@ def generate_random_mc_conversation(options:list[str], gt_answer_letter, gt_answ
         {"from": "gpt", "value": f"{gt_answer_letter}. {gt_answer_name}"} 
     ]
 
+def generate_avion_mc_conversation():
+    pass
+
 
 def get_args():
     parser = argparse.ArgumentParser(description="For generating VQA for EPIC-KITCHEN")
     parser.add_argument('--train_metadata', default='/data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv', type=str)
     parser.add_argument('--out_folder', default = '/data/shaokai/EK100_in_LLAVA/', type = str)
+    parser.add_argument('--avion_train_predictions', default = '/data/shaokai/avion_predictions_train.json', type = str)
+    parser.add_argument('--gen_type', default = 'avion_mc', type = str, choices = GEN_TYPES)
     return parser.parse_args()
 
-def main():    
+def main(): 
     args = get_args()    
     ann_file = args.train_metadata
-    inst_train_folder = args.out_folder
-    print (ann_file)
-    anno_path = Path(ann_file).parent
-    labels, mapping_vn2act, verb_ids, noun_ids = generate_label_map(anno_path)
-    conv_lst = generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'random_mc')
-    
+    inst_train_folder = os.path.join(args.out_folder, args.gen_type)
+
+    print ('train_metadata', args.train_metadata)
+    print ('out_folder', args.out_folder)
+    print ('loading predictions from ', args.avion_train_predictions)
+    print ('gen_type is ', args.gen_type)
+
     os.makedirs(inst_train_folder, exist_ok=True)
 
+    anno_path = Path(ann_file).parent
+    _, _, verb_ids, noun_ids = generate_label_map(anno_path)
+    conv_lst = generate_train_ann(ann_file, 
+                                  verb_ids, 
+                                  noun_ids, 
+                                  gen_type = args.gen_type, 
+                                  avion_prediction_path = args.avion_train_predictions)
+        
     # save it to a jsonl
     with open(os.path.join(inst_train_folder,'train_convs_narration.jsonl'), 'w') as f:
         for conv in conv_lst:

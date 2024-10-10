@@ -18,7 +18,7 @@ from action.llava_ov_inference import llava_inference
 import json
 import logging
 from llava.utils import rank0_print
-from action.utils import generate_label_map, MultiChoiceGenerator, match_answer
+from action.utils import generate_label_map, MultiChoiceGenerator, match_answer, parse_avion_predictions
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
@@ -377,17 +377,10 @@ def get_topk_predictions(data, idx,  k):
     options = list(range(26))[:k]
 
     predictions = data[str(idx)]['predictions'][:k]
-    new_predictions = []
-    for pred in predictions:
-        # the prediction looks like verb:noun1:noun2..
-        # we want to it look like verb noun1:noun2 
-        first_sep = pred.index(':')
-        prediction = pred[:first_sep] + ' ' + pred[first_sep+1:]
-        new_predictions.append(prediction)
 
-    predictions = new_predictions    
-    for i in range(len(options)):
-              
+    predictions = parse_avion_predictions(predictions)    
+
+    for i in range(len(options)):              
         options[i] = f'{letters[i]}. {predictions[i]}'
                 
     mc_data = {
