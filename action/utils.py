@@ -100,7 +100,7 @@ class MultiChoiceGenerator:
         gt_letter = letters[answers.index(gt_answer)]
         data = {
                 'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer'},
-                'option': {0: options},
+                'options': {0: options},
                 # the correct letter in mc
                 # for inspecting
                 'gt_answer_letter': {0: gt_letter},
@@ -153,7 +153,7 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
         
         data = {
                 'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer'},
-                'option': {0: options},
+                'options': {0: options},
                 # the correct letter in mc
                 # for inspecting
                 'gt_answer_letter': {0: gt_letter},

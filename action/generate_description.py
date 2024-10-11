@@ -40,7 +40,7 @@ def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_p
             # here we use the index
             vn_str = f'{row[10]}:{row[12]}'
             mc_data = mc_generator.generate_multi_choice(vn_str, n_options)
-            options = mc_data['option'][0]
+            options = mc_data['options'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
             conversation = generate_random_mc_conversation(options, gt_answer_letter, gt_answer_name )
@@ -48,7 +48,7 @@ def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_p
             vn_str = f'{row[10]}:{row[12]}'
             avion_preds = avion_train_predictions[str(idx)]['predictions']
             mc_data = mc_generator.generate_multi_choice(vn_str, avion_preds, n_options)
-            options = mc_data['option'][0]
+            options = mc_data['options'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
             conversation = generate_random_mc_conversation(options, gt_answer_letter, gt_answer_name )

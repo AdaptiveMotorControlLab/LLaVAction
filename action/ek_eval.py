@@ -19,6 +19,8 @@ import json
 import logging
 from llava.utils import rank0_print
 from action.utils import generate_label_map, MultiChoiceGenerator, match_answer, parse_avion_predictions
+import copy
+from collections import Counter 
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
@@ -370,14 +372,12 @@ def prepare_llava(pretrained):
 
     return tokenizer, model, image_processor, max_length
 
-
-def get_topk_predictions(data, idx,  k):
+def get_topk_predictions(data, idx, k):
 
     letters = [chr(65+i) for i in range(26)][:k]
     options = list(range(26))[:k]
 
     predictions = data[str(idx)]['predictions'][:k]
-
     predictions = parse_avion_predictions(predictions)    
 
     for i in range(len(options)):              
@@ -385,25 +385,80 @@ def get_topk_predictions(data, idx,  k):
                 
     mc_data = {
         'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer.'},
-        'option': {0: options}        
+        'options': {0: options},
+        'valid_letters': letters,
+        'avion_pred': predictions[0]
         }    
+    
+    return mc_data
 
-    return mc_data, predictions[0]
+def ensemble_llava_evaluation(gt_name,
+                              frames, 
+                              tokenizer, 
+                              model, 
+                              image_processor, 
+                              mc_data,
+                              clip_length,  
+                              num_frames,
+                              temperature = 0,
+                              ensemble_k = 1,
+                              is_test = False
+                              ):
+    """
+    This function tests how consistent the model is if we shuffle the position of the answers
+    It also should use a higher temperature so we might get better performance by ensemble
+    """
+
+    # shuffle the options
+    options = mc_data['options'][0]
+    letters = mc_data['valid_letters']
+    avion_pred = mc_data['avion_pred']
+    # each option was in the format of {letter}. {answer}
+    preds = []
+    for _ in range(ensemble_k):
+            # let's just shuffle the options
+        random.shuffle(options)
+        for idx, (option, letter) in enumerate(zip(options, letters)):
+            sep = option.index('.')
+            options[idx] = f'{letter}.{option[sep+1:]}'
+        rank0_print ('generated new option sequence')
+        rank0_print (options)
+
+        pred = llava_inference(frames, 
+                               tokenizer, 
+                               model, 
+                               image_processor,  
+                               mc_data,  
+                               clip_length = clip_length, 
+                               num_frames=num_frames, 
+                               temperature = temperature,
+                               is_test = is_test
+                               )
+        
+        rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name) 
+        sep = pred.index('.')
+        pred = pred[sep+1:].strip()
+        preds.append(pred)
+        
+    counter = Counter(preds)
+    rank0_print ('inspecting the counter', counter)
+    rank0_print ('most common', counter.most_common(1)[0][0])
+
+    return match_answer(counter.most_common(1)[0][0], gt_name)
+
+
 
 def evaluate_on_EK100(eval_args, 
                       model= None, 
                       tokenizer= None, 
                       image_processor= None):
 
-    if image_processor is None:
+    if model is not None:
         image_processor = model.get_vision_tower().image_processor
 
     gpu_val_transform_ls = []
-
     val_transform_gpu = torch.nn.Sequential(*gpu_val_transform_ls)
-
     crop_size = 336
-
     labels, mapping_vn2act, verb_maps, noun_maps = generate_label_map(Path(eval_args.val_metadata).parent) 
 
     val_dataset = VideoMultiChoiceDataset(
@@ -468,7 +523,8 @@ def evaluate_on_EK100(eval_args,
         gt_name = mc_data['gt_answer_name'][0][0]
                 
         if eval_args.action_predictions:
-            mc_data, avion_pred = get_topk_predictions(predictions, idx, eval_args.topk_predictions)
+            mc_data = get_topk_predictions(predictions, idx, eval_args.topk_predictions)
+            avion_pred = mc_data['avion_pred']
             if gt_name == avion_pred:
                 avaion_correct+=1
 
@@ -477,18 +533,30 @@ def evaluate_on_EK100(eval_args,
         if finish_early and idx>999:
             break
         
-        pred = llava_inference(frames, tokenizer, model, image_processor,  mc_data,  clip_length = eval_args.clip_length, num_frames=eval_args.llava_num_frames)
+        # pred = llava_inference(frames, tokenizer, model, image_processor,  mc_data,  clip_length = eval_args.clip_length, num_frames=eval_args.llava_num_frames)
         
-        # if valid letter is found in the prediction, then we will use that as the prediction
-        rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name)        
+        # # if valid letter is found in the prediction, then we will use that as the prediction
+        # rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name)        
 
         # Update running corrects and total samples
-        running_corrects += (match_answer(pred, gt_name))
+        running_corrects += ensemble_llava_evaluation(gt_name,
+                                                      frames, 
+                                                      tokenizer,
+                                                      model,
+                                                      image_processor,
+                                                      mc_data,
+                                                      eval_args.clip_length,
+                                                      eval_args.llava_num_frames,
+                                                      temperature = 2.0,
+                                                      ensemble_k = 5,
+                                                      is_test = not finish_early)
+                                                              
         total_samples += 1
 
         # Calculate and log running mean accuracy
         running_accuracy = running_corrects / total_samples
 
+        logger.info(f'running accuracy: {running_accuracy:.4f}')
         if eval_args.action_predictions:
             avaion_accuracy = avaion_correct / total_samples
 

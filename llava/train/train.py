@@ -1725,6 +1725,8 @@ def train(attn_implementation=None):
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)   
 
+    
+
     trainer = LLaVATrainer(model=model, 
                            tokenizer = tokenizer, 
                            eval_args = eval_args, 
@@ -1734,7 +1736,6 @@ def train(attn_implementation=None):
 
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
-        #trainer.train()
     else:
         trainer.train()
     trainer.save_state()

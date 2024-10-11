@@ -20,7 +20,10 @@ def llava_inference(video_frames,
     image_processor, 
     mc_data,
     clip_length = 16,
-    num_frames=16):
+    num_frames = 16,
+    temperature = 0,
+    is_test = False
+    ):
 
     model.eval()    
     device = "cuda"    
@@ -28,15 +31,18 @@ def llava_inference(video_frames,
     temporal_stride = clip_length // num_frames
     video_frames = video_frames[::temporal_stride]
     image_tensors = []
-    frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].cuda().to(torch.bfloat16)
+    if is_test:
+        frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].half().cuda()
+    else:
+        frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].cuda().to(torch.bfloat16)
     image_tensors.append(frames)
 
     conv_template = "qwen_1_5"
 
     question = mc_data['question'][0]
-    option = mc_data['option'][0]
+    options = mc_data['options'][0]
 
-    question = f"{DEFAULT_IMAGE_TOKEN}\n{question}:{option}"     
+    question = f"{DEFAULT_IMAGE_TOKEN}\n{question}:{options}"     
     
     conv = copy.deepcopy(conv_templates[conv_template])
     conv.append_message(conv.roles[0], question)
@@ -52,7 +58,7 @@ def llava_inference(video_frames,
         images=image_tensors,
         image_sizes=image_sizes,
         do_sample=False,
-        temperature=0,
+        temperature=temperature,
         max_new_tokens=4096,
         modalities=["video"],
     )

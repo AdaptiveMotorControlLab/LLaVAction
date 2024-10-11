@@ -234,8 +234,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                 else:
                     from llava.model.language_model.llava_qwen import LlavaQwenConfig
 
-                    #if overwrite_config is not None:
-                    if True:
+                    if overwrite_config is not None:                    
                         llava_cfg = LlavaQwenConfig.from_pretrained(model_path)
                         for k, v in overwrite_config.items():
                             setattr(llava_cfg, k, v)
