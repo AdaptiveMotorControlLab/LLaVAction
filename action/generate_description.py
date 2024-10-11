@@ -12,7 +12,7 @@ def datetime2sec(str):
     hh, mm, ss = str.split(':')
     return int(hh) * 3600 + int(mm) * 60 + float(ss)
 
-def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_prediction_path = ''):
+def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_prediction_path = '', n_options = 5):
     assert gen_type in GEN_TYPES
     # epic kitchen uses csv
     csv_reader = csv.reader(open(ann_file))
@@ -39,7 +39,7 @@ def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_p
         elif gen_type == "random_mc":
             # here we use the index
             vn_str = f'{row[10]}:{row[12]}'
-            mc_data = mc_generator.generate_multi_choice(vn_str, 5)
+            mc_data = mc_generator.generate_multi_choice(vn_str, n_options)
             options = mc_data['option'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
@@ -47,7 +47,7 @@ def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_p
         elif gen_type == "avion_mc":
             vn_str = f'{row[10]}:{row[12]}'
             avion_preds = avion_train_predictions[str(idx)]['predictions']
-            mc_data = mc_generator.generate_multi_choice(vn_str, avion_preds, 5)
+            mc_data = mc_generator.generate_multi_choice(vn_str, avion_preds, n_options)
             options = mc_data['option'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
@@ -86,19 +86,21 @@ def get_args():
     parser.add_argument('--out_folder', default = '/data/shaokai/EK100_in_LLAVA/', type = str)
     parser.add_argument('--avion_train_predictions', default = '/data/shaokai/avion_predictions_train.json', type = str)
     parser.add_argument('--gen_type', default = 'avion_mc', type = str, choices = GEN_TYPES)
+    parser.add_argument('--n_options', default = 5, type = int)
     return parser.parse_args()
 
 def main(): 
     args = get_args()    
     ann_file = args.train_metadata
-    inst_train_folder = os.path.join(args.out_folder, args.gen_type)
+    inst_train_folder = os.path.join(args.out_folder, f'{args.gen_type}_top{args.n_options}')
 
     print ('train_metadata', args.train_metadata)
     print ('out_folder', args.out_folder)
     print ('loading predictions from ', args.avion_train_predictions)
     print ('gen_type is ', args.gen_type)
+    print ('n_options', args.n_options)
 
-    os.makedirs(inst_train_folder, exist_ok=True)
+    os.makedirs(inst_train_folder, exist_ok=True)    
 
     anno_path = Path(ann_file).parent
     _, _, verb_ids, noun_ids = generate_label_map(anno_path)
@@ -106,7 +108,8 @@ def main():
                                   verb_ids, 
                                   noun_ids, 
                                   gen_type = args.gen_type, 
-                                  avion_prediction_path = args.avion_train_predictions)
+                                  avion_prediction_path = args.avion_train_predictions,
+                                  n_options = args.n_options)
         
     # save it to a jsonl
     with open(os.path.join(inst_train_folder,'train_convs_narration.jsonl'), 'w') as f:

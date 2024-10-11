@@ -390,7 +390,10 @@ def get_topk_predictions(data, idx,  k):
 
     return mc_data, predictions[0]
 
-def evaluate_on_EK100(eval_args, model= None, tokenizer= None, max_length= None, image_processor= None):
+def evaluate_on_EK100(eval_args, 
+                      model= None, 
+                      tokenizer= None, 
+                      image_processor= None):
 
     if image_processor is None:
         image_processor = model.get_vision_tower().image_processor
@@ -474,7 +477,7 @@ def evaluate_on_EK100(eval_args, model= None, tokenizer= None, max_length= None,
         if finish_early and idx>999:
             break
         
-        pred = llava_inference(frames, tokenizer, model, image_processor, max_length, mc_data,  clip_length = eval_args.clip_length, num_frames=eval_args.llava_num_frames)
+        pred = llava_inference(frames, tokenizer, model, image_processor,  mc_data,  clip_length = eval_args.clip_length, num_frames=eval_args.llava_num_frames)
         
         # if valid letter is found in the prediction, then we will use that as the prediction
         rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name)        

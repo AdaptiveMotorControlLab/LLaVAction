@@ -18,7 +18,6 @@ def llava_inference(video_frames,
     tokenizer, 
     model, 
     image_processor, 
-    max_length, 
     mc_data,
     clip_length = 16,
     num_frames=16):
@@ -29,7 +28,6 @@ def llava_inference(video_frames,
     temporal_stride = clip_length // num_frames
     video_frames = video_frames[::temporal_stride]
     image_tensors = []
-    #frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].half().cuda()
     frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].cuda().to(torch.bfloat16)
     image_tensors.append(frames)
 

@@ -251,7 +251,7 @@ class LLaVATrainer(Trainer):
     def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
         from action.ek_eval import evaluate_on_EK100        
 
-        accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer,  self.model_max_length)
+        accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer)
 
         metrics = {f"{metric_key_prefix}_EK100_accuracy": accuracy}
 
