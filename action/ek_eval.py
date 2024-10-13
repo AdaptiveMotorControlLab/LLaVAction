@@ -85,10 +85,13 @@ def video_loader(root, vid, ext, second, end_second,
         except decord.DECORDError as error:
             print(error)
             frames = vr.get_batch([0] * len(frame_ids)).asnumpy()
-    
+
         return torch.from_numpy(frames.astype(np.float32))
 
     else:
+        time_meta = {}
+        
+        time_meta['duration'] = end_second - second
         chunk_start = int(second) // chunk_len * chunk_len
         chunk_end = int(end_second) // chunk_len * chunk_len
         while True:
@@ -109,6 +112,7 @@ def video_loader(root, vid, ext, second, end_second,
             num_segments=clip_length, jitter=jitter
         )
         all_frames = []
+        all_frame_ids = []
         # allocate absolute frame-ids into the relative ones
         for chunk in range(chunk_start, chunk_end + chunk_len, chunk_len):
             rel_frame_ids = list(filter(lambda x: int(chunk * fps) <= x < int((chunk + chunk_len) * fps), frame_ids))
@@ -127,11 +131,17 @@ def video_loader(root, vid, ext, second, end_second,
             except IndexError:
                 print(root, vid, ext, second, end_second)
             all_frames.append(frames)
+            all_frame_ids.append(frame_ids)
             if sum(map(lambda x: x.shape[0], all_frames)) == clip_length:
                 break
         res = torch.from_numpy(np.concatenate(all_frames, axis=0).astype(np.float32))
+        time_meta['n_frames'] = res.shape[0]
+        all_frame_ids = np.concatenate(all_frame_ids, axis = 0)
+        frame_time = [e/fps for e in all_frame_ids]
+        frame_time = [f"{i:.2f}s" for i in frame_time]
+        time_meta['frame_time'] = frame_time
         assert res.shape[0] == clip_length, "{}, {}, {}, {}, {}, {}, {}".format(root, vid, second, end_second, res.shape[0], rel_frame_ids, frame_ids)
-        return res
+        return res, time_meta
 
 
 class VideoCaptionDatasetBase(torch.utils.data.Dataset):
@@ -194,53 +204,11 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
         fast_rrc=False, rrc_params=(224, (0.5, 1.0)),
         fast_rcc=False, rcc_params=(224,),
     ):
-        if self.dataset == 'ego4d':
-            vid, start_second, end_second, narration = self.samples[i][:4]
-            frames = video_loader(self.root, vid, 'mp4',
-                                  start_second, end_second,
-                                  chunk_len=chunk_len,
-                                  clip_length=clip_length,
-                                  threads=threads,
-                                  fast_rrc=fast_rrc,
-                                  rrc_params=rrc_params,
-                                  fast_rcc=fast_rcc,
-                                  rcc_params=rcc_params,
-                                  jitter=is_training)
-            if isinstance(narration, list):
-                if narration_selection == 'random':
-                    narration = random.choice(narration)
-                elif narration_selection == 'concat':
-                    narration = '. '.join(narration)
-                elif narration_selection == 'list':
-                    pass
-                else:
-                    raise ValueError
-            return frames, narration
-        elif self.dataset == 'ek100_mir':
-            vid_path, start_second, end_second, fps, narration, verb, noun = self.samples[i]
-            frames = video_loader(self.root, vid_path, 'MP4',
-                                  start_second, end_second,
-                                  chunk_len=chunk_len, fps=fps,
-                                  clip_length=clip_length,
-                                  threads=threads,
-                                  fast_rrc=fast_rrc,
-                                  rrc_params=rrc_params,
-                                  fast_rcc=fast_rcc,
-                                  rcc_params=rcc_params,
-                                  jitter=is_training)
-            if is_training:
-                positive_list = np.where(self.relevancy_mat[i] > self.relevancy)[0].tolist()
-                if positive_list != []:
-                    pos = random.sample(positive_list, min(len(positive_list), 1))[0]
-                    if pos < len(self.metadata_sentence) and pos < self.relevancy_mat.shape[1]:
-                        return frames, (self.metadata_sentence.iloc[pos][1], self.relevancy_mat[i][pos])
-            else:
-                return frames, (narration, 1)
-        elif self.dataset == 'ek100_cls':
+        if self.dataset == 'ek100_cls':
             vid_path, start_second, end_second, fps, narration, verb, noun = self.samples[i]
             # chunk length is the chunked video clip length
             # clip length is number of frames we want to sample from the clip
-            frames = video_loader(self.root, vid_path, 'MP4',
+            frames, time_meta = video_loader(self.root, vid_path, 'MP4',
                                   start_second, end_second,
                                   chunk_len=chunk_len, fps=fps,
                                   clip_length=clip_length,
@@ -250,7 +218,7 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
                                   fast_rcc=fast_rcc,
                                   rcc_params=rcc_params,
                                   jitter=is_training)
-            return frames, '{}:{}'.format(verb, noun)
+            return frames, '{}:{}'.format(verb, noun), time_meta
         else:
             raise NotImplementedError
 
@@ -303,7 +271,7 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         self.mc_generator = MultiChoiceGenerator(self.ann_root)
         
     def __getitem__(self, i):
-        frames, label = self.get_raw_item(
+        frames, label, time_meta = self.get_raw_item(
             i, is_training=self.is_training,
             chunk_len=self.chunk_len,
             num_clips=self.num_clips,
@@ -317,13 +285,15 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
             sparse_sample=self.sparse_sample,
         )
 
+        # for llava-video to work, we also need time meta data.
+
         # apply transformation
         if self.transform is not None:
             frames = self.transform(frames)
         
         data = self.mc_generator.generate_multi_choice(label, self.topk_predictions)
         
-        return frames, data
+        return frames, data, time_meta
 
 
 
@@ -350,7 +320,7 @@ def get_args_parser():
     
     # llava related
     # llm size is type of string and can only be '7b' or '5b' etc.
-    parser.add_argument('--llm_size', default='7b', type=str, help='llm size')
+    parser.add_argument('--pretrained_name', default = '', type = str, help ='the name in huggingface')
     parser.add_argument('--llava_num_frames', default=16, type=int, help='number of frames for llava')
     ## avaion refinement 
     parser.add_argument('--action_predictions', default=None, type=str, help='path to action predictions')
@@ -362,13 +332,15 @@ def get_args_parser():
 def prepare_llava(pretrained):
 
     import warnings
-    from llava.model.builder import load_pretrained_model    
     warnings.filterwarnings("ignore")
-    # Load the OneVision model
+    from llava.model.builder import load_pretrained_model    
     model_name = "llava_qwen"
 
     device_map = "auto"
-    tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name, device_map=device_map, attn_implementation="sdpa")
+    print ('pretrained???', pretrained)
+    #tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name, device_map=device_map, attn_implementation="sdpa")
+    tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name, torch_dtype="bfloat16", device_map=device_map)  # Add any other thing you want to pass in llava_model_args
+
 
     return tokenizer, model, image_processor, max_length
 
@@ -392,7 +364,9 @@ def get_topk_predictions(data, idx, k):
     
     return mc_data
 
-def ensemble_llava_evaluation(gt_name,
+def ensemble_llava_evaluation(
+                              pretrained_name,
+                              gt_name,
                               frames, 
                               tokenizer, 
                               model, 
@@ -402,6 +376,7 @@ def ensemble_llava_evaluation(gt_name,
                               num_frames,
                               temperature = 0,
                               ensemble_k = 1,
+                              time_meta = None,
                               is_test = False
                               ):
     """
@@ -424,20 +399,24 @@ def ensemble_llava_evaluation(gt_name,
         rank0_print ('generated new option sequence')
         rank0_print (options)
 
-        pred = llava_inference(frames, 
-                               tokenizer, 
-                               model, 
-                               image_processor,  
-                               mc_data,  
-                               clip_length = clip_length, 
-                               num_frames=num_frames, 
-                               temperature = temperature,
-                               is_test = is_test
+        pred = llava_inference(
+                            pretrained_name,
+                            frames, 
+                            tokenizer, 
+                            model, 
+                            image_processor,  
+                            mc_data,  
+                            clip_length = clip_length, 
+                            num_frames=num_frames, 
+                            temperature = temperature,
+                            is_test = is_test,
+                            time_meta = time_meta
                                )
         
         rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name) 
-        sep = pred.index('.')
-        pred = pred[sep+1:].strip()
+        if '.' in pred:
+            sep = pred.index('.')
+            pred = pred[sep+1:].strip()
         preds.append(pred)
         
     counter = Counter(preds)
@@ -482,14 +461,9 @@ def evaluate_on_EK100(eval_args,
 
     running_corrects = 0
     total_samples = 0    
-
-    if not eval_args.action_predictions:        
-        log_filename = f'llava_ov_{eval_args.llava_num_frames}f_{eval_args.llm_size}.log'
-    else:
-        log_filename = f'llava_ov_{eval_args.llava_num_frames}f_{eval_args.llm_size}_action_{eval_args.topk_predictions}.log'
-    
+        
     # Set up logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename=log_filename, filemode='w')
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s',  filemode='w')
 
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
@@ -502,15 +476,16 @@ def evaluate_on_EK100(eval_args,
     
     logger = logging.getLogger(__name__)
 
-    pretrained = f"lmms-lab/llava-onevision-qwen2-{eval_args.llm_size}-ov"
+    pretrained = f"lmms-lab/{eval_args.pretrained_name}".strip()
+    print ('pretrained', pretrained)
 
     # so we know it's evaluation during training
     finish_early = model is not None
 
     if model is None:
-        if hasattr(eval_args, "llava_checkpoint"):
+        if args.llava_checkpoint is not None:
             pretrained = eval_args.llava_checkpoint
-        tokenizer, model, image_processor, max_length = prepare_llava(pretrained)   
+        tokenizer, model, image_processor, _ = prepare_llava(pretrained)   
 
     if eval_args.action_predictions:
         with open(eval_args.action_predictions, 'r') as f:
@@ -518,7 +493,7 @@ def evaluate_on_EK100(eval_args,
         
     avaion_correct = 0    
     
-    for idx, (frames, mc_data) in tqdm(enumerate(val_dataloader)):
+    for idx, (frames, mc_data, time_meta) in tqdm(enumerate(val_dataloader)):
 
         gt_name = mc_data['gt_answer_name'][0][0]
                 
@@ -531,15 +506,12 @@ def evaluate_on_EK100(eval_args,
         # we don't want to evaluate the whole thing
         # let's evaluate 1000 samples to get the complete picture
         if finish_early and idx>999:
-            break
-        
-        # pred = llava_inference(frames, tokenizer, model, image_processor,  mc_data,  clip_length = eval_args.clip_length, num_frames=eval_args.llava_num_frames)
-        
-        # # if valid letter is found in the prediction, then we will use that as the prediction
-        # rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name)        
+            break                     
 
         # Update running corrects and total samples
-        running_corrects += ensemble_llava_evaluation(gt_name,
+        running_corrects += ensemble_llava_evaluation(
+                                                      eval_args.pretrained_name,
+                                                      gt_name,
                                                       frames, 
                                                       tokenizer,
                                                       model,
@@ -547,8 +519,9 @@ def evaluate_on_EK100(eval_args,
                                                       mc_data,
                                                       eval_args.clip_length,
                                                       eval_args.llava_num_frames,
-                                                      temperature = 2.0,
-                                                      ensemble_k = 5,
+                                                      temperature = 0,
+                                                      ensemble_k = 1,
+                                                      time_meta = time_meta,
                                                       is_test = not finish_early)
                                                               
         total_samples += 1

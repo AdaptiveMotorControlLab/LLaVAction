@@ -200,6 +200,7 @@ class EK100EvalArguments:
     fused_decode_crop: bool= False
     decode_threads: int = 1
     topk_predictions: int = 5
+    pretrained_name: str = ""
 
 
 
@@ -1725,7 +1726,7 @@ def train(attn_implementation=None):
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)   
 
-    
+    eval_args.pretrained_name = model_args.model_name_or_path.split('/')[1]
 
     trainer = LLaVATrainer(model=model, 
                            tokenizer = tokenizer, 
