@@ -337,9 +337,18 @@ def prepare_llava(pretrained):
     model_name = "llava_qwen"
 
     device_map = "auto"
-    print ('pretrained???', pretrained)
-    #tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name, device_map=device_map, attn_implementation="sdpa")
-    tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name, torch_dtype="bfloat16", device_map=device_map)  # Add any other thing you want to pass in llava_model_args
+
+    overwrite_config = None
+    if 'video' in pretrained:
+        overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
+
+    print ('overwrite config', overwrite_config)
+    tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, 
+                                                                          None, 
+                                                                          model_name, 
+                                                                          torch_dtype="bfloat16", 
+                                                                          device_map=device_map, 
+                                                                          overwrite_config = overwrite_config)  # Add any other thing you want to pass in llava_model_args
 
 
     return tokenizer, model, image_processor, max_length

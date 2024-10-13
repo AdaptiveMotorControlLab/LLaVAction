@@ -47,10 +47,12 @@ def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_p
         elif gen_type == "avion_mc":
             vn_str = f'{row[10]}:{row[12]}'
             avion_preds = avion_train_predictions[str(idx)]['predictions']
+            gt_from_avion = avion_train_predictions[str(idx)]['target']
             mc_data = mc_generator.generate_multi_choice(vn_str, avion_preds, n_options)
             options = mc_data['options'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
+            assert gt_answer_name.replace(' ', ':') == gt_from_avion
             conversation = generate_random_mc_conversation(options, gt_answer_letter, gt_answer_name )
 
         data = {'video': vid_path,
