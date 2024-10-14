@@ -8,7 +8,7 @@ import pandas as pd
 import torch
 import argparse
 import decord
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 from pathlib import Path
 import sys
@@ -21,6 +21,9 @@ from llava.utils import rank0_print
 from action.utils import generate_label_map, MultiChoiceGenerator, match_answer, parse_avion_predictions
 import copy
 from collections import Counter 
+import torch.distributed as dist
+
+dist.init_process_group(backend='nccl')
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
@@ -138,7 +141,8 @@ def video_loader(root, vid, ext, second, end_second,
         time_meta['n_frames'] = res.shape[0]
         all_frame_ids = np.concatenate(all_frame_ids, axis = 0)
         frame_time = [e/fps for e in all_frame_ids]
-        frame_time = [f"{i:.2f}s" for i in frame_time]
+        frame_time-= frame_time[0]
+        frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
         time_meta['frame_time'] = frame_time
         assert res.shape[0] == clip_length, "{}, {}, {}, {}, {}, {}, {}".format(root, vid, second, end_second, res.shape[0], rel_frame_ids, frame_ids)
         return res, time_meta
@@ -342,7 +346,7 @@ def prepare_llava(pretrained):
     if 'video' in pretrained:
         overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
 
-    print ('overwrite config', overwrite_config)
+
     tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, 
                                                                           None, 
                                                                           model_name, 
@@ -404,9 +408,7 @@ def ensemble_llava_evaluation(
         random.shuffle(options)
         for idx, (option, letter) in enumerate(zip(options, letters)):
             sep = option.index('.')
-            options[idx] = f'{letter}.{option[sep+1:]}'
-        rank0_print ('generated new option sequence')
-        rank0_print (options)
+            options[idx] = f'{letter}.{option[sep+1:]}'       
 
         pred = llava_inference(
                             pretrained_name,
@@ -466,10 +468,12 @@ def evaluate_on_EK100(eval_args,
 
             )
 
-    val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False) 
+    if dist.is_initialized():
+        sampler = DistributedSampler(val_dataset, shuffle=False)
+    else:
+        sampler = None
 
-    running_corrects = 0
-    total_samples = 0    
+    val_dataloader = DataLoader(val_dataset, sampler = sampler, batch_size=1, shuffle=False)    
         
     # Set up logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s',  filemode='w')
@@ -500,8 +504,12 @@ def evaluate_on_EK100(eval_args,
         with open(eval_args.action_predictions, 'r') as f:
             predictions = json.load(f)
         
-    avaion_correct = 0    
-    
+
+
+    avaion_correct = torch.tensor(0, device='cuda')
+    running_corrects = torch.tensor(0, device='cuda')
+    total_samples = torch.tensor(0, device='cuda')
+
     for idx, (frames, mc_data, time_meta) in tqdm(enumerate(val_dataloader)):
 
         gt_name = mc_data['gt_answer_name'][0][0]
@@ -538,14 +546,28 @@ def evaluate_on_EK100(eval_args,
         # Calculate and log running mean accuracy
         running_accuracy = running_corrects / total_samples
 
-        logger.info(f'running accuracy: {running_accuracy:.4f}')
+        logger.info(f'Process {dist.get_rank()} - Running accuracy: {running_accuracy:.4f}')
         if eval_args.action_predictions:
             avaion_accuracy = avaion_correct / total_samples
 
         
-    logger.info(f'Running avaion accuracy after {total_samples} samples: {avaion_accuracy:.4f}')         
-    logger.info(f'Final accuracy: {running_accuracy:.4f}')
-    return running_accuracy
+    dist.all_reduce(running_corrects, op=dist.ReduceOp.SUM)
+    dist.all_reduce(total_samples, op=dist.ReduceOp.SUM)
+    if eval_args.action_predictions:
+        dist.all_reduce(avaion_correct, op=dist.ReduceOp.SUM)
+
+    # Calculate global accuracy after reduction
+    global_accuracy = running_corrects.item() / total_samples.item()
+    if eval_args.action_predictions:
+        global_avaion_accuracy = avaion_correct.item() / total_samples.item()
+
+    # Ensure only the main process (rank 0) prints the final result
+    if dist.get_rank() == 0:
+        if eval_args.action_predictions:
+            logger.info(f'Global Avaion Accuracy: {global_avaion_accuracy:.4f}')
+        logger.info(f'Final Global Accuracy: {global_accuracy:.4f}')
+
+    return global_accuracy
 
 
 if __name__ == '__main__':

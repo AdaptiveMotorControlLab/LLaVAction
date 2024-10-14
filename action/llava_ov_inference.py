@@ -83,14 +83,6 @@ def llava_video_process(
     n_frames = time_meta['n_frames'].item()
     frame_time = time_meta['frame_time']
     frame_time = [e[0] for e in frame_time]
-
-    print ("what is meta")
-    print ('n_frame', n_frames)
-    print ('true video frames', len(video_frames))
-    print ('frame_time', frame_time)
-    print ('video_duration', video_duration)
-    print ('is_test', is_test)
-
     time_instruciton = f"The video lasts for {video_duration:.2f} seconds, and {n_frames} frames are uniformly sampled from it. These frames are located at {frame_time}.Please answer the following questions related to this video."    
     
     frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].cuda().to(torch.bfloat16)

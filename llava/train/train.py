@@ -1202,7 +1202,7 @@ class LazySupervisedDataset(Dataset):
                     total_frames = len(frame_files)
                     sampled_indices = np.linspace(0, total_frames - 1, num_frames_to_sample, dtype=int)
 
-
+                    
                     frame_time = [i/2 for i in sampled_indices]
                     frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
 

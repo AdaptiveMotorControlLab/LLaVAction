@@ -146,9 +146,11 @@ def process_EK100_video_with_decord(video_file, data_args, start_second, end_sec
     
     # calculate frame_ids
     frame_ids = get_frame_ids(start_frame, end_frame, num_segments=data_args.frames_upbound, jitter=False)
-    frame_time = [i/fps for i in frame_ids]
+  
+    
     
     all_frames = []
+    all_frame_ids = []
     # allocate absolute frame-ids into the relative ones
     for chunk in range(chunk_start, chunk_end + chunk_len, chunk_len):
         rel_frame_ids = list(filter(lambda x: int(chunk * fps) <= x < int((chunk + chunk_len) * fps), frame_ids))
@@ -156,13 +158,18 @@ def process_EK100_video_with_decord(video_file, data_args, start_second, end_sec
         vr = VideoReader(os.path.join(video_file, '{}.MP4'.format(chunk)),ctx=cpu(0), num_threads=1)
         frames = vr.get_batch(rel_frame_ids).asnumpy()
         all_frames.append(frames)
+        all_frame_ids.append(frame_ids)
         vr.seek(0)
         if sum(map(lambda x: x.shape[0], all_frames)) == data_args.frames_upbound:
             break
 
     video = np.concatenate(all_frames, axis=0).astype(np.float32)
 
+    all_frame_ids = np.concatenate(all_frame_ids, axis = 0)
+    frame_time = [e/fps for e in all_frame_ids]
+    frame_time-= frame_time[0]
     frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
+
     num_frames_to_sample = len(frame_ids)
 
     return video, video_time, frame_time, num_frames_to_sample
