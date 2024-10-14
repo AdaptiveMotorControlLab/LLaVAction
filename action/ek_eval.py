@@ -24,6 +24,8 @@ from collections import Counter
 import torch.distributed as dist
 
 dist.init_process_group(backend='nccl')
+rank = dist.get_rank()
+torch.cuda.set_device(rank)
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
@@ -506,14 +508,11 @@ def evaluate_on_EK100(eval_args,
         with open(eval_args.action_predictions, 'r') as f:
             predictions = json.load(f)        
 
-    avaion_correct = 0
-    running_corrects = 0
-    total_samples = 0
+    avaion_correct = torch.tensor(0, device='cuda')
+    running_corrects = torch.tensor(0, device='cuda')
+    total_samples = torch.tensor(0, device='cuda')
 
-    for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):
-        
-        logger.info(f'Process {dist.get_rank()} got index {global_index}')
-
+    for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):        
         gt_name = mc_data['gt_answer_name'][0][0]
               
         if eval_args.action_predictions:
@@ -523,7 +522,7 @@ def evaluate_on_EK100(eval_args,
                 avaion_correct+=1
 
         # we don't want to evaluate the whole thing
-        # let's evaluate 1000 samples to get the complete picture
+        # let's evaluate 1000 samples to get the complete picture       
         if finish_early and idx> (1000 / dist.get_world_size()):
             break                     
 
