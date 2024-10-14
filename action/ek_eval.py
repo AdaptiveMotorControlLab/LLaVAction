@@ -297,7 +297,9 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         
         data = self.mc_generator.generate_multi_choice(label, self.topk_predictions)
         
-        return frames, data, time_meta
+        dataset_size = len(self.samples)
+
+        return frames, data, time_meta, i
 
 
 
@@ -502,27 +504,27 @@ def evaluate_on_EK100(eval_args,
 
     if eval_args.action_predictions:
         with open(eval_args.action_predictions, 'r') as f:
-            predictions = json.load(f)
+            predictions = json.load(f)        
+
+    avaion_correct = 0
+    running_corrects = 0
+    total_samples = 0
+
+    for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):
         
-
-
-    avaion_correct = torch.tensor(0, device='cuda')
-    running_corrects = torch.tensor(0, device='cuda')
-    total_samples = torch.tensor(0, device='cuda')
-
-    for idx, (frames, mc_data, time_meta) in tqdm(enumerate(val_dataloader)):
+        logger.info(f'Process {dist.get_rank()} got index {global_index}')
 
         gt_name = mc_data['gt_answer_name'][0][0]
-                
+              
         if eval_args.action_predictions:
-            mc_data = get_topk_predictions(predictions, idx, eval_args.topk_predictions)
+            mc_data = get_topk_predictions(predictions, global_index.item(), eval_args.topk_predictions)
             avion_pred = mc_data['avion_pred']
             if gt_name == avion_pred:
                 avaion_correct+=1
 
         # we don't want to evaluate the whole thing
         # let's evaluate 1000 samples to get the complete picture
-        if finish_early and idx>999:
+        if finish_early and idx> (1000 / dist.get_world_size()):
             break                     
 
         # Update running corrects and total samples
@@ -550,7 +552,7 @@ def evaluate_on_EK100(eval_args,
         if eval_args.action_predictions:
             avaion_accuracy = avaion_correct / total_samples
 
-        
+    dist.barrier()
     dist.all_reduce(running_corrects, op=dist.ReduceOp.SUM)
     dist.all_reduce(total_samples, op=dist.ReduceOp.SUM)
     if eval_args.action_predictions:
