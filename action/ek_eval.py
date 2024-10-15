@@ -19,6 +19,7 @@ import json
 import logging
 from llava.utils import rank0_print
 from action.utils import generate_label_map, MultiChoiceGenerator, match_answer, parse_avion_predictions
+from action.prediction_analysis import PredictionAnalysis
 import copy
 from collections import Counter 
 import torch.distributed as dist
@@ -224,6 +225,10 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
                                   fast_rcc=fast_rcc,
                                   rcc_params=rcc_params,
                                   jitter=is_training)
+            time_meta['start_second'] = start_second
+            time_meta['end_second'] = end_second
+            time_meta['fps'] = fps
+            time_meta['vid_path'] = vid_path
             return frames, '{}:{}'.format(verb, noun), time_meta
         else:
             raise NotImplementedError
@@ -271,10 +276,13 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         self.verb_maps = verb_maps
         self.noun_maps = noun_maps
         self.vn_list = list(self.label_mapping.keys())        
+
         self.labels = labels
         self.topk_predictions = topk_predictions
         self.ann_root = Path(metadata).parent
         self.mc_generator = MultiChoiceGenerator(self.ann_root)
+        self.rank = dist.get_rank()
+        self.prediction_analysis = PredictionAnalysis(f'prediction_analysis_buf_rank{self.rank}.json')
         
     def __getitem__(self, i):
         frames, label, time_meta = self.get_raw_item(
@@ -299,8 +307,6 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         
         data = self.mc_generator.generate_multi_choice(label, self.topk_predictions)
         
-        dataset_size = len(self.samples)
-
         return frames, data, time_meta, i
 
 
@@ -330,10 +336,11 @@ def get_args_parser():
     # llm size is type of string and can only be '7b' or '5b' etc.
     parser.add_argument('--pretrained_name', default = '', type = str, help ='the name in huggingface')
     parser.add_argument('--llava_num_frames', default=16, type=int, help='number of frames for llava')
-    ## avaion refinement 
+    ## avion refinement 
     parser.add_argument('--action_predictions', default=None, type=str, help='path to action predictions')
     parser.add_argument('--topk_predictions', default = 5, type =int)
     parser.add_argument('--llava_checkpoint', default = None, type = str)
+    parser.add_argument('--early_stop', default = None, type = int)
     
     return parser
 
@@ -438,7 +445,7 @@ def ensemble_llava_evaluation(
     rank0_print ('inspecting the counter', counter)
     rank0_print ('most common', counter.most_common(1)[0][0])
 
-    return match_answer(counter.most_common(1)[0][0], gt_name)
+    return match_answer(counter.most_common(1)[0][0], gt_name), counter.most_common(1)[0][0]
 
 
 
@@ -497,7 +504,7 @@ def evaluate_on_EK100(eval_args,
     print ('pretrained', pretrained)
 
     # so we know it's evaluation during training
-    finish_early = model is not None
+    finish_early = False #model is not None
 
     if model is None:
         if args.llava_checkpoint is not None:
@@ -508,26 +515,40 @@ def evaluate_on_EK100(eval_args,
         with open(eval_args.action_predictions, 'r') as f:
             predictions = json.load(f)        
 
-    avaion_correct = torch.tensor(0, device='cuda')
-    running_corrects = torch.tensor(0, device='cuda')
-    total_samples = torch.tensor(0, device='cuda')
+    device = torch.device(f'cuda:{rank}') 
+
+    global_avion_correct = torch.tensor(0.0, device=device)
+    global_running_corrects = torch.tensor(0.0, device=device)
+    global_total_samples = torch.tensor(0.0, device=device)
+
 
     for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):        
+
+        global_index = global_index.item()
+
         gt_name = mc_data['gt_answer_name'][0][0]
+        local_avion_correct = torch.tensor(0.0, device=device)
+        local_running_corrects = torch.tensor(0.0, device=device)
+        local_total_samples = torch.tensor(0.0, device=device)
               
         if eval_args.action_predictions:
-            mc_data = get_topk_predictions(predictions, global_index.item(), eval_args.topk_predictions)
+            mc_data = get_topk_predictions(predictions, global_index, eval_args.topk_predictions)
             avion_pred = mc_data['avion_pred']
             if gt_name == avion_pred:
-                avaion_correct+=1
+                local_avion_correct.add_(1)
+                global_avion_correct.add_(1)
 
         # we don't want to evaluate the whole thing
         # let's evaluate 1000 samples to get the complete picture       
         if finish_early and idx> (1000 / dist.get_world_size()):
             break                     
 
+        if eval_args.early_stop and idx > eval_args.early_stop:
+            break
+
         # Update running corrects and total samples
-        running_corrects += ensemble_llava_evaluation(
+        
+        llava_correct, llava_pred = ensemble_llava_evaluation(
                                                       eval_args.pretrained_name,
                                                       gt_name,
                                                       frames, 
@@ -541,33 +562,69 @@ def evaluate_on_EK100(eval_args,
                                                       ensemble_k = 1,
                                                       time_meta = time_meta,
                                                       is_test = not finish_early)
+
+        # log the predictions into prediciton analysis
+
+        # val_dataset.prediction_analysis.log(global_index,
+        #                                     llava_pred,
+        #                                     gt_name,
+        #                                     predictions[str(global_index)],
+        #                                     time_meta['start_second'].item(),
+        #                                     time_meta['end_second'].item(),
+        #                                     time_meta['vid_path'],
+        #                                     dataset_name = 'EK100')
+
+        
+
+
+        local_running_corrects.add_(llava_correct)
+        global_running_corrects.add_(llava_correct)
                                                               
-        total_samples += 1
+        local_total_samples.add_(1)
+        global_total_samples.add_(1)
+
+        logger.info(f'Process {dist.get_rank()} - local_total_samples: {local_total_samples:.4f}')
+
+        logger.info(f'Process {dist.get_rank()} - loca_llava_correct: {llava_correct:.4f}')
+
+        logger.info(f'Process {dist.get_rank()} - local_running_corrects: {local_running_corrects:.4f}')
+
 
         # Calculate and log running mean accuracy
-        running_accuracy = running_corrects / total_samples
+        # dist.barrier()
+        # dist.all_reduce(local_running_corrects, op=dist.ReduceOp.SUM)
+        # dist.all_reduce(local_total_samples, op=dist.ReduceOp.SUM)
+        # if eval_args.action_predictions:
+        #     dist.all_reduce(local_avion_correct, op=dist.ReduceOp.SUM)
+        # dist.barrier()
+        # # Calculate global accuracy after reduction
+        # local_running_accuracy = local_running_corrects.item() / local_total_samples.item()
+        # local_avion_accuracy = local_avion_correct.item() / local_total_samples.item()
 
-        logger.info(f'Process {dist.get_rank()} - Running accuracy: {running_accuracy:.4f}')
-        if eval_args.action_predictions:
-            avaion_accuracy = avaion_correct / total_samples
+        # logger.info(f'Process {dist.get_rank()} - Running accuracy: {local_running_accuracy:.4f}')
+        # logger.info(f'Process {dist.get_rank()} - AvionRunning accuracy: {local_avion_accuracy:.4f}')
+
+    
 
     dist.barrier()
-    dist.all_reduce(running_corrects, op=dist.ReduceOp.SUM)
-    dist.all_reduce(total_samples, op=dist.ReduceOp.SUM)
+    dist.all_reduce(global_running_corrects, op=dist.ReduceOp.SUM)
+    dist.all_reduce(global_total_samples, op=dist.ReduceOp.SUM)
     if eval_args.action_predictions:
-        dist.all_reduce(avaion_correct, op=dist.ReduceOp.SUM)
+        dist.all_reduce(global_avion_correct, op=dist.ReduceOp.SUM)
 
     # Calculate global accuracy after reduction
-    global_accuracy = running_corrects.item() / total_samples.item()
+    global_accuracy = global_running_corrects.item() / global_total_samples.item()
     if eval_args.action_predictions:
-        global_avaion_accuracy = avaion_correct.item() / total_samples.item()
+        global_avion_accuracy = global_avion_correct.item() / global_total_samples.item()
 
     # Ensure only the main process (rank 0) prints the final result
     if dist.get_rank() == 0:
         if eval_args.action_predictions:
-            logger.info(f'Global Avaion Accuracy: {global_avaion_accuracy:.4f}')
+            logger.info(f'Global Avion Accuracy: {global_avion_accuracy:.4f}')
         logger.info(f'Final Global Accuracy: {global_accuracy:.4f}')
 
+    #val_dataset.prediction_analysis.save()
+    
     return global_accuracy
 
 
