@@ -24,7 +24,8 @@ import copy
 from collections import Counter 
 import torch.distributed as dist
 
-dist.init_process_group(backend='nccl')
+if not dist.is_initialized():
+    dist.init_process_group(backend='nccl')
 rank = dist.get_rank()
 torch.cuda.set_device(rank)
 
@@ -282,7 +283,7 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         self.ann_root = Path(metadata).parent
         self.mc_generator = MultiChoiceGenerator(self.ann_root)
         self.rank = dist.get_rank()
-        self.prediction_analysis = PredictionAnalysis(f'prediction_analysis_buf_rank{self.rank}.json')
+        self.prediction_analysis = PredictionAnalysis(rank = self.rank)
         
     def __getitem__(self, i):
         frames, label, time_meta = self.get_raw_item(
@@ -340,7 +341,7 @@ def get_args_parser():
     parser.add_argument('--action_predictions', default=None, type=str, help='path to action predictions')
     parser.add_argument('--topk_predictions', default = 5, type =int)
     parser.add_argument('--llava_checkpoint', default = None, type = str)
-    parser.add_argument('--early_stop', default = None, type = int)
+
     
     return parser
 
@@ -542,10 +543,7 @@ def evaluate_on_EK100(eval_args,
         # let's evaluate 1000 samples to get the complete picture       
         if finish_early and idx> (1000 / dist.get_world_size()):
             break                     
-
-        if eval_args.early_stop and idx > eval_args.early_stop:
-            break
-
+     
         # Update running corrects and total samples
         
         llava_correct, llava_pred = ensemble_llava_evaluation(
@@ -565,14 +563,14 @@ def evaluate_on_EK100(eval_args,
 
         # log the predictions into prediciton analysis
 
-        # val_dataset.prediction_analysis.log(global_index,
-        #                                     llava_pred,
-        #                                     gt_name,
-        #                                     predictions[str(global_index)],
-        #                                     time_meta['start_second'].item(),
-        #                                     time_meta['end_second'].item(),
-        #                                     time_meta['vid_path'],
-        #                                     dataset_name = 'EK100')
+        val_dataset.prediction_analysis.log(global_index,
+                                            llava_pred,
+                                            gt_name,
+                                            predictions[str(global_index)],
+                                            time_meta['start_second'].item(),
+                                            time_meta['end_second'].item(),
+                                            time_meta['vid_path'],
+                                            dataset_name = 'EK100')
 
         
 
@@ -623,7 +621,7 @@ def evaluate_on_EK100(eval_args,
             logger.info(f'Global Avion Accuracy: {global_avion_accuracy:.4f}')
         logger.info(f'Final Global Accuracy: {global_accuracy:.4f}')
 
-    #val_dataset.prediction_analysis.save()
+    val_dataset.prediction_analysis.save()
     
     return global_accuracy
 

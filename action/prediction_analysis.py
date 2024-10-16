@@ -1,6 +1,6 @@
 import json
 import glob
-
+import os
 class PredictionAnalysis:
     """
     We save data that can be used for ad-hoc analysis
@@ -19,8 +19,11 @@ class PredictionAnalysis:
         vid_path: ''
     }
     """
-    def __init__(self, save_path):
-        self.save_path = save_path
+    def __init__(self, save_folder = '.', rank = 0):
+        self.save_folder = save_folder
+        self.rank = rank
+        self.prefix = 'prediction_analysis_buf'
+        self.save_path = os.path.join(save_folder, f'{self.prefix}_rank{rank}.json')       
         self.data = {}
     def log(self, 
             global_index,
@@ -50,52 +53,50 @@ class PredictionAnalysis:
             json.dump(self.data, f, indent = 4)
 
 
-class Analysis:
-    """
+    def load(self):
+        save_folder = self.save_folder
+        if self.rank == 0:
+            files = glob.glob(os.path.join(save_folder,self.prefix + '*'))
+            for file in files:
+                print ('loading pred checkpoint from: ', file)
+                with open(file, 'r') as f:
+                    _data = json.load(f)
+                    self.data.update(_data)
 
-    This same code should be applied to the training too.
-
-    collect all the wrong top-1 prediction from avion
-    collect all the wrong top-1 prediction from llava
-
-    Determine percentage of wrong llava prediction that has wrong verb only
-    Determine percentage of wrong llava prediction that has wrong noun only
-    Determine percentage of wrong llava prediciton that has both verb and noun wrong
-    Determine percentage of wrong llava prediction that was wrong because the answer not in the top k
-    """
-    pass
-
-    def __init__(self, prefix):
-
-        files = glob.glob(prefix + '*')
-
-        self.data = {}
-
-        for file in files:
-            print ('loading pred checkpoint from: ', file)
-            with open(file, 'r') as f:
-                _data = json.load(f)
-                self.data.update(_data)
-
-        # add some assertion for number of keys in the data
+            print (sorted(list(self.data.keys()), key = lambda x: int(x)))
 
     def wrong_verb(self):
 
         N = len(self.data)
+        llava_wrong_verb_collections = []
+        llava_wrong_noun_collections = []
+        llava_wrong_verb_noun_collections = []
 
-        wrong_verb_collections = []
-        wrong_noun_collections = []
-        wrong_verb_noun_collections = []
+        avion_wrong_verb_collections = []
+        avion_wrong_noun_collections = []
+        avion_wrong_verb_noun_collections = []
 
         wrong_llava_collections = []
         wrong_avion_collections = []
 
-        indices = sorted(self.data.keys())
+        indices = sorted(list(self.data.keys()), key = lambda x: int(x))
 
         for index in indices:
             items = self.data[index]
-        
-
+            llava_pred = items['llava_pred']
+            gt_name = items['gt_name']
+            # only replacing the first : 
+            avion_pred = items['avion_preds']['predictions'][0].replace(':', ' ', 1)
+            
+            if llava_pred != gt_name:
+                wrong_llava_collections.append((llava_pred, gt_name))
+            if avion_pred!= gt_name:
+                # pred, gt
+                wrong_avion_collections.append((avion_pred, gt_name))
+            
 
 if __name__ == '__main__':
-    pass
+
+
+    prediction_analysis = PredictionAnalysis(save_folder = '/storage-rcp-pure/upmwmathis_scratch/shaokai/LLaVA-NeXT')
+    prediction_analysis.load()
