@@ -20,10 +20,10 @@ class PredictionAnalysis:
         vid_path: ''
     }
     """
-    def __init__(self, save_folder = '.', rank = 0):
+    def __init__(self, save_folder = '.', rank = 0, prefix = 'prediction_analysis_buf'):
         self.save_folder = save_folder
         self.rank = rank
-        self.prefix = 'prediction_analysis_buf'
+        self.prefix = prefix
         self.save_path = os.path.join(save_folder, f'{self.prefix}_rank{rank}.json')       
         self.data = {}   
     def log(self, 
@@ -94,12 +94,7 @@ class PredictionAnalysis:
             avion_verb, avion_noun = avion_pred.split(' ')
             gt_verb, gt_noun = gt_name.split(' ')
 
-            if llava_pred != gt_name:
-                if set(llava_pred).intersection(set(gt_name)) == set(gt_name):
-                    print ('what is going on')
-                    print ('nooo', llava_pred, gt_name)
-                #wrong_llava_collections.append((llava_pred, gt_name))
-                #print (llava_pred, gt_name)
+            if llava_pred != gt_name:               
                 wrong_llava_collections[idx] = 0
             else:
                 wrong_llava_collections[idx] = 1
@@ -155,6 +150,7 @@ class PredictionAnalysis:
 if __name__ == '__main__':
 
 
-    prediction_analysis = PredictionAnalysis(save_folder = '/storage-rcp-pure/upmwmathis_scratch/shaokai/LLaVA-NeXT')
+    prediction_analysis = PredictionAnalysis(save_folder = '/storage-rcp-pure/upmwmathis_scratch/shaokai/LLaVA-NeXT/llavavideo_avion_mc_top10_5epoch_preds',
+                                             prefix = 'prediction_analysis_buf')
     prediction_analysis.load()
     prediction_analysis.analysis()
