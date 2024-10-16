@@ -71,14 +71,18 @@ import copy
 import warnings
 from decord import VideoReader, cpu
 
+os.environ["HF_HOME"] = "/capstor/scratch/cscs/hqi/huggingface"
+
 warnings.filterwarnings("ignore")
 # Load the OneVision model
-# pretrained = "/mnt/SV_storage/VFM/huggingface/hub/models--lmms-lab--llava-onevision-qwen2-0.5b-ov/snapshots/381d9947148efb1e58a577f451c05705ceec666e"
+pretrained = "lmms-lab/LLaVA-Video-72B-Qwen2"
 # pretrained = "/mnt/SV_storage/VFM/LLaVA-NeXT/experiments/EK100_quick_config"
-# model_base = None
-pretrained = "/mnt/SV_storage/VFM/LLaVA-NeXT/experiments/EK100_lora_quick_check"
-model_base = "/mnt/SV_storage/VFM/huggingface/hub/models--lmms-lab--llava-onevision-qwen2-0.5b-ov/snapshots/381d9947148efb1e58a577f451c05705ceec666e"
-model_name = "lora_llava_qwen"
+model_base = None
+model_name = "llava_qwen"
+
+# pretrained = "/mnt/SV_storage/VFM/LLaVA-NeXT/experiments/EK100_lora_quick_check"
+# model_base = "/mnt/SV_storage/VFM/huggingface/hub/models--lmms-lab--llava-onevision-qwen2-0.5b-ov/snapshots/381d9947148efb1e58a577f451c05705ceec666e"
+# model_name = "lora_llava_qwen"
 device = "cuda"
 device_map = "auto"
 tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, model_base, model_name, device_map=device_map, attn_implementation="sdpa")

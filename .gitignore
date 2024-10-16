@@ -74,3 +74,4 @@ data_processing/
 
 experiments/
 *.out
+pretrained_models/
