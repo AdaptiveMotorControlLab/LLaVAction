@@ -43,15 +43,16 @@ def llava_ov_process(video_frames,
     image_sizes = [frame.size for frame in video_frames]
 
     # Generate response
-    cont = model.generate(
-        input_ids,
-        images=image_tensors,
-        image_sizes=image_sizes,
-        do_sample=False,
-        temperature=temperature,
-        max_new_tokens=4096,
-        modalities=["video"],
-    )
+    with torch.no_grad():
+        cont = model.generate(
+            input_ids,
+            images=image_tensors,
+            image_sizes=image_sizes,
+            do_sample=False,
+            temperature=temperature,
+            max_new_tokens=4096,
+            modalities=["video"],
+        )
 
     text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)
     return text_outputs[0]

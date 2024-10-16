@@ -40,12 +40,8 @@ def generate_label_map(anno_root):
     return labels, mapping_vn2act, verb_maps, noun_maps
 
 
-def match_answer(pred, gt):
-    
-    pred = set(pred)
-    gt = set(gt)
-    
-    return pred.intersection(gt) == gt
+def match_answer(pred, gt):          
+    return pred == gt
 
 
 def parse_avion_predictions(predictions):

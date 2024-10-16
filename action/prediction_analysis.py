@@ -1,6 +1,7 @@
 import json
 import glob
 import os
+import numpy as np
 class PredictionAnalysis:
     """
     We save data that can be used for ad-hoc analysis
@@ -24,7 +25,7 @@ class PredictionAnalysis:
         self.rank = rank
         self.prefix = 'prediction_analysis_buf'
         self.save_path = os.path.join(save_folder, f'{self.prefix}_rank{rank}.json')       
-        self.data = {}
+        self.data = {}   
     def log(self, 
             global_index,
             llava_pred,
@@ -62,10 +63,11 @@ class PredictionAnalysis:
                 with open(file, 'r') as f:
                     _data = json.load(f)
                     self.data.update(_data)
+            print ('length', len(self.data))
+            assert len(self.data) == 9668
+            #print (sorted(list(self.data.keys()), key = lambda x: int(x)))
 
-            print (sorted(list(self.data.keys()), key = lambda x: int(x)))
-
-    def wrong_verb(self):
+    def analysis(self):
 
         N = len(self.data)
         llava_wrong_verb_collections = []
@@ -76,27 +78,83 @@ class PredictionAnalysis:
         avion_wrong_noun_collections = []
         avion_wrong_verb_noun_collections = []
 
-        wrong_llava_collections = []
-        wrong_avion_collections = []
+        wrong_llava_collections = [0] * N
+        wrong_avion_collections = [0] * N
 
         indices = sorted(list(self.data.keys()), key = lambda x: int(x))
 
-        for index in indices:
+        for idx, index in enumerate(indices):
             items = self.data[index]
             llava_pred = items['llava_pred']
             gt_name = items['gt_name']
             # only replacing the first : 
             avion_pred = items['avion_preds']['predictions'][0].replace(':', ' ', 1)
             
+            llava_verb, llava_noun = llava_pred.split(' ')
+            avion_verb, avion_noun = avion_pred.split(' ')
+            gt_verb, gt_noun = gt_name.split(' ')
+
             if llava_pred != gt_name:
-                wrong_llava_collections.append((llava_pred, gt_name))
+                if set(llava_pred).intersection(set(gt_name)) == set(gt_name):
+                    print ('what is going on')
+                    print ('nooo', llava_pred, gt_name)
+                #wrong_llava_collections.append((llava_pred, gt_name))
+                #print (llava_pred, gt_name)
+                wrong_llava_collections[idx] = 0
+            else:
+                wrong_llava_collections[idx] = 1
             if avion_pred!= gt_name:
-                # pred, gt
-                wrong_avion_collections.append((avion_pred, gt_name))
+                wrong_avion_collections[idx] = 0
+            else:
+                wrong_avion_collections[idx] = 1
+
             
+            if llava_verb == gt_verb and llava_noun!=gt_noun:
+                llava_wrong_noun_collections.append((llava_pred, gt_name))
+            if llava_noun == gt_noun and llava_verb!=gt_verb:
+                llava_wrong_verb_collections.append((llava_pred, gt_name))
+            if llava_noun!= gt_noun and llava_verb!=gt_verb:
+                llava_wrong_verb_noun_collections.append((llava_pred, gt_name))
+
+            if avion_verb == gt_verb and avion_noun!=gt_noun:
+                avion_wrong_noun_collections.append((avion_pred, gt_name))
+            if avion_noun == gt_noun and avion_verb!=gt_verb:
+                avion_wrong_verb_collections.append((avion_pred, gt_name))
+            if avion_noun!= gt_noun and avion_verb!=gt_verb:
+                avion_wrong_verb_noun_collections.append((avion_pred, gt_name))
+
+        wrong_llava_collections = np.array(wrong_llava_collections)
+        wrong_avion_collections = np.array(wrong_avion_collections)
+        llava_wrong_noun_collections = np.array(llava_wrong_noun_collections)
+        llava_wrong_verb_collections = np.array(llava_wrong_verb_collections)
+        llava_wrong_verb_noun_collections = np.array(llava_wrong_verb_noun_collections)
+        avion_wrong_noun_collections = np.array(avion_wrong_noun_collections)
+        avion_wrong_verb_collections = np.array(avion_wrong_verb_collections)
+        avion_wrong_verb_noun_collections = np.array(avion_wrong_verb_noun_collections)
+                
+        # first, the correlation between avion and llava
+        correlation = np.corrcoef(wrong_llava_collections, wrong_avion_collections)[0, 1]
+
+        print("Correlation:", correlation)
+
+        print ('llava top1 action accuracy {:.3f}'.format(np.sum(wrong_llava_collections == 1) / len(wrong_llava_collections)))
+        print ('avion top1 action accuracy {:.3f}'.format(np.sum(wrong_avion_collections == 1) / len(wrong_avion_collections)))
+
+        print ('llava percentage of wrong noun {:.2f}'.format(len(llava_wrong_noun_collections) / np.sum(wrong_llava_collections == 0)))
+        print ('llava percentage of wrong verb {:.2f}'.format(len(llava_wrong_verb_collections) / np.sum(wrong_llava_collections == 0)))
+        print ('llava percentage of both verb noun wrong {:.2f}'.format(len(llava_wrong_verb_noun_collections) / np.sum(wrong_llava_collections == 0)))
+
+
+        print ('avion percentage of wrong noun {:.2f}'.format(len(avion_wrong_noun_collections) / np.sum(wrong_avion_collections == 0)))
+        print ('avion percentage of wrong verb {:.2f}'.format(len(avion_wrong_verb_collections) / np.sum(wrong_avion_collections == 0)))
+        print ('avion percentage of both verb noun wrong {:.2f}'.format(len(avion_wrong_verb_noun_collections) / np.sum(wrong_avion_collections == 0)))
+
+
+
 
 if __name__ == '__main__':
 
 
     prediction_analysis = PredictionAnalysis(save_folder = '/storage-rcp-pure/upmwmathis_scratch/shaokai/LLaVA-NeXT')
     prediction_analysis.load()
+    prediction_analysis.analysis()

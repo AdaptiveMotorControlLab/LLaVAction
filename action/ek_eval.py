@@ -525,67 +525,68 @@ def evaluate_on_EK100(eval_args,
 
     for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):        
 
-        global_index = global_index.item()
+        with torch.no_grad():
+            global_index = global_index.item()
 
-        gt_name = mc_data['gt_answer_name'][0][0]
-        local_avion_correct = torch.tensor(0.0, device=device)
-        local_running_corrects = torch.tensor(0.0, device=device)
-        local_total_samples = torch.tensor(0.0, device=device)
-              
-        if eval_args.action_predictions:
-            mc_data = get_topk_predictions(predictions, global_index, eval_args.topk_predictions)
-            avion_pred = mc_data['avion_pred']
-            if gt_name == avion_pred:
-                local_avion_correct.add_(1)
-                global_avion_correct.add_(1)
+            gt_name = mc_data['gt_answer_name'][0][0]
+            local_avion_correct = torch.tensor(0.0, device=device)
+            local_running_corrects = torch.tensor(0.0, device=device)
+            local_total_samples = torch.tensor(0.0, device=device)
+                
+            if eval_args.action_predictions:
+                mc_data = get_topk_predictions(predictions, global_index, eval_args.topk_predictions)
+                avion_pred = mc_data['avion_pred']
+                if gt_name == avion_pred:
+                    local_avion_correct.add_(1)
+                    global_avion_correct.add_(1)
 
-        # we don't want to evaluate the whole thing
-        # let's evaluate 1000 samples to get the complete picture       
-        if finish_early and idx> (1000 / dist.get_world_size()):
-            break                     
-     
-        # Update running corrects and total samples
+            # we don't want to evaluate the whole thing
+            # let's evaluate 1000 samples to get the complete picture       
+            if finish_early and idx> (1000 / dist.get_world_size()):
+                break                     
         
-        llava_correct, llava_pred = ensemble_llava_evaluation(
-                                                      eval_args.pretrained_name,
-                                                      gt_name,
-                                                      frames, 
-                                                      tokenizer,
-                                                      model,
-                                                      image_processor,
-                                                      mc_data,
-                                                      eval_args.clip_length,
-                                                      eval_args.llava_num_frames,
-                                                      temperature = 0,
-                                                      ensemble_k = 1,
-                                                      time_meta = time_meta,
-                                                      is_test = not finish_early)
+            # Update running corrects and total samples
+            
+            llava_correct, llava_pred = ensemble_llava_evaluation(
+                                                        eval_args.pretrained_name,
+                                                        gt_name,
+                                                        frames, 
+                                                        tokenizer,
+                                                        model,
+                                                        image_processor,
+                                                        mc_data,
+                                                        eval_args.clip_length,
+                                                        eval_args.llava_num_frames,
+                                                        temperature = 0,
+                                                        ensemble_k = 1,
+                                                        time_meta = time_meta,
+                                                        is_test = not finish_early)
 
-        # log the predictions into prediciton analysis
-
-        val_dataset.prediction_analysis.log(global_index,
-                                            llava_pred,
-                                            gt_name,
-                                            predictions[str(global_index)],
-                                            time_meta['start_second'].item(),
-                                            time_meta['end_second'].item(),
-                                            time_meta['vid_path'],
-                                            dataset_name = 'EK100')
+            # log the predictions into prediciton analysis
+        
+            val_dataset.prediction_analysis.log(global_index,
+                                                llava_pred,
+                                                gt_name,
+                                                predictions[str(global_index)],
+                                                time_meta['start_second'].item(),
+                                                time_meta['end_second'].item(),
+                                                time_meta['vid_path'],
+                                                dataset_name = 'EK100')
 
         
 
 
-        local_running_corrects.add_(llava_correct)
-        global_running_corrects.add_(llava_correct)
-                                                              
-        local_total_samples.add_(1)
-        global_total_samples.add_(1)
+            local_running_corrects.add_(llava_correct)
+            global_running_corrects.add_(llava_correct)
+                                                                
+            local_total_samples.add_(1)
+            global_total_samples.add_(1)
 
-        logger.info(f'Process {dist.get_rank()} - local_total_samples: {local_total_samples:.4f}')
+            logger.info(f'Process {dist.get_rank()} - local_total_samples: {local_total_samples:.4f}')
 
-        logger.info(f'Process {dist.get_rank()} - loca_llava_correct: {llava_correct:.4f}')
+            logger.info(f'Process {dist.get_rank()} - loca_llava_correct: {llava_correct:.4f}')
 
-        logger.info(f'Process {dist.get_rank()} - local_running_corrects: {local_running_corrects:.4f}')
+            logger.info(f'Process {dist.get_rank()} - local_running_corrects: {local_running_corrects:.4f}')
 
 
         # Calculate and log running mean accuracy

@@ -47,6 +47,7 @@ from llava.model import *
 from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token
 from llava.utils import rank0_print, process_video_with_pyav, process_video_with_decord, process_EK100_video_with_decord
 
+
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -980,7 +981,7 @@ class LazySupervisedDataset(Dataset):
     def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments):
         super(LazySupervisedDataset, self).__init__()
         self.tokenizer = tokenizer
-        self.list_data_dict = []
+        self.list_data_dict = []        
 
         # Handle multiple JSON files specified in the data_path
         if "{" in data_path and "}" in data_path:
@@ -1222,6 +1223,9 @@ class LazySupervisedDataset(Dataset):
                     start_second = float(self.list_data_dict[i]['start_timestamp'])
                     end_second = float(self.list_data_dict[i]['end_timestamp'])
                     video, video_time, frame_time, num_frames_to_sample = process_EK100_video_with_decord(video_file, self.data_args, start_second, end_second, 15)
+
+                    # add log 
+
                 else:
                     video, video_time, frame_time, num_frames_to_sample = process_video_with_decord(video_file, self.data_args)
 
