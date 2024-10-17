@@ -89,12 +89,17 @@ class PredictionAnalysis:
             gt_name = items['gt_name']
             # only replacing the first : 
             avion_pred = items['avion_preds']['predictions'][0].replace(':', ' ', 1)
-            
-            llava_verb, llava_noun = llava_pred.split(' ')
+            avion_preds = items['avion_preds']['predictions'][:5]
+            avion_preds = [e.replace(':', ' ', 1) for e  in avion_preds]
+            try:
+                llava_verb, llava_noun = llava_pred.split(' ')
+            except:
+                lst =  llava_pred.split(' ')
+                llava_verb, llava_noun = lst[0], lst[1]
             avion_verb, avion_noun = avion_pred.split(' ')
             gt_verb, gt_noun = gt_name.split(' ')
 
-            if llava_pred != gt_name:               
+            if llava_pred != gt_name:     
                 wrong_llava_collections[idx] = 0
             else:
                 wrong_llava_collections[idx] = 1
