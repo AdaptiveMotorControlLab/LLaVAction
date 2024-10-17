@@ -18,7 +18,7 @@ from action.llava_ov_inference import llava_inference
 import json
 import logging
 from llava.utils import rank0_print
-from action.utils import generate_label_map, MultiChoiceGenerator, match_answer, parse_avion_predictions, avion_video_loader
+from action.utils import generate_label_map, MultiChoiceGenerator, match_answer, parse_avion_predictions, avion_video_loader, create_multi_choice_from_avion_predictions
 from action.prediction_analysis import PredictionAnalysis
 import copy
 from collections import Counter 
@@ -26,8 +26,8 @@ import torch.distributed as dist
 
 if not dist.is_initialized():
     dist.init_process_group(backend='nccl')
-rank = dist.get_rank()
-torch.cuda.set_device(rank)
+    rank = dist.get_rank()
+    torch.cuda.set_device(rank)
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
@@ -250,25 +250,7 @@ def prepare_llava(pretrained):
 
     return tokenizer, model, image_processor, max_length
 
-def get_topk_predictions(data, idx, k):
 
-    letters = [chr(65+i) for i in range(26)][:k]
-    options = list(range(26))[:k]
-
-    predictions = data[str(idx)]['predictions'][:k]
-    predictions = parse_avion_predictions(predictions)    
-
-    for i in range(len(options)):              
-        options[i] = f'{letters[i]}. {predictions[i]}'
-                
-    mc_data = {
-        'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer.'},
-        'options': {0: options},
-        'valid_letters': letters,
-        'avion_pred': predictions[0]
-        }    
-    
-    return mc_data
 
 def ensemble_llava_evaluation(
                               pretrained_name,
@@ -415,7 +397,7 @@ def evaluate_on_EK100(eval_args,
             local_total_samples = torch.tensor(0.0, device=device)
                 
             if eval_args.action_predictions:
-                mc_data = get_topk_predictions(predictions, global_index, eval_args.topk_predictions)
+                mc_data = create_multi_choice_from_avion_predictions(predictions[global_index], eval_args.topk_predictions)
                 avion_pred = mc_data['avion_pred']
                 if gt_name == avion_pred:
                     local_avion_correct.add_(1)

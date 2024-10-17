@@ -25,7 +25,8 @@ class PredictionAnalysis:
         self.rank = rank
         self.prefix = prefix
         self.save_path = os.path.join(save_folder, f'{self.prefix}_rank{rank}.json')       
-        self.data = {}   
+        self.data = {}  
+
     def log(self, 
             global_index,
             llava_pred,
@@ -63,12 +64,27 @@ class PredictionAnalysis:
                 with open(file, 'r') as f:
                     _data = json.load(f)
                     self.data.update(_data)
+
+            self.data = {int(k): v for k, v in self.data.items()}
             print ('length', len(self.data))
             assert len(self.data) == 9668
             #print (sorted(list(self.data.keys()), key = lambda x: int(x)))
+    def get_wrong_examples(self):
+        if not hasattr(self, 'llava_pred_mask'):
+            self.analysis()
+
+        wrong_indices = self.llava_pred_mask == 0
+        wrong_indices = np.where(wrong_indices)[0]
+
+        wrong_examples = {k: self.data[k] for k in wrong_indices}
+
+        return wrong_examples
+
 
     def analysis(self):
 
+        self.load()
+        
         N = len(self.data)
         llava_wrong_verb_collections = []
         llava_wrong_noun_collections = []
@@ -78,8 +94,8 @@ class PredictionAnalysis:
         avion_wrong_noun_collections = []
         avion_wrong_verb_noun_collections = []
 
-        wrong_llava_collections = [0] * N
-        wrong_avion_collections = [0] * N
+        llava_pred_mask = [0] * N
+        avion_pred_mask = [0] * N
 
         indices = sorted(list(self.data.keys()), key = lambda x: int(x))
 
@@ -99,15 +115,11 @@ class PredictionAnalysis:
             avion_verb, avion_noun = avion_pred.split(' ')
             gt_verb, gt_noun = gt_name.split(' ')
 
-            if llava_pred != gt_name:     
-                wrong_llava_collections[idx] = 0
-            else:
-                wrong_llava_collections[idx] = 1
-            if avion_pred!= gt_name:
-                wrong_avion_collections[idx] = 0
-            else:
-                wrong_avion_collections[idx] = 1
-
+            if llava_pred == gt_name:     
+                llava_pred_mask[idx] = 1
+           
+            if avion_pred== gt_name:
+                avion_pred_mask[idx] = 1           
             
             if llava_verb == gt_verb and llava_noun!=gt_noun:
                 llava_wrong_noun_collections.append((llava_pred, gt_name))
@@ -123,8 +135,11 @@ class PredictionAnalysis:
             if avion_noun!= gt_noun and avion_verb!=gt_verb:
                 avion_wrong_verb_noun_collections.append((avion_pred, gt_name))
 
-        wrong_llava_collections = np.array(wrong_llava_collections)
-        wrong_avion_collections = np.array(wrong_avion_collections)
+        llava_pred_mask = np.array(llava_pred_mask)
+        avion_pred_mask = np.array(avion_pred_mask)
+
+        self.llava_pred_mask = llava_pred_mask
+
         llava_wrong_noun_collections = np.array(llava_wrong_noun_collections)
         llava_wrong_verb_collections = np.array(llava_wrong_verb_collections)
         llava_wrong_verb_noun_collections = np.array(llava_wrong_verb_noun_collections)
@@ -133,29 +148,34 @@ class PredictionAnalysis:
         avion_wrong_verb_noun_collections = np.array(avion_wrong_verb_noun_collections)
                 
         # first, the correlation between avion and llava
-        correlation = np.corrcoef(wrong_llava_collections, wrong_avion_collections)[0, 1]
+        correlation = np.corrcoef(llava_pred_mask, avion_pred_mask)[0, 1]
 
         print("Correlation:", correlation)
 
-        print ('llava top1 action accuracy {:.3f}'.format(np.sum(wrong_llava_collections == 1) / len(wrong_llava_collections)))
-        print ('avion top1 action accuracy {:.3f}'.format(np.sum(wrong_avion_collections == 1) / len(wrong_avion_collections)))
+        print ('llava top1 action accuracy {:.3f}'.format(np.sum(llava_pred_mask == 1) / len(llava_pred_mask)))
+        print ('avion top1 action accuracy {:.3f}'.format(np.sum(avion_pred_mask == 1) / len(avion_pred_mask)))
 
-        print ('llava percentage of wrong noun {:.2f}'.format(len(llava_wrong_noun_collections) / np.sum(wrong_llava_collections == 0)))
-        print ('llava percentage of wrong verb {:.2f}'.format(len(llava_wrong_verb_collections) / np.sum(wrong_llava_collections == 0)))
-        print ('llava percentage of both verb noun wrong {:.2f}'.format(len(llava_wrong_verb_noun_collections) / np.sum(wrong_llava_collections == 0)))
+        print ('llava percentage of wrong noun {:.2f}'.format(len(llava_wrong_noun_collections) / np.sum(llava_pred_mask == 0)))
+        print ('llava percentage of wrong verb {:.2f}'.format(len(llava_wrong_verb_collections) / np.sum(llava_pred_mask == 0)))
+        print ('llava percentage of both verb noun wrong {:.2f}'.format(len(llava_wrong_verb_noun_collections) / np.sum(llava_pred_mask == 0)))
 
 
-        print ('avion percentage of wrong noun {:.2f}'.format(len(avion_wrong_noun_collections) / np.sum(wrong_avion_collections == 0)))
-        print ('avion percentage of wrong verb {:.2f}'.format(len(avion_wrong_verb_collections) / np.sum(wrong_avion_collections == 0)))
-        print ('avion percentage of both verb noun wrong {:.2f}'.format(len(avion_wrong_verb_noun_collections) / np.sum(wrong_avion_collections == 0)))
+        print ('avion percentage of wrong noun {:.2f}'.format(len(avion_wrong_noun_collections) / np.sum(avion_pred_mask == 0)))
+        print ('avion percentage of wrong verb {:.2f}'.format(len(avion_wrong_verb_collections) / np.sum(avion_pred_mask == 0)))
+        print ('avion percentage of both verb noun wrong {:.2f}'.format(len(avion_wrong_verb_noun_collections) / np.sum(avion_pred_mask == 0)))
 
 
 
 
 if __name__ == '__main__':
 
+    # at rcp server
+    #save_folder = '/storage-rcp-pure/upmwmathis_scratch/shaokai/LLaVA-NeXT/llavavideo_avion_mc_top10_5epoch_preds'
+    # at amg0 
+    save_folder = '/data/epic_kitchen/llavavideo_avion_mc_top10_5epoch_preds'
 
-    prediction_analysis = PredictionAnalysis(save_folder = '/storage-rcp-pure/upmwmathis_scratch/shaokai/LLaVA-NeXT/llavavideo_avion_mc_top10_5epoch_preds',
+
+    prediction_analysis = PredictionAnalysis(save_folder = save_folder,
                                              prefix = 'prediction_analysis_buf')
-    prediction_analysis.load()
+    
     prediction_analysis.analysis()

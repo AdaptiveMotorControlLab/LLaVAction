@@ -6,26 +6,28 @@ import numpy as np
 import openai
 from pydantic import BaseModel
 from concurrent.futures import ProcessPoolExecutor
-from action.utils import avion_video_loader
+from action.utils import avion_video_loader, create_multi_choice_from_avion_predictions
 import torch
 import cv2
 from pathlib import Path
+from action.prediction_analysis import PredictionAnalysis
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 GPT_MODEL = "gpt-4o-2024-08-06"
 
 
-class ImageOnlyResponse(BaseModel):
+class GT_Agnostic_Response(BaseModel):
     """
+    The GT was not known. The response is to generate a new answer
     """
     explanation: str
+    answer: str
 
-class MultiChoiceResponse(BaseModel):
+class GT_Augmentation_Response(BaseModel):
     """
-    The output format of the response
+    The GT was known. The response is to add more information to the GT
     """
-
     explanation: str
 def split_indices(indices, num_chunks):
     # Calculate the size of each chunk and the remainder
@@ -51,22 +53,21 @@ class GPTAnnotator:
         data = []
         with open(ann_file, 'r') as f:
             for line in f:
-            # Parse the JSON data
-                _data = json.loads(line)
-                # Process your data
-                data.append(_data)
+                data.append(json.loads(line))
         self.data = data
-        
-
+    
     def prepare_multiple_images(self, images):
         """
 
         """               
         encoded_image_list = []
+
         for image in images:
          
             if isinstance(image, torch.Tensor):
                 image = image.cpu().detach().numpy()
+
+            
             # images from matplotlib etc.
             if isinstance(image, io.BytesIO):
                 image_bytes = image
@@ -104,10 +105,11 @@ class GPTAnnotator:
                         jitter = False)
         return frames, time_meta
 
-    def parse_conversation(self, item):
+
+
+    def parse_conversation_from_train_convs(self, item):
         """
-        We should get time steps, duration
-        We shoudd also get gt and wrong answers
+        The item has the structure of convs defined in the train anno.
         """
         conversations = item['conversations']
         human_dict = conversations[0]
@@ -141,19 +143,53 @@ class GPTAnnotator:
             end_timestamp = item['end_timestamp']
             vid_path = '{}/{}'.format(item['video'].split('-')[0], item['video'].split('-')[1])
             frames, time_meta = self.extract_frames(self.data_root, vid_path, start_timestamp, end_timestamp)
-            parsed_item = self.parse_conversation(item)
-            gpt_answer = self.annotate_images(frames, parsed_item).explanation
+            parsed_item = self.parse_conversation_from_train_convs(item)
+            gpt_answer = self.annotate_images_from_train_anno(frames, parsed_item).explanation
             item['conversations'][1]['value'] = gpt_answer
             ret[index] = item
             break
 
-        return ret         
+        return ret
 
-    def annotate_images(self, images, data_item):
+    def predict_images(self, images, data_item):
         """
-        Annotate with mc_data
-        {
-        }
+        Predict the action from the images
+        """
+        
+        option_text = data_item['options']
+        start_second = data_item['start_second']
+        end_second = data_item['end_second']
+        temperature = 0
+        system_prompt_prefix = f"""
+        You are seeing video frames from an egocentric view of a person. Pretend that you are the person.  Your task is to describe what action you are performing.
+        To assist you for how to describe the action, the video's start time is {start_second} and the end time is {end_second} and the duration is {end_second - start_second} seconds.
+        You were given multiple choice options {option_text}. Pick the correct one and put that into the answer. Note in the answer do not include the option letter, just the name of the action.
+        Also explain why the correct answer is correct and why the other options are incorrect.
+        """
+
+        system_prompt_suffix = """"""
+
+        system_prompt = system_prompt_prefix + system_prompt_suffix
+
+        system_message =  [{"role": "system", "content": system_prompt}]
+
+        multi_image_content = self.prepare_multiple_images(images)
+        multi_modal_content = [{"type": "text", "text": ""}] + multi_image_content
+        user_message = [{"role": "user", "content": multi_modal_content}]               
+
+        response = client.beta.chat.completions.parse(
+            model=GPT_MODEL,
+            messages=system_message + user_message, 
+            response_format = GT_Agnostic_Response,
+            temperature = temperature
+        )
+
+        return response.choices[0].message.parsed        
+
+
+    def annotate_images_from_train_anno(self, images, data_item):
+        """
+        Assuming that data_item already has the multi-choice options and the gt_answer
         """
         gt_answer = data_item['gt_answer']
         option_text = data_item['options']
@@ -190,7 +226,7 @@ Based on the answers above, why right answer is right and why wrong answers were
         response = client.beta.chat.completions.parse(
             model=GPT_MODEL,
             messages=system_message + user_message, 
-            response_format = MultiChoiceResponse,
+            response_format = GT_Augmentation_Response,
             temperature = temperature
         )
 
@@ -203,14 +239,7 @@ def process_subset(indices_subset, train_file_path, root):
     return annotator.annotate(indices_subset)
 
 
-if __name__ == '__main__':
-    #train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl'
-    #root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
-    train_file_path = '/data/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl'
-    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-    
-    num_cores = 2 #os.cpu_count()
-
+def multi_process_annotate(train_file_path, root, num_cores):
     print (f'Using {num_cores} cores thus splitting the data into {num_cores} chunks')
 
     with open(train_file_path, 'r') as f:
@@ -238,7 +267,7 @@ if __name__ == '__main__':
     keys = sorted(list(combined_results.keys()))
 
     print ('resulted number of keys', len(keys))
-    
+
     result = []
     for key in keys:
         result.append(combined_results[key])
@@ -248,3 +277,69 @@ if __name__ == '__main__':
     with open(anno_root / 'gpt_annotated.jsonl', 'w') as f:
         for item in result:
             f.write(json.dumps(item) + '\n')
+
+def explore_wrong_examples(train_file_path, root, prediction_save_folder):
+
+    annotator = GPTAnnotator(train_file_path, root)
+    prediction_analysis = PredictionAnalysis(prediction_save_folder)
+    wrong_examples = prediction_analysis.get_wrong_examples()
+    data_root = root
+
+    count = 0
+    for k,v in wrong_examples.items(): 
+       
+       
+        gt_name = v['gt_name']
+        avion_predictions = v['avion_preds']['predictions']
+        _avion_predictions = [e.replace(':', ' ', 1) for e in avion_predictions]
+        if gt_name not in _avion_predictions:
+            print ('gt_name not in avion_predictions')
+            continue
+        else:
+            count+=1
+            if count <= 2:
+                continue
+            if count > 6:
+                break
+            print ('gt_name in avion_predictions')
+        
+        vid_path = v['vid_path'][0]
+        start_second = v['start_second']
+        end_second = v['end_second']
+    
+        frames, time_meta = annotator.extract_frames(data_root, vid_path, start_second, end_second)
+
+        option_text = create_multi_choice_from_avion_predictions(avion_predictions, len(avion_predictions))['options'][0]
+        parsed_item = {
+            'options': option_text,
+            'gt_answer': gt_name,
+            'start_second': start_second,
+            'end_second': end_second
+        }
+
+        parsed_answer = annotator.predict_images(frames, parsed_item)
+        
+        predicted_answer = parsed_answer.answer
+        explanation = parsed_answer.explanation
+
+        print ('gt_name', gt_name)
+        print ('avion_predictions', avion_predictions)
+        print ('llava_pred', v['llava_pred'])
+        print ('chatgpt answer', predicted_answer)
+        print ('explanation', explanation)
+        
+
+
+
+
+if __name__ == '__main__':
+    #train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl'
+    #root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
+    train_file_path = '/data/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl'
+    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'    
+    pred_folder = '/data/epic_kitchen/llavavideo_avion_mc_top10_5epoch_preds'
+    num_cores = 2 #os.cpu_count()
+    #multi_process_annotate(train_file_path, root, num_cores)
+
+    explore_wrong_examples(train_file_path, root, pred_folder)
+    

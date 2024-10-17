@@ -48,15 +48,7 @@ def match_answer(pred, gt):
 
 
 def parse_avion_predictions(predictions):
-    new_predictions = []
-    for pred in predictions:
-        # the prediction looks like verb:noun1:noun2..
-        # we want to it look like verb noun1:noun2 
-        first_sep = pred.index(':')
-        prediction = pred[:first_sep] + ' ' + pred[first_sep+1:]
-        new_predictions.append(prediction)
-    return new_predictions
-
+    return [pred.replace(':', ' ', 1) for pred in predictions]   
 
 class MultiChoiceGenerator:
     """
@@ -189,6 +181,27 @@ def get_video_reader(videoname, num_threads, fast_rrc, rrc_params, fast_rcc, rcc
     else:
         video_reader = decord.VideoReader(videoname, num_threads=num_threads)
     return video_reader
+
+def create_multi_choice_from_avion_predictions(avion_predictions, k):
+    
+    letters = [chr(65+i) for i in range(26)][:k]
+    options = list(range(26))[:k]
+
+    predictions = avion_predictions[:k]
+    predictions = parse_avion_predictions(predictions)    
+
+    for i in range(len(options)):              
+        options[i] = f'{letters[i]}. {predictions[i]}'
+                
+    mc_data = {
+        'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer.'},
+        'options': {0: options},
+        'valid_letters': letters,
+        'avion_pred': predictions[0]
+        }    
+    
+    return mc_data
+    
 
 
 def avion_video_loader(root, vid, ext, second, end_second,
