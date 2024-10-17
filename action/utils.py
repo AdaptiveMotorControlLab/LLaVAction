@@ -226,6 +226,9 @@ def avion_video_loader(root, vid, ext, second, end_second,
         time_meta = {}
         
         time_meta['duration'] = end_second - second
+
+        assert end_second > second, 'end_second should be greater than second'
+
         chunk_start = int(second) // chunk_len * chunk_len
         chunk_end = int(end_second) // chunk_len * chunk_len
         while True:
@@ -262,7 +265,7 @@ def avion_video_loader(root, vid, ext, second, end_second,
                 print(error)
                 frames = vr.get_batch([0] * len(rel_frame_ids)).asnumpy()
             except IndexError:
-                print(root, vid, ext, second, end_second)
+                print('IndexError', root, vid, ext, second, end_second)
             all_frames.append(frames)
             all_frame_ids.append(frame_ids)
             if sum(map(lambda x: x.shape[0], all_frames)) == clip_length:
