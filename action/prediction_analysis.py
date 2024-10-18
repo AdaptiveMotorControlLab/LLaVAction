@@ -60,7 +60,6 @@ class PredictionAnalysis:
         if self.rank == 0:
             files = glob.glob(os.path.join(save_folder,self.prefix + '*'))
             for file in files:
-                print ('loading pred checkpoint from: ', file)
                 with open(file, 'r') as f:
                     _data = json.load(f)
                     self.data.update(_data)
