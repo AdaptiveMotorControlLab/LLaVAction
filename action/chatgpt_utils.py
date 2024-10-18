@@ -16,6 +16,9 @@ client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 GPT_MODEL = "gpt-4o-2024-08-06"
 
+prices = {
+    "gpt-4o-2024-08-06": {"input": 2.5 / 10**6, "output": 10 / 10**6},
+}
 
 class GT_Agnostic_Response(BaseModel):
     """
@@ -46,7 +49,7 @@ def split_indices(indices, num_chunks):
     return chunks
 
 class GPTAnnotator:
-    def __init__(self, ann_file, data_root, clip_length = 32):
+    def __init__(self, ann_file, data_root, clip_length = 4):
         self.ann_file = ann_file
         self.data_root = data_root
         self.clip_length = clip_length
@@ -92,6 +95,9 @@ class GPTAnnotator:
 
 
     def extract_frames(self, data_root, vid_path, start_second, end_second):
+
+
+
         frames, time_meta = avion_video_loader(data_root,
                         vid_path,
                         'MP4',
@@ -183,6 +189,13 @@ class GPTAnnotator:
             response_format = GT_Agnostic_Response,
             temperature = temperature
         )
+
+        input_consumed = response.usage.prompt_tokens
+        output_consumed = response.usage.completion_tokens
+        input_cost = input_consumed * prices[GPT_MODEL]["input"]
+        output_cost = output_consumed * prices[GPT_MODEL]["output"]
+        total_cost = input_cost + output_cost
+        print ('cost of the inference', total_cost)
 
         return response.choices[0].message.parsed        
 
@@ -296,11 +309,7 @@ def explore_wrong_examples(train_file_path, root, prediction_save_folder):
             print ('gt_name not in avion_predictions')
             continue
         else:
-            count+=1
-            if count <= 2:
-                continue
-            if count > 6:
-                break
+            count+=1           
             print ('gt_name in avion_predictions')
         
         vid_path = v['vid_path'][0]
@@ -327,7 +336,7 @@ def explore_wrong_examples(train_file_path, root, prediction_save_folder):
         print ('llava_pred', v['llava_pred'])
         print ('chatgpt answer', predicted_answer)
         print ('explanation', explanation)
-        
+        break
 
 
 
