@@ -24,10 +24,24 @@ import copy
 from collections import Counter 
 import torch.distributed as dist
 
-if not dist.is_initialized():
-    dist.init_process_group(backend='nccl')
-    rank = dist.get_rank()
-    torch.cuda.set_device(rank)
+
+
+
+def setup(rank, world_size):
+    # Check if the process group is already initialized
+    if not dist.is_initialized():
+        # Initialize the process group if it hasn't been initialized yet
+        os.environ['MASTER_ADDR'] = '127.0.0.1'  # Replace with master node IP
+        os.environ['MASTER_PORT'] = '29500'      # Set a port for communication
+        
+        dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+        print(f"Process group initialized for rank {rank}")
+        
+        # Set the GPU device based on rank
+        local_rank = rank % torch.cuda.device_count()
+        torch.cuda.set_device(local_rank)
+        print(f"Using GPU {local_rank} for rank {rank}")
+
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
@@ -318,6 +332,11 @@ def evaluate_on_EK100(eval_args,
                       tokenizer= None, 
                       image_processor= None):
 
+    world_size = int(os.environ['WORLD_SIZE'])
+    rank = int(os.environ['RANK'])
+    setup(rank, world_size)
+
+
     if model is not None:
         image_processor = model.get_vision_tower().image_processor
 
@@ -397,7 +416,7 @@ def evaluate_on_EK100(eval_args,
             local_total_samples = torch.tensor(0.0, device=device)
                 
             if eval_args.action_predictions:
-                mc_data = create_multi_choice_from_avion_predictions(predictions[global_index], eval_args.topk_predictions)
+                mc_data = create_multi_choice_from_avion_predictions(predictions[str(global_index)]['predictions'], eval_args.topk_predictions)
                 avion_pred = mc_data['avion_pred']
                 if gt_name == avion_pred:
                     local_avion_correct.add_(1)
