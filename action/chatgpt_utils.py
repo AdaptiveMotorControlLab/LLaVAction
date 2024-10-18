@@ -48,18 +48,12 @@ def split_indices(indices, num_chunks):
 
     return chunks
 
-class GPTAnnotator:
-    def __init__(self, ann_file, data_root, clip_length = 4):
-        self.ann_file = ann_file
-        self.data_root = data_root
+
+class ChatGPT:
+    def __init__(self, clip_length = 4):
         self.clip_length = clip_length
-        data = []
-        with open(ann_file, 'r') as f:
-            for line in f:
-                data.append(json.loads(line))
-        self.data = data
-    
-    def prepare_multiple_images(self, images):
+
+    def prepare_multi_images(self, images):
         """
 
         """               
@@ -91,13 +85,9 @@ class GPTAnnotator:
             for encoded_image in encoded_image_list
         ]
 
-        return multi_image_content
-
+        return multi_image_content 
 
     def extract_frames(self, data_root, vid_path, start_second, end_second):
-
-
-
         frames, time_meta = avion_video_loader(data_root,
                         vid_path,
                         'MP4',
@@ -109,9 +99,31 @@ class GPTAnnotator:
                         fast_rrc=False,
                         fast_rcc = False,
                         jitter = False)
-        return frames, time_meta
+        return frames, time_meta               
 
 
+class GPTInferenceAnnotator(ChatGPT):
+    """
+    Given the images, this class will annotate the video frames
+    """
+
+
+class GPTAugmentationAnnotator(ChatGPT):
+    """
+    Given the train annotation from the EK100 dataset, this class will annotate the video frames
+    that augments the gt annotations.
+    """
+
+    def __init__(self, ann_file, data_root, clip_length = 4):
+        super().__init__(clip_length = clip_length) 
+        self.ann_file = ann_file
+        self.data_root = data_root
+        self.clip_length = clip_length
+        data = []
+        with open(ann_file, 'r') as f:
+            for line in f:
+                data.append(json.loads(line))
+        self.data = data    
 
     def parse_conversation_from_train_convs(self, item):
         """
