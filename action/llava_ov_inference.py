@@ -83,8 +83,9 @@ def llava_video_process(
     video_duration = time_meta['duration'].item()
     n_frames = time_meta['n_frames'].item()
     frame_time = time_meta['frame_time']
-    frame_time = [e[0] for e in frame_time]
-    time_instruciton = f"The video lasts for {video_duration:.2f} seconds, and {n_frames} frames are uniformly sampled from it. These frames are located at {frame_time}.Please answer the following questions related to this video."    
+    print ('frame time', frame_time)
+    frame_time = frame_time[0]
+    time_instruciton = f"You are seeing a video taken from egocentric view. The video lasts for {video_duration:.2f} seconds, and {n_frames} frames are uniformly sampled from it. These frames are located at {frame_time}. What is the person doing? Format your answer letter. verb noun such as A. move knife."    
     
     frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].cuda().to(torch.bfloat16)
 
@@ -97,11 +98,14 @@ def llava_video_process(
     
     question = DEFAULT_IMAGE_TOKEN + f"{time_instruciton}\n:{options}"
 
+    print ('what is the question')
+    print (question)
 
     conv = copy.deepcopy(conv_templates[conv_template])
     conv.append_message(conv.roles[0], question)
     conv.append_message(conv.roles[1], None)
     prompt_question = conv.get_prompt()
+
 
     input_ids = tokenizer_image_token(prompt_question, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(device)
     image_sizes = [frame.size for frame in video_frames]
