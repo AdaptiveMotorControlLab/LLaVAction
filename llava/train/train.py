@@ -1232,7 +1232,7 @@ class LazySupervisedDataset(Dataset):
                 processor = self.data_args.image_processor
                 image = processor.preprocess(video, return_tensors="pt")["pixel_values"]
                 if self.data_args.add_time_instruction:
-                    time_instruciton = f"The video lasts for {video_time:.2f} seconds, and {num_frames_to_sample} frames are uniformly sampled from it. These frames are located at {frame_time}.Please answer the following questions related to this video."
+                    time_instruciton = f"The video lasts for {video_time:.2f} seconds, and {num_frames_to_sample} frames are uniformly sampled from it. Please answer the following questions related to this video."
                     sources[0]["conversations"][0]["value"] = f'{DEFAULT_IMAGE_TOKEN}\n{time_instruciton}\n{sources[0]["conversations"][0]["value"].replace(DEFAULT_IMAGE_TOKEN, "")}'
                 image = [(image, video[0].size, "video")]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
