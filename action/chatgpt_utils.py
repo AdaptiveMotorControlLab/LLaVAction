@@ -10,6 +10,7 @@ from action.utils import avion_video_loader, create_multi_choice_from_avion_pred
 import torch
 import cv2
 from pathlib import Path
+from tqdm import tqdm
 from action.prediction_analysis import PredictionAnalysis
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -186,12 +187,7 @@ class GPTInferenceAnnotator(ChatGPT):
     def parse_item(self, item):
 
         gt_name = item['gt_name']
-        avion_predictions = item['avion_preds']['predictions']
-        # _avion_predictions = [e.replace(':', ' ', 1) for e in avion_predictions]
-        # if gt_name not in _avion_predictions:
-        #     print ('gt_name not in avion_predictions')
-        # else:
-        #     print ('gt_name in avion_predictions')
+        avion_predictions = item['avion_preds']['predictions']       
         
         vid_path = item['vid_path'][0]
         start_second = item['start_second']
@@ -215,7 +211,7 @@ class GPTInferenceAnnotator(ChatGPT):
         data_batch = {i : self.data[i] for i in range(len(self.data)) if i in indices}
         ret = {}
 
-        for k,v in data_batch.items():
+        for k,v in tqdm(data_batch.items()):
             parsed_item = self.parse_item(v)
             start_timestamp = parsed_item['start_second']
             end_timestamp = parsed_item['end_second']
@@ -378,7 +374,7 @@ class GPTAugmentationAnnotator(ChatGPT):
         data_batch = [self.data[i] for i in range(len(self.data)) if i in indices]
 
         ret = {}
-        for index in indices:
+        for index in tqdm(indices):
             item = self.data[index]
             start_timestamp = item['start_timestamp']
             end_timestamp = item['end_timestamp']
@@ -444,27 +440,45 @@ Based on the answers above, why right answer is right and why wrong answers were
         return response.choices[0].message.parsed
     
 
-def multi_process_annotate(train_file_path, root):
+def multi_process_annotate(train_file_path, root, debug = False):
     annotator = GPTAugmentationAnnotator(train_file_path, 
     root, 
     clip_length = 4,
-    debug = True)
+    debug = debug)
     results = annotator.multi_process_run()
 
-def explore_wrong_examples(root, prediction_save_folder):
+def explore_wrong_examples(root, prediction_save_folder, debug = False):
     annotator = GPTInferenceAnnotator(root, 
                                     prediction_save_folder, 
                                     clip_length = 4, 
-                                    debug = True)
+                                    debug = debug)
     annotator.explore_wrong_examples()
 
-def multi_process_inference(root, prediction_save_folder):
+def multi_process_inference(root, prediction_save_folder, debug = False):
 
     annotator = GPTInferenceAnnotator(root, 
     prediction_save_folder, 
-    clip_length = 4,
-    debug = True)
+    clip_length = 32,
+    debug = debug)
+
     annotator.multi_process_run()
+
+def calculate_gpt_accuracy(path):
+    with open(path, 'r') as f:
+        data = json.load(f)
+
+    keys = list(data.keys())
+    print ('length of the data', len(keys))
+
+    correct_count = 0
+    for k,v in data.items():
+        gt_name = v['gt_name']
+        chatgpt_answer = v['chatgpt_answer']
+        if gt_name == chatgpt_answer:
+            correct_count += 1
+        else:
+            print (chatgpt_answer, gt_name)
+    print ('accuracy', correct_count / len(keys))
 
 if __name__ == '__main__':
     #train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl'
@@ -473,7 +487,7 @@ if __name__ == '__main__':
     root = '/data/EK100/EK100_320p_15sec_30fps_libx264'    
     pred_folder = '/data/epic_kitchen/llavavideo_avion_mc_top10_5epoch_preds'
 
-    multi_process_annotate(train_file_path, root)
+    #multi_process_annotate(train_file_path, root)
     #explore_wrong_examples(root, pred_folder)
-
-    #multi_process_inference(root, pred_folder)
+    #multi_process_inference(root, pred_folder, debug = False)
+    calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames.json')
