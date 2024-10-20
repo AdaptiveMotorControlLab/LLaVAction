@@ -212,7 +212,7 @@ class GPTInferenceAnnotator(ChatGPT):
         ret = {}
 
         for k,v in tqdm(data_batch.items()):
-            parsed_item = self.parse_item(v)
+            parsed_item = self.parse_item(v)      
             start_timestamp = parsed_item['start_second']
             end_timestamp = parsed_item['end_second']
             vid_path = parsed_item['vid_path']
@@ -274,11 +274,10 @@ class GPTInferenceAnnotator(ChatGPT):
     def predict_images(self, images, parsed_item):
         """
         Predict the action from the images
-        """
-        
+        """        
         option_text = parsed_item['options']
-        start_second = parsed_item['start_second']
-        end_second = parsed_item['end_second']
+        start_second = 0
+        end_second = parsed_item['end_second'] - parsed_item['start_second']
         temperature = 0
         system_prompt_prefix = f"""
         You are seeing video frames from an egocentric view of a person. Pretend that you are the person.  Your task is to describe what action you are performing.
@@ -399,8 +398,8 @@ class GPTAugmentationAnnotator(ChatGPT):
         """
         gt_answer = data_item['gt_answer']
         option_text = data_item['options']
-        start_second = data_item['start_second']
-        end_second = data_item['end_second']        
+        start_second = 0
+        end_second = data_item['end_second']  - data_item['start_second']
         temperature = 0
         system_prompt_prefix = f"""
 You are seeing video frames from an egocentric view of a person. 
@@ -489,5 +488,5 @@ if __name__ == '__main__':
 
     #multi_process_annotate(train_file_path, root)
     #explore_wrong_examples(root, pred_folder)
-    #multi_process_inference(root, pred_folder, debug = False)
-    calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames.json')
+    multi_process_inference(root, pred_folder, debug = True)
+    #calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames.json')
