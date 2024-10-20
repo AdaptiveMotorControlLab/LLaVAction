@@ -85,7 +85,7 @@ def llava_video_process(
     frame_time = time_meta['frame_time']
     print ('frame time', frame_time)
     frame_time = frame_time[0]
-    time_instruciton = f"You are seeing a video taken from egocentric view. The video lasts for {video_duration:.2f} seconds, and {n_frames} frames are uniformly sampled from it. These frames are located at {frame_time}. What is the person doing? Format your answer letter. verb noun such as A. move knife."    
+    time_instruciton = f"You are seeing a video taken from egocentric view. The video lasts for {video_duration:.2f} seconds, and {n_frames} frames are uniformly sampled from it.  What is the person doing? Format your answer letter. verb noun such as A. move knife."    
     
     frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].cuda().to(torch.bfloat16)
 
