@@ -150,7 +150,13 @@ class GPTInferenceAnnotator(ChatGPT):
     Given the images, this class will annotate the video frames
     """
 
-    def __init__(self, root, prediction_save_folder, clip_length = 4, debug = False):
+    def __init__(self, 
+                 root, 
+                 prediction_save_folder, 
+                 clip_length = 4, 
+                 debug = False,
+                 topk = 10
+                 ):
         super().__init__(clip_length = clip_length)
         self.root = root
         self.prediction_save_folder = prediction_save_folder 
@@ -158,6 +164,7 @@ class GPTInferenceAnnotator(ChatGPT):
         self.prediction_analysis.load()
         self.data = self.prediction_analysis.data
         self.debug = debug
+        self.topk = topk
 
     def multi_process_run(self):
         prediction_analysis = PredictionAnalysis(self.prediction_save_folder)
@@ -187,7 +194,14 @@ class GPTInferenceAnnotator(ChatGPT):
     def parse_item(self, item):
 
         gt_name = item['gt_name']
-        avion_predictions = item['avion_preds']['predictions']       
+        avion_predictions = item['avion_preds']['predictions']
+        assert self.topk <= len(avion_predictions)
+        avion_predictions = avion_predictions[:self.topk]
+        # _avion_predictions = [e.replace(':', ' ', 1) for e in avion_predictions]
+        # if gt_name not in _avion_predictions:
+        #     print ('gt_name not in avion_predictions')
+        # else:
+        #     print ('gt_name in avion_predictions')
         
         vid_path = item['vid_path'][0]
         start_second = item['start_second']
@@ -453,12 +467,17 @@ def explore_wrong_examples(root, prediction_save_folder, debug = False):
                                     debug = debug)
     annotator.explore_wrong_examples()
 
-def multi_process_inference(root, prediction_save_folder, debug = False):
+def multi_process_inference(root, 
+                            prediction_save_folder, 
+                            clip_length = 4,
+                            topk = 10, 
+                            debug = False):
 
     annotator = GPTInferenceAnnotator(root, 
     prediction_save_folder, 
-    clip_length = 32,
-    debug = debug)
+    clip_length = clip_length,
+    debug = debug,
+    topk = topk)
 
     annotator.multi_process_run()
 
@@ -488,5 +507,8 @@ if __name__ == '__main__':
 
     #multi_process_annotate(train_file_path, root)
     #explore_wrong_examples(root, pred_folder)
-    multi_process_inference(root, pred_folder, debug = True)
-    #calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames.json')
+    multi_process_inference(root, 
+                            pred_folder, 
+                            debug = False,
+                            clip_length = 4,
+                            topk = 5)
