@@ -490,6 +490,8 @@ if __name__ == '__main__':
 
     #multi_process_annotate(train_file_path, root)
     #explore_wrong_examples(root, pred_folder)
-    multi_process_inference(root, pred_folder, debug = False,
+    multi_process_inference(root, 
+                            pred_folder, 
+                            debug = False,
                             clip_length = 4,
                             topk = 5)
