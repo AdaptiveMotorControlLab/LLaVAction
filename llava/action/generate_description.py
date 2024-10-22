@@ -3,7 +3,8 @@ import json
 import csv
 import os
 import argparse
-from action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator
+import sys
+from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator, format_task_related_prompt
 from pathlib import Path
 
 
@@ -78,7 +79,7 @@ def generate_naive_conversation(vn_str:str):
 
 def generate_random_mc_conversation(options:list[str], gt_answer_letter, gt_answer_name):
     return [
-        {"from": "human", "value": f"<image>\n the video is taken from egocentric view. What action is the person performing? Please select the letter for the right answer {options}"},
+        {"from": "human", "value": f"{options}"},
         {"from": "gpt", "value": f"{gt_answer_letter}. {gt_answer_name}"} 
     ]
 

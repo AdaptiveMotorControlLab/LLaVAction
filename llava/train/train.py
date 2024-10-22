@@ -36,7 +36,8 @@ import torch
 import transformers
 import tokenizers
 import deepspeed
-
+import sys
+import llava
 from transformers import AutoConfig
 from torch.utils.data import Dataset
 from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
@@ -47,6 +48,7 @@ from llava.model import *
 from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token
 from llava.utils import rank0_print, process_video_with_pyav, process_video_with_decord, process_EK100_video_with_decord
 
+from llava.action.utils import format_llava_prompt
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -978,10 +980,11 @@ def preprocess(sources: Sequence[str], tokenizer: transformers.PreTrainedTokeniz
 
 
 class LazySupervisedDataset(Dataset):
-    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments):
+    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments, eval_args):
         super(LazySupervisedDataset, self).__init__()
         self.tokenizer = tokenizer
-        self.list_data_dict = []        
+        self.list_data_dict = []  
+        self.eval_args = eval_args      
 
         # Handle multiple JSON files specified in the data_path
         if "{" in data_path and "}" in data_path:
@@ -1231,9 +1234,24 @@ class LazySupervisedDataset(Dataset):
 
                 processor = self.data_args.image_processor
                 image = processor.preprocess(video, return_tensors="pt")["pixel_values"]
-                if self.data_args.add_time_instruction:
-                    time_instruciton = f"The video lasts for {video_time:.2f} seconds, and {num_frames_to_sample} frames are uniformly sampled from it. Please answer the following questions related to this video."
-                    sources[0]["conversations"][0]["value"] = f'{DEFAULT_IMAGE_TOKEN}\n{time_instruciton}\n{sources[0]["conversations"][0]["value"].replace(DEFAULT_IMAGE_TOKEN, "")}'
+                if 'EK100' not in video_file:
+                    if self.data_args.add_time_instruction:
+                        time_instruciton = f"The video lasts for {video_time:.2f} seconds, and {num_frames_to_sample} frames are uniformly sampled from it. Please answer the following questions related to this video."
+                        sources[0]["conversations"][0]["value"] = f'{DEFAULT_IMAGE_TOKEN}\n{time_instruciton}\n{sources[0]["conversations"][0]["value"].replace(DEFAULT_IMAGE_TOKEN, "")}'
+                else:
+                    # We use our own prompting logic when it's EK100
+                    options = eval(sources[0]["conversations"][0]["value"])
+                    assert isinstance(options, list)
+                    assert len(options) == self.eval_args.topk_predictions
+                    # We only store the option list in the annotation file to make it easier to use consistent prompting
+                    llava_prompt = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
+                                                 options,
+                                                 video_time,
+                                                 num_frames_to_sample,
+                                                 include_time_instruction= self.data_args.add_time_instruction,
+                                                 include_frame_time = True)
+                    sources[0]["conversations"][0]["value"] = llava_prompt
+
                 image = [(image, video[0].size, "video")]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
                 # print(sources)
@@ -1322,9 +1340,9 @@ class DataCollatorForSupervisedDataset(object):
         return batch
 
 
-def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args) -> Dict:
+def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args, eval_args) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
-    train_dataset = LazySupervisedDataset(tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args)
+    train_dataset = LazySupervisedDataset(tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args, eval_args = eval_args)
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     return dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)
 
@@ -1728,7 +1746,7 @@ def train(attn_implementation=None):
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
-    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)   
+    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args, eval_args=eval_args)   
 
     eval_args.pretrained_name = model_args.model_name_or_path.split('/')[1]
 

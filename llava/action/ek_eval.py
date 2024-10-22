@@ -13,18 +13,14 @@ from tqdm import tqdm
 from pathlib import Path
 import sys
 import os
-sys.path[0] = os.path.dirname(sys.path[0])
-from action.llava_ov_inference import llava_inference
+from llava.action.llava_inference import llava_inference
 import json
 import logging
 from llava.utils import rank0_print
-from action.utils import generate_label_map, MultiChoiceGenerator, match_answer, parse_avion_predictions, avion_video_loader, create_multi_choice_from_avion_predictions
-from action.prediction_analysis import PredictionAnalysis
-import copy
+from llava.action.utils import generate_label_map, MultiChoiceGenerator, match_answer, parse_avion_predictions, avion_video_loader, create_multi_choice_from_avion_predictions
+from llava.action.prediction_analysis import PredictionAnalysis
 from collections import Counter 
 import torch.distributed as dist
-
-
 
 
 def setup(rank, world_size):
@@ -229,7 +225,6 @@ def get_args_parser():
     parser.add_argument('--use-multi-epochs-loader', action='store_true')
     
     # llava related
-    # llm size is type of string and can only be '7b' or '5b' etc.
     parser.add_argument('--pretrained_name', default = '', type = str, help ='the name in huggingface')
     parser.add_argument('--llava_num_frames', default=16, type=int, help='number of frames for llava')
     ## avion refinement 
@@ -467,23 +462,7 @@ def evaluate_on_EK100(eval_args,
             logger.info(f'Process {dist.get_rank()} - local_total_samples: {local_total_samples:.4f}')
             logger.info(f'Process {dist.get_rank()} - loca_llava_correct: {llava_correct:.4f}')
             logger.info(f'Process {dist.get_rank()} - local_running_corrects: {local_running_corrects:.4f}')
-
-
-        # Calculate and log running mean accuracy
-        # dist.barrier()
-        # dist.all_reduce(local_running_corrects, op=dist.ReduceOp.SUM)
-        # dist.all_reduce(local_total_samples, op=dist.ReduceOp.SUM)
-        # if eval_args.action_predictions:
-        #     dist.all_reduce(local_avion_correct, op=dist.ReduceOp.SUM)
-        # dist.barrier()
-        # # Calculate global accuracy after reduction
-        # local_running_accuracy = local_running_corrects.item() / local_total_samples.item()
-        # local_avion_accuracy = local_avion_correct.item() / local_total_samples.item()
-
-        # logger.info(f'Process {dist.get_rank()} - Running accuracy: {local_running_accuracy:.4f}')
-        # logger.info(f'Process {dist.get_rank()} - AvionRunning accuracy: {local_avion_accuracy:.4f}')
-
-    
+            
 
     dist.barrier()
     dist.all_reduce(global_running_corrects, op=dist.ReduceOp.SUM)

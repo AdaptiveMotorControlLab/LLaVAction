@@ -43,9 +43,52 @@ def generate_label_map(anno_root):
     return labels, mapping_vn2act, verb_maps, noun_maps
 
 
+def format_task_related_prompt(option_list):
+    prefix = "The video is taken from egocentric view. What action is the person performing? Given multiple choices, format your answer as the 'option letter. option_name' such as 'A. move knife' where A is the option letter and knife is the option_name.\n"
+    assert isinstance(option_list, list)
+    suffix = ",".join(option_list)
+    suffix = "Here are the options you are tasked:\n" + suffix 
+    ret = prefix + suffix
+    return ret
+
+def format_time_instruction(video_duration, n_frames, include_frame_time = False):
+
+    prefix = f"You are seeing a video taken from egocentric view. The video lasts for {video_duration:.2f} seconds, and {n_frames} frames are uniformly sampled from it."
+
+    frame_time = [i * (video_duration / n_frames) for i in range(n_frames)]
+    frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
+    
+    suffix = ""
+    if include_frame_time:
+        suffix = f"These frames are located at {frame_time}."
+    
+    return prefix + suffix
+
+
+def format_llava_prompt(image_token, 
+                        option_list, 
+                        video_duration,
+                        n_frames,
+                        include_time_instruction = False,
+                        include_frame_time = False
+                        ):
+    """
+    baseline llava prompt: {image_token}\n{task_related_prompt}
+    with time instruction: {image_token}\n{time_instruction}\n{task_related_prompt}
+
+    """
+    task_related_prompt = format_task_related_prompt(option_list)
+    time_instruction =  format_time_instruction(video_duration, n_frames, include_frame_time)
+
+    if include_time_instruction:
+        ret = f"{image_token}\n{time_instruction}{task_related_prompt}"
+    else:
+        ret = f"{image_token}\n{task_related_prompt}"
+
+    return ret
+
 def match_answer(pred, gt):          
     return pred == gt
-
 
 def parse_avion_predictions(predictions):
     return [pred.replace(':', ' ', 1) for pred in predictions]   
@@ -90,7 +133,6 @@ class MultiChoiceGenerator:
 
         gt_letter = letters[answers.index(gt_answer)]
         data = {
-                'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer'},
                 'options': {0: options},
                 # the correct letter in mc
                 # for inspecting
@@ -142,8 +184,8 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
 
         gt_letter = letters[answers.index(gt_answer)]
         
+
         data = {
-                'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer'},
                 'options': {0: options},
                 # the correct letter in mc
                 # for inspecting
@@ -194,7 +236,6 @@ def create_multi_choice_from_avion_predictions(avion_predictions, k):
         options[i] = f'{letters[i]}. {predictions[i]}'
                 
     mc_data = {
-        'question': {0: 'the video is an egocentric view of a person. What is the person doing? Pick the the letter that has the correct answer.'},
         'options': {0: options},
         'valid_letters': letters,
         'avion_pred': predictions[0]

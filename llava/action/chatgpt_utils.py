@@ -11,7 +11,7 @@ import torch
 import cv2
 from pathlib import Path
 from tqdm import tqdm
-from action.prediction_analysis import PredictionAnalysis
+from llava.action.prediction_analysis import PredictionAnalysis
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -144,6 +144,15 @@ class ChatGPT:
                         jitter = False)
         return frames, time_meta               
 
+
+class GPTDataClenaer(ChatGPT):
+    """
+    To clean the training annotation
+    Instead of using the first verb appeared in the verb csv, we use the csv file to
+    have chatgpt select the best ones.
+    We also inject rules to correct some confusing convention of how EK100 names verbs
+    """
+    
 
 class GPTInferenceAnnotator(ChatGPT):
     """

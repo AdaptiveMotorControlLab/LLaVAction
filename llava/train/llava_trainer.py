@@ -17,6 +17,8 @@ from transformers.trainer_pt_utils import get_length_grouped_indices as get_leng
 from transformers.trainer_pt_utils import AcceleratorConfig
 from typing import List, Optional
 from datetime import timedelta
+import llava
+from llava.action.ek_eval import evaluate_on_EK100
 
 if is_accelerate_available():
     from accelerate import Accelerator, skip_first_batches, InitProcessGroupKwargs
@@ -248,8 +250,7 @@ class LLaVATrainer(Trainer):
 
 
 
-    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
-        from action.ek_eval import evaluate_on_EK100        
+    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):                
 
         accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer)
 
