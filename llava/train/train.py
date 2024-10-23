@@ -36,7 +36,8 @@ import torch
 import transformers
 import tokenizers
 import deepspeed
-
+import sys
+import llava
 from transformers import AutoConfig
 from torch.utils.data import Dataset
 from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
@@ -45,7 +46,9 @@ from llava.train.llava_trainer import LLaVATrainer
 from llava import conversation as conversation_lib
 from llava.model import *
 from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token
-from llava.utils import rank0_print, process_video_with_pyav, process_video_with_decord
+from llava.utils import rank0_print, process_video_with_pyav, process_video_with_decord, process_EK100_video_with_decord
+
+from llava.action.utils import format_llava_prompt
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -165,7 +168,7 @@ class TrainingArguments(transformers.TrainingArguments):
     verbose_logging: bool = field(default=False)
     # attn_implementation: str = field(default='sdpa', metadata={"help": "Use transformers attention implementation."})
     attn_implementation: str = field(default='flash_attention_2', metadata={"help": "Use transformers attention implementation."})
-
+    overwrite_output_dir: bool =True
 
 # @dataclass
 # class EvaluationArguments:
@@ -183,6 +186,26 @@ class TrainingArguments(transformers.TrainingArguments):
 #     gen_kwargs: Optional[str] = field(default="")
 #     log_samples_suffix: Optional[str] = field(default="")
 #     output_path: Optional[str] = field(default="./logs/")
+
+# for EK100
+@dataclass
+class EK100EvalArguments:
+    root: str = ""
+    action_predictions: str = ""
+    llava_num_frames: int = 16
+    llm_size:str = "0.5b"
+    val_metadata: str = ""
+    num_clips: int = 1
+    video_chunk_length: int = 15
+    clip_stride: int = 2
+    dataset: str =  'ek100_cls'
+    clip_length: int = 16
+    fused_decode_crop: bool= False
+    decode_threads: int = 1
+    topk_predictions: int = 5
+    pretrained_name: str = ""
+
+
 
 
 def maybe_zero_3(param, ignore_status=False, name=None):
@@ -258,6 +281,9 @@ def find_all_linear_names(model):
 
 def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: str):
     """Collects the state dict and dump to disk."""
+
+    # before save, let's do a evaluation first   
+
     if hasattr(trainer.args, "tune_mm_mlp_adapter") and trainer.args.tune_mm_mlp_adapter:
         check_only_save_mm_adapter_tunnable = True
     # only has mm_mlp_adapter and mm_vision_resampler in the tuneable parts
@@ -954,10 +980,11 @@ def preprocess(sources: Sequence[str], tokenizer: transformers.PreTrainedTokeniz
 
 
 class LazySupervisedDataset(Dataset):
-    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments):
+    def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments, eval_args):
         super(LazySupervisedDataset, self).__init__()
         self.tokenizer = tokenizer
-        self.list_data_dict = []
+        self.list_data_dict = []  
+        self.eval_args = eval_args      
 
         # Handle multiple JSON files specified in the data_path
         if "{" in data_path and "}" in data_path:
@@ -1152,9 +1179,13 @@ class LazySupervisedDataset(Dataset):
             sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
 
         elif "video" in sources[0]:
-            video_file = self.list_data_dict[i]["video"]
+            video_info = self.list_data_dict[i]["video"]
             video_folder = os.path.join(self.data_args.video_folder, sources[0]['dataset_name'])
-            video_file = os.path.join(video_folder, video_file)
+            if 'EK100' in video_folder:
+                video_file = os.path.join(video_folder, video_info.split("-")[0], video_info.split("-")[1]+".MP4")
+            else:
+                video_file = os.path.join(video_folder, video_info)
+
             suffix = video_file.split(".")[-1]
             if not os.path.exists(video_file):
                 print("File {} not exist!".format(video_file))
@@ -1175,7 +1206,7 @@ class LazySupervisedDataset(Dataset):
                     total_frames = len(frame_files)
                     sampled_indices = np.linspace(0, total_frames - 1, num_frames_to_sample, dtype=int)
 
-
+                    
                     frame_time = [i/2 for i in sampled_indices]
                     frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
 
@@ -1191,14 +1222,36 @@ class LazySupervisedDataset(Dataset):
                                 video.append(frame)
                         except IOError:
                             print(f"Failed to read frame at path: {frame_path}")
+                elif 'EK100' in video_file:
+                    start_second = float(self.list_data_dict[i]['start_timestamp'])
+                    end_second = float(self.list_data_dict[i]['end_timestamp'])
+                    video, video_time, frame_time, num_frames_to_sample = process_EK100_video_with_decord(video_file, self.data_args, start_second, end_second, 15)
+
+                    # add log 
+
                 else:
                     video, video_time, frame_time, num_frames_to_sample = process_video_with_decord(video_file, self.data_args)
 
                 processor = self.data_args.image_processor
                 image = processor.preprocess(video, return_tensors="pt")["pixel_values"]
-                if self.data_args.add_time_instruction:
-                    time_instruciton = f"The video lasts for {video_time:.2f} seconds, and {num_frames_to_sample} frames are uniformly sampled from it. These frames are located at {frame_time}.Please answer the following questions related to this video."
-                    sources[0]["conversations"][0]["value"] = f'{DEFAULT_IMAGE_TOKEN}\n{time_instruciton}\n{sources[0]["conversations"][0]["value"].replace(DEFAULT_IMAGE_TOKEN, "")}'
+                if 'EK100' not in video_file:
+                    if self.data_args.add_time_instruction:
+                        time_instruciton = f"The video lasts for {video_time:.2f} seconds, and {num_frames_to_sample} frames are uniformly sampled from it. Please answer the following questions related to this video."
+                        sources[0]["conversations"][0]["value"] = f'{DEFAULT_IMAGE_TOKEN}\n{time_instruciton}\n{sources[0]["conversations"][0]["value"].replace(DEFAULT_IMAGE_TOKEN, "")}'
+                else:
+                    # We use our own prompting logic when it's EK100
+                    options = eval(sources[0]["conversations"][0]["value"])
+                    assert isinstance(options, list)
+                    assert len(options) == self.eval_args.topk_predictions
+                    # We only store the option list in the annotation file to make it easier to use consistent prompting
+                    llava_prompt = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
+                                                 options,
+                                                 video_time,
+                                                 num_frames_to_sample,
+                                                 include_time_instruction= self.data_args.add_time_instruction,
+                                                 include_frame_time = True)
+                    sources[0]["conversations"][0]["value"] = llava_prompt
+
                 image = [(image, video[0].size, "video")]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
                 # print(sources)
@@ -1287,9 +1340,9 @@ class DataCollatorForSupervisedDataset(object):
         return batch
 
 
-def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args) -> Dict:
+def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args, eval_args) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
-    train_dataset = LazySupervisedDataset(tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args)
+    train_dataset = LazySupervisedDataset(tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args, eval_args = eval_args)
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     return dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)
 
@@ -1447,11 +1500,13 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
     return model
 
 
+
+
 def train(attn_implementation=None):
     global local_rank
 
-    parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, EK100EvalArguments))
+    model_args, data_args, training_args, eval_args = parser.parse_args_into_dataclasses()
 
     if training_args.verbose_logging:
         rank0_print(f"Inspecting experiment hyperparameters:\n")
@@ -1691,8 +1746,16 @@ def train(attn_implementation=None):
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
-    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
-    trainer = LLaVATrainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
+    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args, eval_args=eval_args)   
+
+    eval_args.pretrained_name = model_args.model_name_or_path.split('/')[1]
+
+    trainer = LLaVATrainer(model=model, 
+                           tokenizer = tokenizer, 
+                           eval_args = eval_args, 
+                           model_max_length = training_args.model_max_length,
+                           args=training_args, **data_module)
+    
 
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
@@ -1713,7 +1776,7 @@ def train(attn_implementation=None):
             model.save_pretrained(training_args.output_dir, state_dict=state_dict)
             torch.save(non_lora_state_dict, os.path.join(training_args.output_dir, "non_lora_trainables.bin"))
     else:
-        safe_save_model_for_hf_trainer(trainer=trainer, output_dir=training_args.output_dir)
+        safe_save_model_for_hf_trainer(trainer, training_args.output_dir)
 
     rank0_print(f"Model saved to {training_args.output_dir}")
 

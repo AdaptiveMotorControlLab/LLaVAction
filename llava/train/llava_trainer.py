@@ -17,6 +17,8 @@ from transformers.trainer_pt_utils import get_length_grouped_indices as get_leng
 from transformers.trainer_pt_utils import AcceleratorConfig
 from typing import List, Optional
 from datetime import timedelta
+import llava
+from llava.action.ek_eval import evaluate_on_EK100
 
 if is_accelerate_available():
     from accelerate import Accelerator, skip_first_batches, InitProcessGroupKwargs
@@ -239,6 +241,26 @@ class LengthGroupedSampler(Sampler):
 
 class LLaVATrainer(Trainer):
 
+    def __init__(self, *args, tokenizer = None, eval_args = None, model_max_length = 0,  **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tokenizer = tokenizer
+        self.eval_args = eval_args
+        self.model_max_length = model_max_length
+
+
+
+
+    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):                
+
+        accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer)
+
+        metrics = {f"{metric_key_prefix}_EK100_accuracy": accuracy}
+
+        self.log(metrics)
+
+        return metrics
+
+
     def create_accelerator_and_postprocess(self):
         grad_acc_kwargs = {"num_steps": self.args.gradient_accumulation_steps}
         grad_acc_kwargs["sync_with_dataloader"] = False
@@ -433,9 +455,11 @@ class LLaVATrainer(Trainer):
         return self.optimizer
 
     def _save_checkpoint(self, model, trial, metrics=None):
+        logger.info ("inside _save_checkpoint")
         if getattr(self.args, "tune_mm_mlp_adapter", False) or (
             hasattr(self.args, "mm_tunable_parts") and (len(self.args.mm_tunable_parts.split(",")) == 1 and ("mm_mlp_adapter" in self.args.mm_tunable_parts or "mm_vision_resampler" in self.args.mm_tunable_parts))
         ):
+            logger.info("inside save checkpoint function 1")
             from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
             checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
@@ -454,13 +478,17 @@ class LLaVATrainer(Trainer):
                 self.model.config.save_pretrained(output_dir)
                 torch.save(weight_to_save, os.path.join(output_dir, f"mm_projector.bin"))
         else:
+            logger.info("inside save checkpoint function 2")
             super(LLaVATrainer, self)._save_checkpoint(model, trial, metrics)
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
+        logger.info ("inside _save")
         if getattr(self.args, "tune_mm_mlp_adapter", False):
             pass
         else:
             super(LLaVATrainer, self)._save(output_dir, state_dict)
+
+
 
 
 class LLaVADPOTrainer(DPOTrainer):

@@ -47,8 +47,9 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
     config_class = LlavaQwenConfig
 
     def __init__(self, config):
-        # super(Qwen2ForCausalLM, self).__init__(config)
+        # super(Qwen2ForCausalLM, self).__init__(config)      
         Qwen2ForCausalLM.__init__(self, config)
+        
         config.model_type = "llava_qwen"
         config.rope_scaling = None
 

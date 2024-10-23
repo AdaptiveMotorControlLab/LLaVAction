@@ -22,6 +22,158 @@ try:
 except ImportError:
     print("Please install pyav to use video processing functions.")
 
+def get_frame_ids(start_frame, end_frame, num_segments=32, jitter=True):
+    frame_ids = np.convolve(np.linspace(start_frame, end_frame, num_segments + 1), [0.5, 0.5], mode='valid')
+    if jitter:
+        seg_size = float(end_frame - start_frame - 1) / num_segments
+        shift = (np.random.rand(num_segments) - 0.5) * seg_size
+        frame_ids += shift
+    return frame_ids.astype(int).tolist()
+
+# def get_video_reader(videoname, num_threads, fast_rrc, rrc_params, fast_rcc, rcc_params):
+#     video_reader = None
+#     if fast_rrc:
+#         video_reader = VideoReader(
+#             videoname,
+#             num_threads=num_threads,
+#             width=rrc_params[0], height=rrc_params[0],
+#             use_rrc=True, scale_min=rrc_params[1][0], scale_max=rrc_params[1][1],
+#         )
+#     elif fast_rcc:
+#         video_reader = VideoReader(
+#             videoname,
+#             num_threads=num_threads,
+#             width=rcc_params[0], height=rcc_params[0],
+#             use_rcc=True,
+#         )
+#     else:
+#         video_reader = VideoReader(videoname, num_threads=num_threads)
+#     return video_reader
+
+# def video_loader(root, vid, ext, second, end_second,
+#                  chunk_len=300, fps=30, clip_length=32,
+#                  threads=1,
+#                  fast_rrc=False, rrc_params=(224, (0.5, 1.0)),
+#                  fast_rcc=False, rcc_params=(224, ),
+#                  jitter=False):
+#     assert fps > 0, 'fps should be greater than 0'
+
+#     if chunk_len == -1:
+#         vr = get_video_reader(
+#             osp.join(root, '{}.{}'.format(vid, ext)),
+#             num_threads=threads,
+#             fast_rrc=fast_rrc, rrc_params=rrc_params,
+#             fast_rcc=fast_rcc, rcc_params=rcc_params,
+#         )
+#         end_second = min(end_second, len(vr) / fps)
+
+#         # calculate frame_ids
+#         frame_offset = int(np.round(second * fps))
+#         total_duration = max(int((end_second - second) * fps), clip_length)
+#         frame_ids = get_frame_ids(frame_offset, min(frame_offset + total_duration, len(vr)), num_segments=clip_length, jitter=jitter)
+
+#         # load frames
+#         assert max(frame_ids) < len(vr)
+#         try:
+#             frames = vr.get_batch(frame_ids).asnumpy()
+#         except decord.DECORDError as error:
+#             print(error)
+#             frames = vr.get_batch([0] * len(frame_ids)).asnumpy()
+    
+#         return torch.from_numpy(frames.astype(np.float32))
+
+#     else:
+#         chunk_start = int(second) // chunk_len * chunk_len
+#         chunk_end = int(end_second) // chunk_len * chunk_len
+#         while True:
+#             video_filename = osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk_end, ext))
+#             if not osp.exists(video_filename):
+#                 # print("{} does not exists!".format(video_filename))
+#                 chunk_end -= chunk_len
+#             else:
+#                 vr = decord.VideoReader(video_filename)
+#                 end_second = min(end_second, (len(vr) - 1) / fps + chunk_end)
+#                 assert chunk_start <= chunk_end
+#                 break
+#         # calculate frame_ids
+#         frame_ids = get_frame_ids(
+#             int(np.round(second * fps)),
+#             int(np.round(end_second * fps)),
+#             num_segments=clip_length, jitter=jitter
+#         )
+#         all_frames = []
+#         # allocate absolute frame-ids into the relative ones
+#         for chunk in range(chunk_start, chunk_end + chunk_len, chunk_len):
+#             rel_frame_ids = list(filter(lambda x: int(chunk * fps) <= x < int((chunk + chunk_len) * fps), frame_ids))
+#             rel_frame_ids = [int(frame_id - chunk * fps) for frame_id in rel_frame_ids]
+#             vr = get_video_reader(
+#                 osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk, ext)),
+#                 num_threads=threads,
+#                 fast_rrc=fast_rrc, rrc_params=rrc_params,
+#                 fast_rcc=fast_rcc, rcc_params=rcc_params,
+#             )
+#             try:
+#                 frames = vr.get_batch(rel_frame_ids).asnumpy()
+#             except decord.DECORDError as error:
+#                 print(error)
+#                 frames = vr.get_batch([0] * len(rel_frame_ids)).asnumpy()
+#             except IndexError:
+#                 print(root, vid, ext, second, end_second)
+#             all_frames.append(frames)
+#             if sum(map(lambda x: x.shape[0], all_frames)) == clip_length:
+#                 break
+#         res = torch.from_numpy(np.concatenate(all_frames, axis=0).astype(np.float32))
+#         assert res.shape[0] == clip_length, "{}, {}, {}, {}, {}, {}, {}".format(root, vid, second, end_second, res.shape[0], rel_frame_ids, frame_ids)
+#         return res
+
+def process_EK100_video_with_decord(video_file, data_args, start_second, end_second, chunk_len):
+    fps = 30
+    start_frame = int(start_second * fps)
+    end_frame = int(end_second * fps)
+    chunk_start = int(start_second) // chunk_len * chunk_len
+    chunk_end = int(end_second) // chunk_len * chunk_len
+    video_time = end_second - start_second
+    while True:
+        video_filename = os.path.join(video_file, '{}.MP4'.format(chunk_end))
+        if not os.path.exists(video_filename):
+            # print("{} does not exists!".format(video_filename))
+            chunk_end -= chunk_len
+        else:
+            vr = VideoReader(video_filename, ctx=cpu(0), num_threads=1)
+            end_second = min(end_second, (len(vr) - 1) / fps + chunk_end)
+            assert chunk_start <= chunk_end
+            break
+    
+    # calculate frame_ids
+    frame_ids = get_frame_ids(start_frame, end_frame, num_segments=data_args.frames_upbound, jitter=False)
+  
+    
+    
+    all_frames = []
+    all_frame_ids = []
+    # allocate absolute frame-ids into the relative ones
+    for chunk in range(chunk_start, chunk_end + chunk_len, chunk_len):
+        rel_frame_ids = list(filter(lambda x: int(chunk * fps) <= x < int((chunk + chunk_len) * fps), frame_ids))
+        rel_frame_ids = [int(frame_id - chunk * fps) for frame_id in rel_frame_ids]
+        vr = VideoReader(os.path.join(video_file, '{}.MP4'.format(chunk)),ctx=cpu(0), num_threads=1)
+        frames = vr.get_batch(rel_frame_ids).asnumpy()
+        all_frames.append(frames)
+        all_frame_ids.append(frame_ids)
+        vr.seek(0)
+        if sum(map(lambda x: x.shape[0], all_frames)) == data_args.frames_upbound:
+            break
+
+    video = np.concatenate(all_frames, axis=0).astype(np.float32)
+
+    all_frame_ids = np.concatenate(all_frame_ids, axis = 0)
+    frame_time = [e/fps for e in all_frame_ids]
+    frame_time-= frame_time[0]
+    frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
+
+    num_frames_to_sample = len(frame_ids)
+
+    return video, video_time, frame_time, num_frames_to_sample
+
 def process_video_with_decord(video_file, data_args):
     vr = VideoReader(video_file, ctx=cpu(0), num_threads=1)
     total_frame_num = len(vr)

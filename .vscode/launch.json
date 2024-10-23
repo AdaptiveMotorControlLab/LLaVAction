@@ -7,7 +7,7 @@
             "request": "launch",
             "module": "torch.distributed.run",
             "env": {
-                "CUDA_VISIBLE_DEVICES": "1,2",
+                "CUDA_VISIBLE_DEVICES": "1,2,3",
                 "OMP_NUM_THREADS": "8",
                 "NCCL_IB_DISABLE": "0",
                 "NCCL_IB_GID_INDEX": "3",
@@ -18,7 +18,7 @@
                 "WANDB_API_KEY": "65aeda82a75f1eed29c8e9250b175fcc73dca0d7",
             },
             "args": [
-                "--nproc_per_node=2",
+                "--nproc_per_node=3",
                 "--nnodes=1",
                 "--node_rank=0",
                 "--master_addr=127.0.0.1",
@@ -31,6 +31,7 @@
                 // "--image_folder", "/mediaPFM/data/haozhe/onevision/llava_data",
                 "--image_folder", "/mediaPFM/data/haozhe/onevision/llava_data/geo3k/",
                 "--video_folder", "/mediaPFM/data/haozhe/onevision/llava_video",
+                // "--video_folder", "/home/haozhe/kitchen/AVION/datasets",
                 "--mm_tunable_parts", "mm_vision_tower,mm_mlp_adapter,mm_language_model",
                 "--mm_vision_tower_lr", "2e-6",
                 "--vision_tower", "google/siglip-so400m-patch14-384",
@@ -89,13 +90,12 @@
 //             "request": "launch",
 //             "program": "docs/LLaVA_OneVision_Tutorials.py",
 //             "console": "integratedTerminal",
-//             "env":{"CUDA_VISIBLE_DEVICES":"0",
-//                    "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/libffi.so.7"},
+//             "env":{
+//                 "CUDA_VISIBLE_DEVICES":"0",
+//                 // "HF_HOME": "/mnt/SV_storage/VFM/huggingface",
+//                 // "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/libffi.so.7"
+//                 },
 //             "justMyCode": false,
-//             // "args": [
-//             //     "--run_dir_name", "test",
-//             //     // "--use_big_decoder"
-//             // ]
 //         }
 //     ]
 // }
