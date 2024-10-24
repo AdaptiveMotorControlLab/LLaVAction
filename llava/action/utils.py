@@ -269,7 +269,7 @@ def get_video_reader(videoname, num_threads, fast_rrc, rrc_params, fast_rcc, rcc
         video_reader = decord.VideoReader(videoname, num_threads=num_threads)
     return video_reader
 
-def create_multi_choice_from_avion_predictions(avion_predictions, k):
+def create_multi_choice_from_avion_predictions(avion_predictions, k)-> dict:
     
     letters = [chr(65+i) for i in range(26)][:k]
     options = list(range(26))[:k]

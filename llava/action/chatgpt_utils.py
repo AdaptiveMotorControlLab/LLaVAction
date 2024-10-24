@@ -160,10 +160,8 @@ class GPTDataClenaer(ChatGPT):
 class GPTInferenceAnnotator(ChatGPT):
     """
     Given the images, this class will annotate the video frames
-
     This class should also optionally take conversion map as we find that 
     there are multiple ways to map verb_id and noun_id.
-
     """
 
     def __init__(self, 
@@ -174,6 +172,12 @@ class GPTInferenceAnnotator(ChatGPT):
                  topk = 10,
                  annotation_file = None
                  ):
+        """
+        Parameters
+        ----------
+        annotation_file: Optional(str|None). We use this file to correct the action name if there was a mistake.
+
+        """
         super().__init__(clip_length = clip_length)
         self.root = root
         self.prediction_save_folder = prediction_save_folder 
@@ -191,9 +195,11 @@ class GPTInferenceAnnotator(ChatGPT):
     def get_narration_map(self):
         ret = {}
         csv_reader = csv.reader(open(self.annotation_file))
+        _ = next(csv_reader) # skip the header
         for idx, row in enumerate(csv_reader):
             narration = row[8]
             ret[idx] = narration
+
         return ret
 
 
@@ -222,11 +228,15 @@ class GPTInferenceAnnotator(ChatGPT):
         self.checkpoint(combined_results, "gpt_inference_results.json")
                         
 
-    def parse_item(self, item):
+    def parse_item(self, item, replace_gt = None):
+        """
+        replace gt is used if there was a problem with the gt_name
+        It also replaces the avion prediction if it matches the gt_name
+        Be cautious that replacing gt alone might leak hint to GPT so it's better to replace all avion predictions as well
+        """
 
         gt_name = item['gt_name']
-
-
+        
         avion_predictions = item['avion_preds']['predictions']
         assert self.topk <= len(avion_predictions)
         avion_predictions = avion_predictions[:self.topk]
@@ -234,10 +244,22 @@ class GPTInferenceAnnotator(ChatGPT):
         vid_path = item['vid_path'][0]
         start_second = item['start_second']
         end_second = item['end_second']
-        options = create_multi_choice_from_avion_predictions(avion_predictions, len(avion_predictions))['options'][0]
 
+        mc_data = create_multi_choice_from_avion_predictions(avion_predictions, len(avion_predictions))
+        options = mc_data['options'][0]
+
+        if replace_gt:
+            for idx, option in enumerate(options):
+                letter = option[0]
+                option_name = option[option.index('.') + 2:]
+                if option_name == gt_name:
+                    print ('old gt_name', gt_name, 'new gt_name', replace_gt)
+                    options[idx] = f'{letter}. {replace_gt}'
+                    gt_name = replace_gt   
+
+        option_string = ','.join(options)
         parsed_item = {
-            'options': options,
+            'options': option_string,
             'gt_answer': gt_name,
             'start_second': start_second,
             'end_second': end_second,
@@ -251,21 +273,15 @@ class GPTInferenceAnnotator(ChatGPT):
         data_batch = {i : self.data[i] for i in range(len(self.data)) if i in indices}
         ret = {}
 
-        for k,v in tqdm(data_batch.items()):
-            parsed_item = self.parse_item(v)
-
+        for k,v in tqdm(data_batch.items()):            
             if self.narration_map:
-                old_gt_name = parsed_item['gt_answer']
-                new_gt_name = self.narration_map[k]
-                print ('old gt name', old_gt_name)
-                print ('new gt name', new_gt_name)
-                #parsed_item['gt_answer'] = gt_name
+                parsed_item = self.parse_item(v, replace_gt = self.narration_map[k])
+            else:
+                parsed_item = self.parse_item(v)
 
             start_timestamp = parsed_item['start_second']
             end_timestamp = parsed_item['end_second']
             vid_path = parsed_item['vid_path']
-
-
 
             frames, time_meta = self.extract_frames(vid_path, start_timestamp, end_timestamp)
             try:
@@ -325,19 +341,20 @@ class GPTInferenceAnnotator(ChatGPT):
         """
         Predict the action from the images
         """        
-        option_text = parsed_item['options'][0]
+        option_text = parsed_item['options']
         start_second = 0
         end_second = parsed_item['end_second'] - parsed_item['start_second']
         temperature = 0
+        duration = end_second - start_second
         system_prompt_prefix = f"""
         You are seeing video frames from an egocentric view of a person. Pretend that you are the person.  Your task is to describe what action you are performing.
-        To assist you for how to describe the action, the video's start time is {start_second} and the end time is {end_second} and the duration is {end_second - start_second} seconds.
+        To assist you for how to describe the action, the video's start time is {start_second} and the end time is {end_second:.3f} and the duration is {duration:.3f} seconds.
         You were given multiple choice options {option_text}. Pick the correct one and put that into the answer. Note in the answer do not include the option letter, just the name of the action.
         Also explain why the correct answer is correct and why the other options are incorrect.
         """
 
-        print ('system prompt prefix')
-        print (system_prompt_prefix)
+        # print ('system prompt prefix')
+        # print (system_prompt_prefix)
 
         system_prompt_suffix = """"""
 
@@ -548,9 +565,11 @@ if __name__ == '__main__':
 
     #multi_process_annotate(train_file_path, root)
     #explore_wrong_examples(root, pred_folder)
-    multi_process_inference(root, 
-                            pred_folder, 
-                            debug = True,
-                            clip_length = 4,
-                            annotation_file = '/storage-rcp-pure/upmwmathis_scratch/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv',                            
-                            topk = 5)
+    # multi_process_inference(root, 
+    #                         pred_folder, 
+    #                         debug = False,
+    #                         clip_length = 4,
+    #                         annotation_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv',                            
+    #                         topk = 10)
+
+    calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames_fixed_narration.json')
