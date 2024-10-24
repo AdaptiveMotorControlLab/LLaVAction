@@ -42,6 +42,51 @@ def generate_label_map(anno_root):
     labels = [list(set(mapping_vn2narration[vn_list[i]])) for i in range(len(mapping_vn2act))]
     return labels, mapping_vn2act, verb_maps, noun_maps
 
+def generate_unique_label_map(anno_root):
+    """
+    The problem with generate_label_map is that if a noun class or a verb class is already mapped
+    to a specific narration at that instance, the subsequent noun class and verb class will continue to use that previous mapping,
+
+    """
+    print("Preprocess ek100 action label space")
+    vn_list = []
+    mapping_vn2narration = {}
+    # from id to name
+    train_verb_maps = {}
+    train_noun_maps = {}
+    val_verb_maps = {}
+    val_noun_maps = {}
+    
+    for f in [      
+        os.path.join(anno_root,'EPIC_100_train.csv'),
+        os.path.join(anno_root, 'EPIC_100_validation.csv'),
+    ]:
+        csv_reader = csv.reader(open(f))
+        _ = next(csv_reader)  # skip the header
+
+        verb_maps = train_verb_maps if 'train.csv' in f else val_verb_maps
+        noun_maps = train_noun_maps if 'train.csv' in f else val_noun_maps
+
+        for idx, row in enumerate(csv_reader):
+            vn = '{}:{}'.format(int(row[10]), int(row[12]))
+            narration = row[8]
+            verb_maps[idx] = row[9]
+            noun_maps[idx] = row[11]
+
+            if vn not in vn_list:
+                vn_list.append(vn)
+            if vn not in mapping_vn2narration:
+                mapping_vn2narration[vn] = [narration]
+            else:
+                mapping_vn2narration[vn].append(narration)
+            # mapping_vn2narration[vn] = [narration]
+    vn_list = sorted(vn_list)
+    print('# of action= {}'.format(len(vn_list)))
+    mapping_vn2act = {vn: i for i, vn in enumerate(vn_list)}
+
+    labels = [list(set(mapping_vn2narration[vn_list[i]])) for i in range(len(mapping_vn2act))]
+    return labels, mapping_vn2act, train_verb_maps, train_noun_maps, val_verb_maps, val_noun_maps
+
 
 def format_task_related_prompt(option_list):
     prefix = "The video is taken from egocentric view. What action is the person performing? Given multiple choices, format your answer as the 'option letter. option_name' such as 'A. move knife' where A is the option letter and knife is the option_name.\n"

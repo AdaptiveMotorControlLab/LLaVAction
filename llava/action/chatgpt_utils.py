@@ -6,12 +6,15 @@ import numpy as np
 import openai
 from pydantic import BaseModel
 from concurrent.futures import ProcessPoolExecutor
-from action.utils import avion_video_loader, create_multi_choice_from_avion_predictions
 import torch
 import cv2
 from pathlib import Path
 from tqdm import tqdm
+import csv
+import llava
 from llava.action.prediction_analysis import PredictionAnalysis
+from llava.action.utils import avion_video_loader, create_multi_choice_from_avion_predictions
+
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -152,11 +155,15 @@ class GPTDataClenaer(ChatGPT):
     have chatgpt select the best ones.
     We also inject rules to correct some confusing convention of how EK100 names verbs
     """
-    
+    pass
 
 class GPTInferenceAnnotator(ChatGPT):
     """
     Given the images, this class will annotate the video frames
+
+    This class should also optionally take conversion map as we find that 
+    there are multiple ways to map verb_id and noun_id.
+
     """
 
     def __init__(self, 
@@ -164,7 +171,8 @@ class GPTInferenceAnnotator(ChatGPT):
                  prediction_save_folder, 
                  clip_length = 4, 
                  debug = False,
-                 topk = 10
+                 topk = 10,
+                 annotation_file = None
                  ):
         super().__init__(clip_length = clip_length)
         self.root = root
@@ -174,6 +182,20 @@ class GPTInferenceAnnotator(ChatGPT):
         self.data = self.prediction_analysis.data
         self.debug = debug
         self.topk = topk
+        self.annotation_file = annotation_file
+        if self.annotation_file is not None:
+            self.narration_map = self.get_narration_map()
+        else:
+            self.narration_map = None
+
+    def get_narration_map(self):
+        ret = {}
+        csv_reader = csv.reader(open(self.annotation_file))
+        for idx, row in enumerate(csv_reader):
+            narration = row[8]
+            ret[idx] = narration
+        return ret
+
 
     def multi_process_run(self):
         prediction_analysis = PredictionAnalysis(self.prediction_save_folder)
@@ -203,24 +225,19 @@ class GPTInferenceAnnotator(ChatGPT):
     def parse_item(self, item):
 
         gt_name = item['gt_name']
+
+
         avion_predictions = item['avion_preds']['predictions']
         assert self.topk <= len(avion_predictions)
         avion_predictions = avion_predictions[:self.topk]
-        # _avion_predictions = [e.replace(':', ' ', 1) for e in avion_predictions]
-        # if gt_name not in _avion_predictions:
-        #     print ('gt_name not in avion_predictions')
-        # else:
-        #     print ('gt_name in avion_predictions')
-        
+
         vid_path = item['vid_path'][0]
         start_second = item['start_second']
         end_second = item['end_second']
-    
-        frames, time_meta = self.extract_frames(vid_path, start_second, end_second)
+        options = create_multi_choice_from_avion_predictions(avion_predictions, len(avion_predictions))['options'][0]
 
-        option_text = create_multi_choice_from_avion_predictions(avion_predictions, len(avion_predictions))['options'][0]
         parsed_item = {
-            'options': option_text,
+            'options': options,
             'gt_answer': gt_name,
             'start_second': start_second,
             'end_second': end_second,
@@ -235,10 +252,20 @@ class GPTInferenceAnnotator(ChatGPT):
         ret = {}
 
         for k,v in tqdm(data_batch.items()):
-            parsed_item = self.parse_item(v)      
+            parsed_item = self.parse_item(v)
+
+            if self.narration_map:
+                old_gt_name = parsed_item['gt_answer']
+                new_gt_name = self.narration_map[k]
+                print ('old gt name', old_gt_name)
+                print ('new gt name', new_gt_name)
+                #parsed_item['gt_answer'] = gt_name
+
             start_timestamp = parsed_item['start_second']
             end_timestamp = parsed_item['end_second']
             vid_path = parsed_item['vid_path']
+
+
 
             frames, time_meta = self.extract_frames(vid_path, start_timestamp, end_timestamp)
             try:
@@ -250,11 +277,11 @@ class GPTInferenceAnnotator(ChatGPT):
             gt_name = parsed_item['gt_answer']
             ret[k] = {
                 'gt_name': gt_name,
-                'chatgpt_answer': predicted_answer
+                'chatgpt_answer': predicted_answer,
+                'explanation': explanation
             }
             if self.debug:
                 break
-        print (ret)
         return ret 
 
     def explore_wrong_examples(self):
@@ -298,7 +325,7 @@ class GPTInferenceAnnotator(ChatGPT):
         """
         Predict the action from the images
         """        
-        option_text = parsed_item['options']
+        option_text = parsed_item['options'][0]
         start_second = 0
         end_second = parsed_item['end_second'] - parsed_item['start_second']
         temperature = 0
@@ -308,6 +335,9 @@ class GPTInferenceAnnotator(ChatGPT):
         You were given multiple choice options {option_text}. Pick the correct one and put that into the answer. Note in the answer do not include the option letter, just the name of the action.
         Also explain why the correct answer is correct and why the other options are incorrect.
         """
+
+        print ('system prompt prefix')
+        print (system_prompt_prefix)
 
         system_prompt_suffix = """"""
 
@@ -480,12 +510,14 @@ def multi_process_inference(root,
                             prediction_save_folder, 
                             clip_length = 4,
                             topk = 10, 
+                            annotation_file = None,
                             debug = False):
 
     annotator = GPTInferenceAnnotator(root, 
     prediction_save_folder, 
     clip_length = clip_length,
     debug = debug,
+    annotation_file=annotation_file,
     topk = topk)
 
     annotator.multi_process_run()
@@ -518,6 +550,7 @@ if __name__ == '__main__':
     #explore_wrong_examples(root, pred_folder)
     multi_process_inference(root, 
                             pred_folder, 
-                            debug = False,
+                            debug = True,
                             clip_length = 4,
+                            annotation_file = '/storage-rcp-pure/upmwmathis_scratch/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv',                            
                             topk = 5)
