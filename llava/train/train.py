@@ -1780,6 +1780,10 @@ def train(attn_implementation=None):
 
     rank0_print(f"Model saved to {training_args.output_dir}")
 
+    # this needs to be tested. But let's always evaluate the model after training.
+    # we should also save the predictions into the experiment folder so we can analyze afterwards
+    trainer.evaluate(eval_result_folder = training_args.output_dir)
+
 
 if __name__ == "__main__":
     train()

@@ -147,7 +147,8 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         eval_args = None,
         topk_predictions = 5,
         verb_maps = None,
-        noun_maps = None
+        noun_maps = None,
+        eval_result_folder = None
     ):
         super().__init__(dataset, root, metadata, is_trimmed=is_trimmed)
 
@@ -174,7 +175,7 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         self.ann_root = Path(metadata).parent
         self.mc_generator = MultiChoiceGenerator(self.ann_root)
         self.rank = dist.get_rank()
-        self.prediction_analysis = PredictionAnalysis(rank = self.rank)
+        self.prediction_analysis = PredictionAnalysis(rank = self.rank, save_folder = eval_result_folder)
         
     def __getitem__(self, i):
         frames, label, time_meta = self.get_raw_item(
@@ -325,7 +326,9 @@ def ensemble_llava_evaluation(
 def evaluate_on_EK100(eval_args, 
                       model= None, 
                       tokenizer= None, 
-                      image_processor= None):
+                      image_processor= None,
+                      eval_result_folder = None
+                      ):
 
     world_size = int(os.environ['WORLD_SIZE'])
     rank = int(os.environ['RANK'])
@@ -336,7 +339,9 @@ def evaluate_on_EK100(eval_args,
         image_processor = model.get_vision_tower().image_processor
 
     gpu_val_transform_ls = []
+
     val_transform_gpu = torch.nn.Sequential(*gpu_val_transform_ls)
+
     crop_size = 336
     labels, mapping_vn2act, verb_maps, noun_maps = generate_label_map(Path(eval_args.val_metadata).parent) 
 
@@ -354,6 +359,7 @@ def evaluate_on_EK100(eval_args,
                 topk_predictions = eval_args.topk_predictions,
                 verb_maps = verb_maps,
                 noun_maps = noun_maps,
+                eval_result_folder = eval_result_folder
 
             )
 

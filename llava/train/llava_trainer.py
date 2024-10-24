@@ -247,15 +247,9 @@ class LLaVATrainer(Trainer):
         self.eval_args = eval_args
         self.model_max_length = model_max_length
 
-
-
-
-    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):                
-
-        accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer)
-
+    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval", eval_result_folder = None):                
+        accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer, eval_result_folder = eval_result_folder)
         metrics = {f"{metric_key_prefix}_EK100_accuracy": accuracy}
-
         self.log(metrics)
 
         return metrics

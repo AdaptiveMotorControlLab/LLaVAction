@@ -20,7 +20,9 @@ class PredictionAnalysis:
         vid_path: ''
     }
     """
-    def __init__(self, save_folder = '.', rank = 0, prefix = 'prediction_analysis_buf'):
+    def __init__(self, save_folder = None, rank = 0, prefix = 'prediction_analysis_buf'):
+        if save_folder is None:
+            save_folder = '.'
         self.save_folder = save_folder
         self.rank = rank
         self.prefix = prefix
