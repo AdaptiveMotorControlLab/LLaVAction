@@ -3,10 +3,9 @@ import json
 import csv
 import os
 import argparse
-import sys
-from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator, format_task_related_prompt
+from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator
 from pathlib import Path
-
+from llava.action.dataset import VideoMultiChoiceDataset
 
 GEN_TYPES = ['naive', 'random_mc', 'avion_mc']
 
@@ -107,10 +106,10 @@ def main():
     os.makedirs(inst_train_folder, exist_ok=True)    
 
     anno_path = Path(ann_file).parent
-    _, _, verb_ids, noun_ids = generate_label_map(anno_path)
+    _, _, verb_maps, noun_maps = generate_label_map(anno_path)
     conv_lst = generate_train_ann(ann_file, 
-                                  verb_ids, 
-                                  noun_ids, 
+                                  verb_maps, 
+                                  noun_maps, 
                                   gen_type = args.gen_type, 
                                   avion_prediction_path = args.avion_train_predictions,
                                   n_options = args.n_options)

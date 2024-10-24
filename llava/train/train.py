@@ -46,7 +46,7 @@ from llava.train.llava_trainer import LLaVATrainer
 from llava import conversation as conversation_lib
 from llava.model import *
 from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token
-from llava.utils import rank0_print, process_video_with_pyav, process_video_with_decord, process_EK100_video_with_decord
+from llava.utils import rank0_print,  process_video_with_decord, process_EK100_video_with_decord
 
 from llava.action.utils import format_llava_prompt
 
