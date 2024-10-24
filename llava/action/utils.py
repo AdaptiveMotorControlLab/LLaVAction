@@ -5,31 +5,126 @@ import os
 import decord
 import os.path as osp
 import torch
+import pandas as pd
+import ast
+# import inflect
+import spacy
+import copy
+from tqdm import tqdm
+from collections import Counter
 
-def generate_label_map(anno_root):
+def remove_sub_nouns(nlp, narration, verb, nouns):
+    narration = copy.deepcopy(narration)
+    noun_list = ast.literal_eval(nouns)
+    if len(noun_list) > 0:
+        v_words = verb.split('-')
+        n_words = noun_list[0].split(':')
+        n_words = n_words[1:] + [n_words[0]]
+
+        # deal with some special cases
+        if 'leaf' in n_words and 'leaves' in narration:
+            # replace the word 'leaf' with 'leaves'
+            n_words[n_words.index('leaf')] = 'leaves'
+        if 'continue ' in narration:
+            # remove the word 'continue' in the narration
+            narration = narration.replace('continue ', '')
+        if 'something' in narration:
+            narration = narration.replace('something', ' '.join(n_words))
+
+        words = copy.deepcopy(v_words + n_words)
+        narration_words = narration.split(' ')
+        # new_narration_words = [inflect_tool.singular_noun(word) or word for word in narration_words]
+        doc = nlp(narration)
+        new_narration_words = [token.lemma_ for token in doc]
+        keep_words = []
+        for word, new_word in zip(narration_words, new_narration_words):
+            if word in words:
+                keep_words.append(word)
+                words.remove(word)
+            elif new_word in words:
+                keep_words.append(new_word)
+                words.remove(new_word)
+        new_narration = ' '.join(keep_words)
+        # assert len(words) == 0
+
+        # deal with some special cases
+        if len(words) != 0:
+            keep_words = []
+            verb_added = False
+            noun_added = False
+            for word, new_word in zip(narration_words, new_narration_words):
+                if word in v_words:
+                    keep_words.append(word)
+                    verb_added = True
+                elif new_word in v_words:
+                    keep_words.append(new_word)
+                    verb_added = True
+                elif (word in n_words or new_word in n_words) and not noun_added:
+                    keep_words.append(' '.join(n_words))
+                    noun_added = True
+            if not verb_added:
+                keep_words = [' '.join(v_words)] + keep_words
+            if not noun_added:
+                keep_words.append(' '.join(n_words))
+            new_narration = ' '.join(keep_words)
+        
+        # # debug
+        # if new_narration == 'pick up teaspoon honey' or new_narration == 'pick up measure' \
+        #         or new_narration == 'remove tap on' or new_narration == 'pick up glass water' \
+        #         or new_narration == 'pick up washing up brush' or new_narration == 'pick up glass water':
+        #     aa = 1
+         
+    else:
+        new_narration = narration
+        
+    return new_narration
+
+
+def generate_label_map(anno_root, action_representation):
     print("Preprocess ek100 action label space")
     vn_list = []
     mapping_vn2narration = {}
+
+    noun_classes_pd = pd.read_csv(os.path.join(anno_root, 'EPIC_100_noun_classes_v2.csv'))
+    verb_classes_pd = pd.read_csv(os.path.join(anno_root, 'EPIC_100_verb_classes.csv'))
     # from id to name
-    verb_maps = {}
-    noun_maps = {}
+    verb_maps = {} if 'key' in action_representation or action_representation == 'first_sample' else None
+    noun_maps = {} if 'key' in action_representation or action_representation == 'first_sample' else None
+    if 'key' in action_representation:
+        # use the id in noun_classes_pd and verb_classes_pd as the key, use the key in noun_classes_pd and verb_classes_pd as the value
+        for i, row in verb_classes_pd.iterrows():
+            verb_maps[str(row['id'])] = row['key']
+        for i, row in noun_classes_pd.iterrows():
+            elements = row['key'].split(':')
+            if len(elements) == 1:
+                noun_maps[str(row['id'])] = row['key']
+            else:
+                noun_maps[str(row['id'])] = ' '.join(elements[1:] + [elements[0]]) # this is to refact the noun like 'machine:sous:vide'
+
+    # inflect_tool = inflect.engine()
+    nlp = spacy.load('en_core_web_sm')
     for f in [      
         os.path.join(anno_root,'EPIC_100_train.csv'),
         os.path.join(anno_root, 'EPIC_100_validation.csv'),
     ]:
         csv_reader = csv.reader(open(f))
         _ = next(csv_reader)  # skip the header
-        for row in csv_reader:
+        for row in tqdm(csv_reader):
             
             vn = '{}:{}'.format(int(row[10]), int(row[12]))
-            narration = row[8]
-            if row[10] not in verb_maps.keys():
-                verb_maps[row[10]] = row[9]
-            if row[12] not in noun_maps.keys():
-                noun_maps[row[12]] = row[11]
+            if action_representation == 'first_sample':
+                if row[10] not in verb_maps.keys():
+                    verb_maps[row[10]] = row[9]
+                if row[12] not in noun_maps.keys():
+                    noun_maps[row[12]] = row[11]
 
             if vn not in vn_list:
                 vn_list.append(vn)
+
+            narration = row[8]
+            if 'cut' in action_representation:
+                narration = remove_sub_nouns(nlp, narration, row[9], row[13])
+                
             if vn not in mapping_vn2narration:
                 mapping_vn2narration[vn] = [narration]
             else:
@@ -39,8 +134,14 @@ def generate_label_map(anno_root):
     print('# of action= {}'.format(len(vn_list)))
     mapping_vn2act = {vn: i for i, vn in enumerate(vn_list)}
 
-    labels = [list(set(mapping_vn2narration[vn_list[i]])) for i in range(len(mapping_vn2act))]
-    return labels, mapping_vn2act, verb_maps, noun_maps
+    # labels = [list(set(mapping_vn2narration[vn_list[i]])) for i in range(len(mapping_vn2act))]
+    labels = {}
+    for vn, narrations in mapping_vn2narration.items():
+        frequency_count = Counter(narrations)
+        sorted_unique_list = [item for item, count in frequency_count.most_common()]
+        labels[vn] = sorted_unique_list
+
+    return labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps
 
 def generate_unique_label_map(anno_root):
     """
@@ -144,10 +245,9 @@ class MultiChoiceGenerator:
     """
     def __init__(self, ann_root):
         self.ann_root = ann_root
-        _, self.mapping_vn2act, self.verb_maps, self.noun_maps = generate_label_map(ann_root)
     
 
-    def generate_multi_choice(self, gt_vn, k):
+    def generate_multi_choice(self, gt_vn, k, verb_maps, noun_maps):
         """
         Generate k multiple choices from gt_vn pairs
 
@@ -159,13 +259,13 @@ class MultiChoiceGenerator:
         # let v_id and n_id be string type
         gt_v_id, gt_n_id = gt_vn.split(':')    
         assert isinstance(gt_v_id, str) and isinstance(gt_n_id, str)
-        gt_v_name, gt_n_name = self.verb_maps[gt_v_id], self.noun_maps[gt_n_id]
+        gt_v_name, gt_n_name = verb_maps[gt_v_id], noun_maps[gt_n_id]
 
         # letters as A, B, C, D, .. Note we maximally support 26 letters
         letters = [chr(65+i) for i in range(26)][:k]
         options = list(range(26))[:k]
         vn_list = list(self.mapping_vn2act.keys())
-        action_list = [f"{self.verb_maps[e.split(':')[0]]} {self.noun_maps[e.split(':')[1]]}" for e in vn_list]
+        action_list = [f"{verb_maps[e.split(':')[0]]} {noun_maps[e.split(':')[1]]}" for e in vn_list]
         wrong_answers = np.random.choice(action_list, size = k-1, replace = False)
         gt_answer = f'{gt_v_name} {gt_n_name}'
 
@@ -195,7 +295,7 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
     def __init__(self, ann_root):
         super().__init__(ann_root)
     
-    def generate_multi_choice(self, gt_vn, avion_predictions, k):
+    def generate_multi_choice(self, gt_vn, avion_predictions, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
         """
         Generate k multiple choices from gt_vn pairs
 
@@ -203,31 +303,52 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
         randomly pick k-1 letters from vn_list that is not gt_vn (this is important as avion_predictions can contain correct prediction)        
 
         """    
-        gt_v_id, gt_n_id = gt_vn.split(':')
-        gt_v_name, gt_n_name = self.verb_maps[gt_v_id], self.noun_maps[gt_n_id]
-        gt_answer = f'{gt_v_name} {gt_n_name}'
-
-        letters = [chr(65+i) for i in range(26)][:k]
-        options = list(range(26))[:k]
-
         # we should have plenty of predictions to select, so let's not always pick the hardest
         assert len(avion_predictions) > 2*k
         avion_predictions = avion_predictions[:k*2]
-        avion_predictions = parse_avion_predictions(avion_predictions)
-        if gt_answer in avion_predictions:
-            avion_predictions.remove(gt_answer)
+        # avion_predictions = parse_avion_predictions(avion_predictions)
+        if gt_vn in avion_predictions:
+            avion_predictions.remove(gt_vn)
         # just so that it's not strictly desending with confidence
         random.shuffle(avion_predictions)
         avion_predictions = avion_predictions[:k-1]
 
-        answers = [gt_answer] + avion_predictions
-        random.shuffle(answers)
+        answer_ids = [gt_vn] + avion_predictions
+        random.shuffle(answer_ids)
+
+        answers = []
+        for answer_id in answer_ids:
+            answer_items = []
+            if 'key' in action_representation or action_representation == 'first_sample':
+                v_id, n_id = answer_id.split(':')
+                v_name, n_name = verb_maps[v_id], noun_maps[n_id]
+                answer_items.append(f'{v_name} {n_name}')
+            if 'random_narration' in action_representation:
+                # randomly select a narration from mapping_vn2narration
+                answer_items.append(random.choice(mapping_vn2narration[answer_id]))
+            elif 'top1_narration' in action_representation:
+                # select the top1 narration from labels
+                answer_items.append(labels[answer_id][0])
+            elif 'topk_narration' in action_representation:
+                assert n_narrations > 0
+                # select the topk narrations from labels
+                answer_items.extend(['example usages could be']+ labels[answer_id][:n_narrations])
+
+            if 'GT' in action_representation and answer_id == gt_vn:
+                answer_items = [narration]
+
+            answers.append(', '.join(answer_items))
+            
+
+        letters = [chr(65+i) for i in range(26)][:k]
+        options = list(range(26))[:k]
 
         options = []
         for answer, letter in zip(answers, letters):
             options.append(f'{letter}. {answer}')
 
-        gt_letter = letters[answers.index(gt_answer)]
+        gt_letter = letters[answer_ids.index(gt_vn)]
+        gt_answer = answers[answer_ids.index(gt_vn)]
         
 
         data = {

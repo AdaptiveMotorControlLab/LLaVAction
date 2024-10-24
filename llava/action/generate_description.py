@@ -3,19 +3,19 @@ import json
 import csv
 import os
 import argparse
+import spacy
 import sys
-from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator, format_task_related_prompt
+sys.path[0] = os.path.dirname(os.path.dirname(sys.path[0]))
+from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator, format_task_related_prompt, remove_sub_nouns
 from pathlib import Path
 
-
-GEN_TYPES = ['naive', 'random_mc', 'avion_mc']
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
     return int(hh) * 3600 + int(mm) * 60 + float(ss)
 
-def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_prediction_path = '', n_options = 5):
-    assert gen_type in GEN_TYPES
+def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_ids, noun_ids, gen_type = 'naive', avion_prediction_path = '', n_options = 5,
+                       action_representation = 'official_key', n_narrations=-1):
     # epic kitchen uses csv
     csv_reader = csv.reader(open(ann_file))
     _ = next(csv_reader)
@@ -28,6 +28,8 @@ def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_p
         with open(avion_prediction_path, 'r') as f:
             avion_train_predictions = json.load(f)
 
+    nlp = spacy.load('en_core_web_sm')
+
     for idx, row in enumerate(csv_reader):
         start_timestamp, end_timestamp = datetime2sec(row[4]), datetime2sec(row[5])
         
@@ -38,10 +40,13 @@ def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_p
             # here we directly use the names
             verb_noun = f'{verb_ids[row[10]]} {noun_ids[row[12]]}'
             conversation = generate_naive_conversation(verb_noun)
+        elif gen_type == 'direct_narration':
+            narration = row[8]
+            conversation = generate_direct_conversation(narration)
         elif gen_type == "random_mc":
             # here we use the index
             vn_str = f'{row[10]}:{row[12]}'
-            mc_data = mc_generator.generate_multi_choice(vn_str, n_options)
+            mc_data = mc_generator.generate_multi_choice(vn_str, n_options, verb_ids, noun_ids)
             options = mc_data['options'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
@@ -50,11 +55,14 @@ def generate_train_ann(ann_file, verb_ids, noun_ids, gen_type = 'naive', avion_p
             vn_str = f'{row[10]}:{row[12]}'
             avion_preds = avion_train_predictions[str(idx)]['predictions']
             gt_from_avion = avion_train_predictions[str(idx)]['target']
-            mc_data = mc_generator.generate_multi_choice(vn_str, avion_preds, n_options)
+            assert gt_from_avion == vn_str
+            narration = row[8]
+            if 'cut' in action_representation:
+                narration = remove_sub_nouns(nlp, narration, row[9], row[13])
+            mc_data = mc_generator.generate_multi_choice(vn_str, avion_preds, narration, n_options, action_representation, n_narrations, labels, mapping_vn2narration, verb_ids, noun_ids)
             options = mc_data['options'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
-            assert gt_answer_name.replace(' ', ':') == gt_from_avion
             conversation = generate_random_mc_conversation(options, gt_answer_letter, gt_answer_name )
 
         data = {'video': vid_path,
@@ -77,6 +85,13 @@ def generate_naive_conversation(vn_str:str):
         {"from": "gpt", "value": f"{vn_str}"}    
     ]
 
+def generate_direct_conversation(vn_str:str):
+    # in this version, we do not care about diversifying the questions
+    return [
+        {"from": "human", "value": "<image>\n the video is taken from egocentric view. What action is the person performing? "},
+        {"from": "gpt", "value": f"{vn_str}"}    
+    ]
+
 def generate_random_mc_conversation(options:list[str], gt_answer_letter, gt_answer_name):
     return [
         {"from": "human", "value": f"{options}"},
@@ -89,14 +104,19 @@ def get_args():
     parser.add_argument('--train_metadata', default='/data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv', type=str)
     parser.add_argument('--out_folder', default = '/data/shaokai/EK100_in_LLAVA/', type = str)
     parser.add_argument('--avion_train_predictions', default = '/data/shaokai/avion_predictions_train.json', type = str)
-    parser.add_argument('--gen_type', default = 'avion_mc', type = str, choices = GEN_TYPES)
+    parser.add_argument('--gen_type', default = 'avion_mc', type = str, choices = ['naive', 'direct_narration', 'random_mc', 'avion_mc'])
     parser.add_argument('--n_options', default = 5, type = int)
+    parser.add_argument('--action_representation', default = 'official_key', type = str, 
+                                            choices = ['first_sample', 'official_key', 
+                                                       'random_narration_cut', 'top1_narration_cut', 'topk_narration_cut_key',
+                                                       'GT_key', 'GT_random_narration', 'GT_random_narration_cut'])
+    parser.add_argument('--n_narrations', default = -1, type = int)
     return parser.parse_args()
 
 def main(): 
     args = get_args()    
     ann_file = args.train_metadata
-    inst_train_folder = os.path.join(args.out_folder, f'{args.gen_type}_top{args.n_options}')
+    inst_train_folder = os.path.join(args.out_folder, f'{args.gen_type}_top{args.n_options}_{args.action_representation}')
 
     print ('train_metadata', args.train_metadata)
     print ('out_folder', args.out_folder)
@@ -107,13 +127,17 @@ def main():
     os.makedirs(inst_train_folder, exist_ok=True)    
 
     anno_path = Path(ann_file).parent
-    _, _, verb_ids, noun_ids = generate_label_map(anno_path)
-    conv_lst = generate_train_ann(ann_file, 
-                                  verb_ids, 
-                                  noun_ids, 
+    labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps = generate_label_map(anno_path, args.action_representation)
+    conv_lst = generate_train_ann(ann_file,
+                                  labels,
+                                  mapping_vn2narration,
+                                  verb_maps, 
+                                  noun_maps, 
                                   gen_type = args.gen_type, 
                                   avion_prediction_path = args.avion_train_predictions,
-                                  n_options = args.n_options)
+                                  n_options = args.n_options,
+                                  action_representation = args.action_representation,
+                                  n_narrations = args.n_narrations)
         
     # save it to a jsonl
     with open(os.path.join(inst_train_folder,'train_convs_narration.jsonl'), 'w') as f:
