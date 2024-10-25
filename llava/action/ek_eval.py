@@ -10,7 +10,7 @@ from llava.action.llava_inference import llava_inference
 import json
 import logging
 from llava.utils import rank0_print
-from llava.action.utils import generate_label_map,  match_answer
+from llava.action.utils import generate_label_map,  match_answer, remove_option_letter
 from collections import Counter 
 import torch.distributed as dist
 from llava.action.dataset import VideoMultiChoiceDataset
@@ -146,18 +146,16 @@ def ensemble_llava_evaluation(
                             is_test = is_test,
                             time_meta = time_meta
                                )
-        
+                
+        pred = remove_option_letter(pred)
         rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name) 
-        if '.' in pred:
-            sep = pred.index('.')
-            pred = pred[sep+1:].strip()
         preds.append(pred)
         
     counter = Counter(preds)
     rank0_print ('inspecting the counter', counter)
     rank0_print ('most common', counter.most_common(1)[0][0])
 
-    return match_answer(counter.most_common(1)[0][0], gt_name), counter.most_common(1)[0][0]
+    return counter.most_common(1)[0][0] == gt_name, counter.most_common(1)[0][0]
 
 
 
@@ -256,9 +254,7 @@ def evaluate_on_EK100(eval_args,
         if args.llava_checkpoint is not None:
             pretrained = eval_args.llava_checkpoint
         tokenizer, model, image_processor, _ = prepare_llava(pretrained)   
-
        
-
     device = torch.device(f'cuda:{rank}') 
 
     global_avion_correct = torch.tensor(0.0, device=device)
@@ -275,13 +271,14 @@ def evaluate_on_EK100(eval_args,
             gt_name = mc_data['gt_answer_name'][0]
             local_avion_correct = torch.tensor(0.0, device=device)
             local_running_corrects = torch.tensor(0.0, device=device)
-            local_total_samples = torch.tensor(0.0, device=device)
+            local_total_samples = torch.tensor(0.0, device=device)            
                 
             if eval_args.action_predictions:
                 avion_pred = mc_data['avion_pred']
-                if gt_name == avion_pred:
+                if gt_name == avion_pred:               
                     local_avion_correct.add_(1)
                     global_avion_correct.add_(1)
+                
 
             # we don't want to evaluate the whole thing
             # let's evaluate 1000 samples to get the complete picture       
@@ -325,6 +322,7 @@ def evaluate_on_EK100(eval_args,
 
             logger.info(f'Process {dist.get_rank()} - local_total_samples: {local_total_samples:.4f}')
             logger.info(f'Process {dist.get_rank()} - loca_llava_correct: {llava_correct:.4f}')
+            logger.info(f'Process {dist.get_rank()} - local_avion_corrects: {local_avion_correct:.4f}')
             logger.info(f'Process {dist.get_rank()} - local_running_corrects: {local_running_corrects:.4f}')
             
 

@@ -43,7 +43,7 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_m
             narration = row[8]
             conversation = generate_direct_conversation(narration)
         elif gen_type == "random_mc":
-            # here we use the index
+            # DEPRECATED
             vn_str = f'{row[10]}:{row[12]}'
             mc_data = mc_generator.generate_multi_choice(vn_str, n_options, verb_maps, noun_maps)
             options = mc_data['options'][0]
@@ -67,7 +67,8 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_m
                                                          labels, 
                                                          mapping_vn2narration, 
                                                          verb_maps, 
-                                                         noun_maps)
+                                                         noun_maps,
+                                                         is_train = True)
             options = mc_data['options'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]

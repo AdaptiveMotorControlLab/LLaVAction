@@ -5,8 +5,8 @@ from llava.conversation import conv_templates, SeparatorStyle
 import torch
 import numpy as np
 import copy
-from llava.action.utils import format_llava_prompt
-
+from llava.action.utils import format_llava_prompt, remove_option_letter
+from llava.utils import rank0_print
 
 def llava_ov_process(video_frames, 
     tokenizer, 
@@ -100,8 +100,8 @@ def llava_video_process(
                                    include_frame_time = True,
                                    include_time_instruction= True)
 
-    print ('what is the question')
-    print (question)
+
+    rank0_print (question)
 
     conv = copy.deepcopy(conv_templates[conv_template])
     conv.append_message(conv.roles[0], question)

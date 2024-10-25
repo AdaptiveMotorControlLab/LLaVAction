@@ -1223,7 +1223,7 @@ class LazySupervisedDataset(Dataset):
                             print(f"Failed to read frame at path: {frame_path}")
                 elif 'EK100' in video_file:
                     start_second = float(self.list_data_dict[i]['start_timestamp'])
-                    end_second = float(self.list_data_dict[i]['end_timestamp'])
+                    end_second = float(self.list_data_dict[i]['end_timestamp'])            
                     video, video_time, frame_time, num_frames_to_sample = process_EK100_video_with_decord(video_file, self.data_args, start_second, end_second, 15)
 
                     # add log 
@@ -1241,7 +1241,7 @@ class LazySupervisedDataset(Dataset):
                     # We use our own prompting logic when it's EK100
                     options = eval(sources[0]["conversations"][0]["value"])
                     assert isinstance(options, list)
-                    assert len(options) == self.eval_args.topk_predictions
+                    assert len(options) == self.eval_args.topk_predictions, f"len(options) = {len(options)} !=  {self.eval_args.topk_predictions}"
                     # We only store the option list in the annotation file to make it easier to use consistent prompting
                     llava_prompt = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
                                                  options,
@@ -1255,6 +1255,8 @@ class LazySupervisedDataset(Dataset):
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
                 # print(sources)
             except Exception as e:
+                import traceback
+                traceback.print_exc() 
                 print(f"Error: {e}")
                 print(f"Failed to read video file: {video_file}")
                 return self._get_item(i + 1)

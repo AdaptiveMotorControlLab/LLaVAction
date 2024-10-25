@@ -8,10 +8,10 @@ import torch
 import pandas as pd
 import ast
 # import inflect
-import spacy
 import copy
 from tqdm import tqdm
 from collections import Counter
+from llava.utils import rank0_print
 
 def remove_sub_nouns(nlp, narration, verb, nouns):
     narration = copy.deepcopy(narration)
@@ -80,6 +80,13 @@ def remove_sub_nouns(nlp, narration, verb, nouns):
     return new_narration
 
 
+def remove_option_letter(answer):
+
+    if '. ' in answer:
+        return answer.split('. ')[1]
+    else:
+        return answer
+
 def generate_label_map(anno_root, action_representation):
     print("Preprocess ek100 action label space")
     vn_list = []
@@ -102,7 +109,7 @@ def generate_label_map(anno_root, action_representation):
                 noun_maps[str(row['id'])] = ' '.join(elements[1:] + [elements[0]]) # this is to refact the noun like 'machine:sous:vide'
 
     # inflect_tool = inflect.engine()
-    nlp = spacy.load('en_core_web_sm')
+    
     for f in [      
         os.path.join(anno_root,'EPIC_100_train.csv'),
         os.path.join(anno_root, 'EPIC_100_validation.csv'),
@@ -123,6 +130,8 @@ def generate_label_map(anno_root, action_representation):
 
             narration = row[8]
             if 'cut' in action_representation:
+                import spacy
+                nlp = spacy.load('en_core_web_sm')
                 narration = remove_sub_nouns(nlp, narration, row[9], row[13])
                 
             if vn not in mapping_vn2narration:
@@ -193,7 +202,7 @@ def match_answer(pred, gt):
 def parse_avion_predictions(predictions):
     return [pred.replace(':', ' ', 1) for pred in predictions]   
 
-# This might be deprecated. Need to revisit
+# DEPRECATED
 class MultiChoiceGenerator:
     """
     Generating multi choice
@@ -203,6 +212,9 @@ class MultiChoiceGenerator:
     
 
     def generate_multi_choice(self, gt_vn, k, verb_maps, noun_maps):
+
+        raise NotImplementedError("This is an abstract class")
+
         """
         Generate k multiple choices from gt_vn pairs
 
@@ -250,60 +262,54 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
     def __init__(self, ann_root):
         super().__init__(ann_root)
     
-    def generate_multi_choice(self, gt_vn, avion_predictions, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
+    def parse_vn_ids(self, answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
+        answer_items = []
+        if 'key' in action_representation or action_representation == 'first_sample':
+            v_id, n_id = answer_id.split(':')
+            v_name, n_name = verb_maps[v_id], noun_maps[n_id]
+            answer_items.append(f'{v_name} {n_name}')
+        if 'random_narration' in action_representation:
+            # randomly select a narration from mapping_vn2narration
+            answer_items.append(random.choice(mapping_vn2narration[answer_id]))
+        elif 'top1_narration' in action_representation:
+            # select the top1 narration from labels
+            answer_items.append(labels[answer_id][0])
+        elif 'topk_narration' in action_representation:
+            assert n_narrations > 0
+            # select the topk narrations from labels
+            answer_items.extend(['example usages could be']+ labels[answer_id][:n_narrations])
+
+        if 'GT' in action_representation and answer_id == gt_vn:
+            answer_items = [narration] 
+
+        return ', '.join(answer_items)
+
+    def train_generate(self, gt_vn, avion_predictions, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
         """
-        Generate k multiple choices from gt_vn pairs
-
-        randomly pick 1 letter for gt_vn
-        randomly pick k-1 letters from vn_list that is not gt_vn (this is important as avion_predictions can contain correct prediction)        
-
-        """    
+        During training, the avion predictions have some randomness from the top 2k.
+        One gt is guaranteed to exist in the returned options
+        """
         # we should have plenty of predictions to select, so let's not always pick the hardest
         assert len(avion_predictions) > 2*k
         avion_predictions = avion_predictions[:k*2]
         # avion_predictions = parse_avion_predictions(avion_predictions)
         if gt_vn in avion_predictions:
-            avion_predictions.remove(gt_vn)
-        
-        # get the most confident avion prediction
-        avion_most_conf_pred = avion_predictions[0]
+            avion_predictions.remove(gt_vn)       
 
         # just so that it's not strictly desending with confidence
         random.shuffle(avion_predictions)
         avion_predictions = avion_predictions[:k-1]
 
         answer_ids = [gt_vn] + avion_predictions
-        random.shuffle(answer_ids)
 
-        # remember we append the most conf pred to the end so we can use the following preprocessing
-        answer_ids.append(avion_most_conf_pred)
+        random.shuffle(answer_ids)
 
         answers = []
         for answer_id in answer_ids:
-            answer_items = []
-            if 'key' in action_representation or action_representation == 'first_sample':
-                v_id, n_id = answer_id.split(':')
-                v_name, n_name = verb_maps[v_id], noun_maps[n_id]
-                answer_items.append(f'{v_name} {n_name}')
-            if 'random_narration' in action_representation:
-                # randomly select a narration from mapping_vn2narration
-                answer_items.append(random.choice(mapping_vn2narration[answer_id]))
-            elif 'top1_narration' in action_representation:
-                # select the top1 narration from labels
-                answer_items.append(labels[answer_id][0])
-            elif 'topk_narration' in action_representation:
-                assert n_narrations > 0
-                # select the topk narrations from labels
-                answer_items.extend(['example usages could be']+ labels[answer_id][:n_narrations])
 
-            if 'GT' in action_representation and answer_id == gt_vn:
-                answer_items = [narration]
-
-            answers.append(', '.join(answer_items))
+            answer = self.parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+            answers.append(answer)
         
-        # now let's pop the last one
-        avion_pred = answers.pop()
-
         letters = [chr(65+i) for i in range(26)][:k]
         options = list(range(26))[:k]
 
@@ -313,18 +319,73 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
 
         gt_letter = letters[answer_ids.index(gt_vn)]
         gt_answer = answers[answer_ids.index(gt_vn)]
-        
 
-        data = {
+        mc_data = {
                 'options': {0: options},
                 # the correct letter in mc
                 # for inspecting
                 'gt_answer_letter': {0: gt_letter},
                 'gt_answer_name': {0: gt_answer},
+                'valid_letters': letters
+            }  
+        return mc_data              
+
+    def test_generate(self, gt_vn, avion_predictions, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
+        """
+        During testing, we use the top k predictions from avion. No randomness. We do not mix the gt_vn with the avion predictions
+        """        
+
+        answer_ids = avion_predictions[:k]
+        answers = []
+        for answer_id in answer_ids:
+            answer = self.parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+            answers.append(answer)
+        
+        letters = [chr(65+i) for i in range(26)][:k]
+        options = list(range(26))[:k]
+
+        options = []
+        for answer, letter in zip(answers, letters):
+            options.append(f'{letter}. {answer}')
+
+        # note the gt_answer cannot come from narration, as some action representation turns avion predictions to non-narration format
+        gt_answer = self.parse_vn_ids(gt_vn, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+
+        mc_data = {
+                'options': {0: options},               
+                'gt_answer_name': {0: gt_answer},
                 'valid_letters': letters,
-                'avion_pred': avion_pred
-            }        
-        return data
+                'avion_pred': answers[0]
+            }
+
+        
+        
+        return mc_data        
+
+    def generate_multi_choice(self, 
+                              gt_vn, 
+                              avion_predictions, 
+                              narration, 
+                              k, 
+                              action_representation, 
+                              n_narrations, 
+                              labels, 
+                              mapping_vn2narration, 
+                              verb_maps, 
+                              noun_maps,
+                              is_train = True
+                              ):
+        """
+        Generate k multiple choices from gt_vn pairs
+
+        randomly pick 1 letter for gt_vn
+        randomly pick k-1 letters from vn_list that is not gt_vn (this is important as avion_predictions can contain correct prediction)        
+
+        """    
+        if is_train:
+            return self.train_generate(gt_vn, avion_predictions, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+        else:
+            return self.test_generate(gt_vn, avion_predictions, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
     
 def get_frame_ids(start_frame, end_frame, num_segments=32, jitter=True):
     frame_ids = np.convolve(np.linspace(start_frame, end_frame, num_segments + 1), [0.5, 0.5], mode='valid')

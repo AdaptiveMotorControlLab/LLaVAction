@@ -178,6 +178,7 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
             frames = self.transform(frames)
         narration = self.samples[i][4]
         avion_preds = self.avion_predictions[str(i)]['predictions']
+
         data = self.mc_generator.generate_multi_choice(label, 
                                                         avion_preds,                                                       
                                                         narration,
@@ -187,7 +188,9 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
                                                         self.labels,
                                                         self.mapping_vn2narration,                                                        
                                                         self.verb_maps, 
-                                                        self.noun_maps)
+                                                        self.noun_maps,
+                                                        is_train = False) # note we only use this dataset for evaluation for now.
+
        
         return frames, data, time_meta, i
 
