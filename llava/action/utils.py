@@ -193,6 +193,7 @@ def match_answer(pred, gt):
 def parse_avion_predictions(predictions):
     return [pred.replace(':', ' ', 1) for pred in predictions]   
 
+# This might be deprecated. Need to revisit
 class MultiChoiceGenerator:
     """
     Generating multi choice
@@ -237,7 +238,7 @@ class MultiChoiceGenerator:
                 # for inspecting
                 'gt_answer_letter': {0: gt_letter},
                 'gt_answer_name': {0: gt_answer},
-                'valid_letters': letters
+                'valid_letters': letters,
             }
         
         return data
@@ -263,12 +264,19 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
         # avion_predictions = parse_avion_predictions(avion_predictions)
         if gt_vn in avion_predictions:
             avion_predictions.remove(gt_vn)
+        
+        # get the most confident avion prediction
+        avion_most_conf_pred = avion_predictions[0]
+
         # just so that it's not strictly desending with confidence
         random.shuffle(avion_predictions)
         avion_predictions = avion_predictions[:k-1]
 
         answer_ids = [gt_vn] + avion_predictions
         random.shuffle(answer_ids)
+
+        # remember we append the most conf pred to the end so we can use the following preprocessing
+        answer_ids.append(avion_most_conf_pred)
 
         answers = []
         for answer_id in answer_ids:
@@ -292,7 +300,9 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
                 answer_items = [narration]
 
             answers.append(', '.join(answer_items))
-            
+        
+        # now let's pop the last one
+        avion_pred = answers.pop()
 
         letters = [chr(65+i) for i in range(26)][:k]
         options = list(range(26))[:k]
@@ -311,7 +321,8 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
                 # for inspecting
                 'gt_answer_letter': {0: gt_letter},
                 'gt_answer_name': {0: gt_answer},
-                'valid_letters': letters
+                'valid_letters': letters,
+                'avion_pred': avion_pred
             }        
         return data
     
@@ -469,6 +480,5 @@ if __name__ == '__main__':
     print (predictions['0'])
     print (len(predictions['0']['predictions']))
     
-    print (generator.generate_multi_choice('3:3',  predictions['0']['predictions'],  5))
 
     pass

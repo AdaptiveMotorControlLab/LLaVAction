@@ -204,9 +204,8 @@ class EK100EvalArguments:
     decode_threads: int = 1
     topk_predictions: int = 5
     pretrained_name: str = ""
-
-
-
+    action_representation: str = "GT_random_narration_cut"
+    n_narrations: int = -1
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero

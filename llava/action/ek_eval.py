@@ -10,7 +10,7 @@ from llava.action.llava_inference import llava_inference
 import json
 import logging
 from llava.utils import rank0_print
-from llava.action.utils import generate_label_map,  match_answer, create_multi_choice_from_avion_predictions
+from llava.action.utils import generate_label_map,  match_answer
 from collections import Counter 
 import torch.distributed as dist
 from llava.action.dataset import VideoMultiChoiceDataset
@@ -65,6 +65,11 @@ def get_args_parser():
     parser.add_argument('--action_predictions', default=None, type=str, help='path to action predictions')
     parser.add_argument('--topk_predictions', default = 5, type =int)
     parser.add_argument('--llava_checkpoint', default = None, type = str)
+    parser.add_argument('--action_representation', default = 'GT_random_narration_cut', type = str, 
+                        choices = ['first_sample', 'official_key', 
+                                   'random_narration_cut', 'top1_narration_cut', 'topk_narration_cut_key',
+                                   'GT_key', 'GT_random_narration', 'GT_random_narration_cut'])
+    parser.add_argument('--n_narrations', default = -1, type = int)
 
     
     return parser
@@ -176,7 +181,11 @@ def evaluate_on_EK100(eval_args,
     val_transform_gpu = torch.nn.Sequential(*gpu_val_transform_ls)
 
     crop_size = 336
-    labels, mapping_vn2act, verb_maps, noun_maps = generate_label_map(Path(eval_args.val_metadata).parent) 
+    labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps = generate_label_map(Path(eval_args.val_metadata).parent, eval_args.action_representation) 
+
+    if eval_args.action_predictions:
+        with open(eval_args.action_predictions, 'r') as f:
+            predictions = json.load(f) 
 
     val_dataset = VideoMultiChoiceDataset(
                 eval_args.dataset, eval_args.root, eval_args.val_metadata, val_transform_gpu,
@@ -192,16 +201,36 @@ def evaluate_on_EK100(eval_args,
                 topk_predictions = eval_args.topk_predictions,
                 verb_maps = verb_maps,
                 noun_maps = noun_maps,
-                eval_result_folder = eval_result_folder
+                eval_result_folder = eval_result_folder,
+                action_representation = eval_args.action_representation,
+                mapping_vn2narration = mapping_vn2narration,
+                avion_predictions = predictions if eval_args.action_predictions else None,
+                n_narrations = eval_args.n_narrations,
 
             )
 
-    if dist.is_initialized():
-        sampler = DistributedSampler(val_dataset, shuffle=False)
+    def collate_fn(batch):
+        frames = [item[0] for item in batch]
+        mc_data = [item[1] for item in batch]
+        time_meta = [item[2] for item in batch]
+        global_index = [item[3] for item in batch]
+
+        frames =  torch.stack(frames)        
+
+        return frames, mc_data, time_meta, global_index
+
+    if dist.is_initialized():        
+        sampler = DistributedSampler(val_dataset,                                      
+                                     shuffle=False)
     else:
         sampler = None
 
-    val_dataloader = DataLoader(val_dataset, sampler = sampler, batch_size=1, shuffle=False)    
+    # use custom collate function to avoid default behavior of converting my list of string to list of tuples of strings
+    val_dataloader = DataLoader(val_dataset, 
+                                collate_fn=collate_fn,
+                                sampler = sampler, 
+                                batch_size=1, 
+                                shuffle=False)    
         
     # Set up logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s',  filemode='w')
@@ -228,9 +257,7 @@ def evaluate_on_EK100(eval_args,
             pretrained = eval_args.llava_checkpoint
         tokenizer, model, image_processor, _ = prepare_llava(pretrained)   
 
-    if eval_args.action_predictions:
-        with open(eval_args.action_predictions, 'r') as f:
-            predictions = json.load(f)        
+       
 
     device = torch.device(f'cuda:{rank}') 
 
@@ -242,15 +269,15 @@ def evaluate_on_EK100(eval_args,
     for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):        
 
         with torch.no_grad():
-            global_index = global_index.item()
-
-            gt_name = mc_data['gt_answer_name'][0][0]
+            global_index = global_index[0]
+            mc_data = mc_data[0]
+            time_meta = time_meta[0]         
+            gt_name = mc_data['gt_answer_name'][0]
             local_avion_correct = torch.tensor(0.0, device=device)
             local_running_corrects = torch.tensor(0.0, device=device)
             local_total_samples = torch.tensor(0.0, device=device)
                 
             if eval_args.action_predictions:
-                mc_data = create_multi_choice_from_avion_predictions(predictions[str(global_index)]['predictions'], eval_args.topk_predictions)
                 avion_pred = mc_data['avion_pred']
                 if gt_name == avion_pred:
                     local_avion_correct.add_(1)
@@ -284,14 +311,12 @@ def evaluate_on_EK100(eval_args,
                                                 llava_pred,
                                                 gt_name,
                                                 predictions[str(global_index)],
-                                                time_meta['start_second'].item(),
-                                                time_meta['end_second'].item(),
+                                                time_meta['start_second'],
+                                                time_meta['end_second'],
                                                 time_meta['vid_path'],
                                                 dataset_name = 'EK100')
 
         
-
-
             local_running_corrects.add_(llava_correct)
             global_running_corrects.add_(llava_correct)
                                                                 

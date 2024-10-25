@@ -73,6 +73,7 @@ def llava_video_process(
 
     device = "cuda"
 
+    # this [0] is only for batch size 1.
     video_frames = video_frames[0]
 
     temporal_stride = clip_length // num_frames
@@ -81,8 +82,8 @@ def llava_video_process(
 
     image_tensors = []
 
-    video_duration = time_meta['duration'].item()
-    n_frames = time_meta['n_frames'].item()
+    video_duration = time_meta['duration']
+    n_frames = time_meta['n_frames']
     
     frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].cuda().to(torch.bfloat16)
 

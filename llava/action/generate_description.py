@@ -8,13 +8,12 @@ import sys
 sys.path[0] = os.path.dirname(os.path.dirname(sys.path[0]))
 from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator, format_task_related_prompt, remove_sub_nouns
 from pathlib import Path
-from llava.action.dataset import VideoMultiChoiceDataset
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
     return int(hh) * 3600 + int(mm) * 60 + float(ss)
 
-def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_ids, noun_ids, gen_type = 'naive', avion_prediction_path = '', n_options = 5,
+def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_maps, gen_type = 'naive', avion_prediction_path = '', n_options = 5,
                        action_representation = 'official_key', n_narrations=-1):
     # epic kitchen uses csv
     csv_reader = csv.reader(open(ann_file))
@@ -38,7 +37,7 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_ids, noun_id
 
         if gen_type == 'naive':
             # here we directly use the names
-            verb_noun = f'{verb_ids[row[10]]} {noun_ids[row[12]]}'
+            verb_noun = f'{verb_maps[row[10]]} {noun_maps[row[12]]}'
             conversation = generate_naive_conversation(verb_noun)
         elif gen_type == 'direct_narration':
             narration = row[8]
@@ -46,7 +45,7 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_ids, noun_id
         elif gen_type == "random_mc":
             # here we use the index
             vn_str = f'{row[10]}:{row[12]}'
-            mc_data = mc_generator.generate_multi_choice(vn_str, n_options, verb_ids, noun_ids)
+            mc_data = mc_generator.generate_multi_choice(vn_str, n_options, verb_maps, noun_maps)
             options = mc_data['options'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
@@ -59,7 +58,16 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_ids, noun_id
             narration = row[8]
             if 'cut' in action_representation:
                 narration = remove_sub_nouns(nlp, narration, row[9], row[13])
-            mc_data = mc_generator.generate_multi_choice(vn_str, avion_preds, narration, n_options, action_representation, n_narrations, labels, mapping_vn2narration, verb_ids, noun_ids)
+            mc_data = mc_generator.generate_multi_choice(vn_str, 
+                                                         avion_preds, 
+                                                         narration, 
+                                                         n_options, 
+                                                         action_representation, 
+                                                         n_narrations, 
+                                                         labels, 
+                                                         mapping_vn2narration, 
+                                                         verb_maps, 
+                                                         noun_maps)
             options = mc_data['options'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
@@ -106,7 +114,7 @@ def get_args():
     parser.add_argument('--avion_train_predictions', default = '/data/shaokai/avion_predictions_train.json', type = str)
     parser.add_argument('--gen_type', default = 'avion_mc', type = str, choices = ['naive', 'direct_narration', 'random_mc', 'avion_mc'])
     parser.add_argument('--n_options', default = 5, type = int)
-    parser.add_argument('--action_representation', default = 'official_key', type = str, 
+    parser.add_argument('--action_representation', default = 'GT_random_narration_cut', type = str, 
                                             choices = ['first_sample', 'official_key', 
                                                        'random_narration_cut', 'top1_narration_cut', 'topk_narration_cut_key',
                                                        'GT_key', 'GT_random_narration', 'GT_random_narration_cut'])

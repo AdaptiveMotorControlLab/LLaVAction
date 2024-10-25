@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 import decord
 from pathlib import Path
-from llava.action.utils import  MultiChoiceGenerator,  avion_video_loader
+from llava.action.utils import  AvionMultiChoiceGenerator,  avion_video_loader
 from llava.action.prediction_analysis import PredictionAnalysis
 import torch.distributed as dist
 
@@ -119,7 +119,11 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         topk_predictions = 5,
         verb_maps = None,
         noun_maps = None,
-        eval_result_folder = None
+        eval_result_folder = None,
+        action_representation = 'GT_random_narration_cut',
+        mapping_vn2narration = None,
+        avion_predictions = None,
+        n_narrations = -1,
     ):
         super().__init__(dataset, root, metadata, is_trimmed=is_trimmed)
 
@@ -144,9 +148,13 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         self.labels = labels
         self.topk_predictions = topk_predictions
         self.ann_root = Path(metadata).parent
-        self.mc_generator = MultiChoiceGenerator(self.ann_root)
+        self.mc_generator = AvionMultiChoiceGenerator(self.ann_root)
         self.rank = dist.get_rank()
         self.prediction_analysis = PredictionAnalysis(rank = self.rank, save_folder = eval_result_folder)
+        self.action_representation = action_representation
+        self.n_narrations = n_narrations
+        self.mapping_vn2narration = mapping_vn2narration
+        self.avion_predictions = avion_predictions
         
     def __getitem__(self, i):
         frames, label, time_meta = self.get_raw_item(
@@ -168,8 +176,18 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         # apply transformation
         if self.transform is not None:
             frames = self.transform(frames)
-        
-        data = self.mc_generator.generate_multi_choice(label, self.topk_predictions)
-        
+        narration = self.samples[i][4]
+        avion_preds = self.avion_predictions[str(i)]['predictions']
+        data = self.mc_generator.generate_multi_choice(label, 
+                                                        avion_preds,                                                       
+                                                        narration,
+                                                        self.topk_predictions, 
+                                                        self.action_representation,
+                                                        self.n_narrations,
+                                                        self.labels,
+                                                        self.mapping_vn2narration,                                                        
+                                                        self.verb_maps, 
+                                                        self.noun_maps)
+       
         return frames, data, time_meta, i
 
