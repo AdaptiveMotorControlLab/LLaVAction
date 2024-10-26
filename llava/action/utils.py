@@ -254,7 +254,29 @@ class MultiChoiceGenerator:
             }
         
         return data
-    
+
+def parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
+    answer_items = []
+    if 'key' in action_representation or action_representation == 'first_sample':
+        v_id, n_id = answer_id.split(':')
+        v_name, n_name = verb_maps[v_id], noun_maps[n_id]
+        answer_items.append(f'{v_name} {n_name}')
+    if 'random_narration' in action_representation:
+        # randomly select a narration from mapping_vn2narration
+        answer_items.append(random.choice(mapping_vn2narration[answer_id]))
+    elif 'top1_narration' in action_representation:
+        # select the top1 narration from labels
+        answer_items.append(labels[answer_id][0])
+    elif 'topk_narration' in action_representation:
+        assert n_narrations > 0
+        # select the topk narrations from labels
+        answer_items.extend(['example usages could be']+ labels[answer_id][:n_narrations])
+
+    if 'GT' in action_representation and answer_id == gt_vn:
+        answer_items = [narration] 
+
+    return ', '.join(answer_items)
+
 class AvionMultiChoiceGenerator(MultiChoiceGenerator):
     """
     Generate multichoice using avion predictions
@@ -262,27 +284,6 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
     def __init__(self, ann_root):
         super().__init__(ann_root)
     
-    def parse_vn_ids(self, answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
-        answer_items = []
-        if 'key' in action_representation or action_representation == 'first_sample':
-            v_id, n_id = answer_id.split(':')
-            v_name, n_name = verb_maps[v_id], noun_maps[n_id]
-            answer_items.append(f'{v_name} {n_name}')
-        if 'random_narration' in action_representation:
-            # randomly select a narration from mapping_vn2narration
-            answer_items.append(random.choice(mapping_vn2narration[answer_id]))
-        elif 'top1_narration' in action_representation:
-            # select the top1 narration from labels
-            answer_items.append(labels[answer_id][0])
-        elif 'topk_narration' in action_representation:
-            assert n_narrations > 0
-            # select the topk narrations from labels
-            answer_items.extend(['example usages could be']+ labels[answer_id][:n_narrations])
-
-        if 'GT' in action_representation and answer_id == gt_vn:
-            answer_items = [narration] 
-
-        return ', '.join(answer_items)
 
     def train_generate(self, gt_vn, avion_predictions, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
         """
@@ -307,7 +308,7 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
         answers = []
         for answer_id in answer_ids:
 
-            answer = self.parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+            answer = parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
             answers.append(answer)
         
         letters = [chr(65+i) for i in range(26)][:k]
@@ -338,7 +339,7 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
         answer_ids = avion_predictions[:k]
         answers = []
         for answer_id in answer_ids:
-            answer = self.parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+            answer = parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
             answers.append(answer)
         
         letters = [chr(65+i) for i in range(26)][:k]
@@ -349,13 +350,14 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
             options.append(f'{letter}. {answer}')
 
         # note the gt_answer cannot come from narration, as some action representation turns avion predictions to non-narration format
-        gt_answer = self.parse_vn_ids(gt_vn, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+        gt_answer = parse_vn_ids(gt_vn, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
 
         mc_data = {
                 'options': {0: options},               
                 'gt_answer_name': {0: gt_answer},
                 'valid_letters': letters,
-                'avion_pred': answers[0]
+                'avion_pred': answers[0],
+                'all_avion_preds': answers
             }
 
         
@@ -443,88 +445,63 @@ def avion_video_loader(root, vid, ext, second, end_second,
                  fast_rrc=False, rrc_params=(224, (0.5, 1.0)),
                  fast_rcc=False, rcc_params=(224, ),
                  jitter=False):
-    assert fps > 0, 'fps should be greater than 0'
-    if chunk_len == -1:
+    assert fps > 0, 'fps should be greater than 0' 
+    time_meta = {}
+    
+    time_meta['duration'] = end_second - second
+
+    assert end_second > second, 'end_second should be greater than second'
+
+    chunk_start = int(second) // chunk_len * chunk_len
+    chunk_end = int(end_second) // chunk_len * chunk_len
+    while True:
+        video_filename = osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk_end, ext))
+        if not osp.exists(video_filename):
+            # print("{} does not exists!".format(video_filename))
+            chunk_end -= chunk_len
+        else:
+            vr = decord.VideoReader(video_filename)
+            end_second = min(end_second, (len(vr) - 1) / fps + chunk_end)
+            assert chunk_start <= chunk_end
+            break
+    # calculate frame_ids
+    frame_ids = get_frame_ids(
+        int(np.round(second * fps)),
+        int(np.round(end_second * fps)),
+        num_segments=clip_length, jitter=jitter
+    )
+    all_frames = []
+    all_frame_ids = []
+    # allocate absolute frame-ids into the relative ones
+    for chunk in range(chunk_start, chunk_end + chunk_len, chunk_len):
+        rel_frame_ids = list(filter(lambda x: int(chunk * fps) <= x < int((chunk + chunk_len) * fps), frame_ids))
+        rel_frame_ids = [int(frame_id - chunk * fps) for frame_id in rel_frame_ids]
         vr = get_video_reader(
-            osp.join(root, '{}.{}'.format(vid, ext)),
+            osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk, ext)),
             num_threads=threads,
             fast_rrc=fast_rrc, rrc_params=rrc_params,
             fast_rcc=fast_rcc, rcc_params=rcc_params,
         )
-        end_second = min(end_second, len(vr) / fps)
-
-        # calculate frame_ids
-        frame_offset = int(np.round(second * fps))
-        total_duration = max(int((end_second - second) * fps), clip_length)
-        frame_ids = get_frame_ids(frame_offset, min(frame_offset + total_duration, len(vr)), num_segments=clip_length, jitter=jitter)
-
-        # load frames
-        assert max(frame_ids) < len(vr)
         try:
-            frames = vr.get_batch(frame_ids).asnumpy()
+            frames = vr.get_batch(rel_frame_ids).asnumpy()
         except decord.DECORDError as error:
             print(error)
-            frames = vr.get_batch([0] * len(frame_ids)).asnumpy()
-
-        return torch.from_numpy(frames.astype(np.float32))
-
-    else:
-        time_meta = {}
-        
-        time_meta['duration'] = end_second - second
-
-        assert end_second > second, 'end_second should be greater than second'
-
-        chunk_start = int(second) // chunk_len * chunk_len
-        chunk_end = int(end_second) // chunk_len * chunk_len
-        while True:
-            video_filename = osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk_end, ext))
-            if not osp.exists(video_filename):
-                # print("{} does not exists!".format(video_filename))
-                chunk_end -= chunk_len
-            else:
-                vr = decord.VideoReader(video_filename)
-                end_second = min(end_second, (len(vr) - 1) / fps + chunk_end)
-                assert chunk_start <= chunk_end
-                break
-        # calculate frame_ids
-        frame_ids = get_frame_ids(
-            int(np.round(second * fps)),
-            int(np.round(end_second * fps)),
-            num_segments=clip_length, jitter=jitter
-        )
-        all_frames = []
-        all_frame_ids = []
-        # allocate absolute frame-ids into the relative ones
-        for chunk in range(chunk_start, chunk_end + chunk_len, chunk_len):
-            rel_frame_ids = list(filter(lambda x: int(chunk * fps) <= x < int((chunk + chunk_len) * fps), frame_ids))
-            rel_frame_ids = [int(frame_id - chunk * fps) for frame_id in rel_frame_ids]
-            vr = get_video_reader(
-                osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk, ext)),
-                num_threads=threads,
-                fast_rrc=fast_rrc, rrc_params=rrc_params,
-                fast_rcc=fast_rcc, rcc_params=rcc_params,
-            )
-            try:
-                frames = vr.get_batch(rel_frame_ids).asnumpy()
-            except decord.DECORDError as error:
-                print(error)
-                frames = vr.get_batch([0] * len(rel_frame_ids)).asnumpy()
-            except IndexError:
-                print('IndexError', root, vid, ext, second, end_second)
-            all_frames.append(frames)
-            all_frame_ids.append(frame_ids)
-            if sum(map(lambda x: x.shape[0], all_frames)) == clip_length:
-                break
-        res = torch.from_numpy(np.concatenate(all_frames, axis=0).astype(np.float32))
-        time_meta['n_frames'] = res.shape[0]
-        all_frame_ids = np.concatenate(all_frame_ids, axis = 0)
-        frame_time = [e/fps for e in all_frame_ids]
-        frame_time-= frame_time[0]
-        frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
-        time_meta['frame_time'] = frame_time
-        assert res.shape[0] == clip_length, "{}, {}, {}, {}, {}, {}, {}".format(root, vid, second, end_second, res.shape[0], rel_frame_ids, frame_ids)
-        return res, time_meta
+            frames = vr.get_batch([0] * len(rel_frame_ids)).asnumpy()
+        except IndexError:
+            print('IndexError', root, vid, ext, second, end_second)
+        all_frames.append(frames)
+        all_frame_ids.append(frame_ids)
+        if sum(map(lambda x: x.shape[0], all_frames)) == clip_length:
+            break
+    res = torch.from_numpy(np.concatenate(all_frames, axis=0).astype(np.float32))
+    time_meta['n_frames'] = res.shape[0]
+    all_frame_ids = np.concatenate(all_frame_ids, axis = 0)
+    frame_time = [e/fps for e in all_frame_ids]
+    frame_time-= frame_time[0]
+    frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
+    time_meta['frame_time'] = frame_time
+    assert res.shape[0] == clip_length, "{}, {}, {}, {}, {}, {}, {}".format(root, vid, second, end_second, res.shape[0], rel_frame_ids, frame_ids)
+    return res, time_meta
 
 
 if __name__ == '__main__':

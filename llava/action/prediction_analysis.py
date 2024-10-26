@@ -2,6 +2,7 @@ import json
 import glob
 import os
 import numpy as np
+from llava.action.utils import generate_label_map
 class PredictionAnalysis:
     """
     We save data that can be used for ad-hoc analysis
@@ -20,7 +21,10 @@ class PredictionAnalysis:
         vid_path: ''
     }
     """
-    def __init__(self, save_folder = None, rank = 0, prefix = 'prediction_analysis_buf'):
+    def __init__(self, 
+                 save_folder = None, 
+                 rank = 0, 
+                 prefix = 'prediction_analysis_buf'):
         if save_folder is None:
             save_folder = '.'
         self.save_folder = save_folder
@@ -28,7 +32,7 @@ class PredictionAnalysis:
         self.prefix = prefix
         self.save_path = os.path.join(save_folder, f'{self.prefix}_rank{rank}.json')       
         self.data = {}  
-
+        
     def log(self, 
             global_index,
             llava_pred,
@@ -83,7 +87,6 @@ class PredictionAnalysis:
 
 
     def analysis(self):
-
         self.load()
         
         N = len(self.data)
@@ -105,9 +108,12 @@ class PredictionAnalysis:
             llava_pred = items['llava_pred']
             gt_name = items['gt_name']
             # only replacing the first : 
-            avion_pred = items['avion_preds']['predictions'][0].replace(':', ' ', 1)
-            avion_preds = items['avion_preds']['predictions'][:5]
-            avion_preds = [e.replace(':', ' ', 1) for e  in avion_preds]
+            # avion_pred = items['avion_preds']['predictions'][0].replace(':', ' ', 1)
+            # avion_preds = items['avion_preds']['predictions'][:5]
+            # avion_preds = [e.replace(':', ' ', 1) for e  in avion_preds]
+
+            avion_pred = items['avion_preds']['predictions'][0]
+
             try:
                 llava_verb, llava_noun = llava_pred.split(' ')
             except:
@@ -144,6 +150,7 @@ class PredictionAnalysis:
         llava_wrong_noun_collections = np.array(llava_wrong_noun_collections)
         llava_wrong_verb_collections = np.array(llava_wrong_verb_collections)
         llava_wrong_verb_noun_collections = np.array(llava_wrong_verb_noun_collections)
+
         avion_wrong_noun_collections = np.array(avion_wrong_noun_collections)
         avion_wrong_verb_collections = np.array(avion_wrong_verb_collections)
         avion_wrong_verb_noun_collections = np.array(avion_wrong_verb_noun_collections)

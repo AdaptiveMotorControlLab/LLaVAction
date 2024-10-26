@@ -147,16 +147,6 @@ class ChatGPT:
                         jitter = False)
         return frames, time_meta               
 
-
-class GPTDataClenaer(ChatGPT):
-    """
-    To clean the training annotation
-    Instead of using the first verb appeared in the verb csv, we use the csv file to
-    have chatgpt select the best ones.
-    We also inject rules to correct some confusing convention of how EK100 names verbs
-    """
-    pass
-
 class GPTInferenceAnnotator(ChatGPT):
     """
     Given the images, this class will annotate the video frames
@@ -440,7 +430,6 @@ class GPTAugmentationAnnotator(ChatGPT):
         return combined_results
 
     def run(self, indices):
-        data_batch = [self.data[i] for i in range(len(self.data)) if i in indices]
 
         ret = {}
         for index in tqdm(indices):
@@ -514,6 +503,7 @@ def multi_process_annotate(train_file_path, root, debug = False):
     root, 
     clip_length = 4,
     debug = debug)
+
     results = annotator.multi_process_run()
 
 def explore_wrong_examples(root, prediction_save_folder, debug = False):
@@ -559,11 +549,14 @@ def calculate_gpt_accuracy(path):
 if __name__ == '__main__':
     #train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl'
     #root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
-    train_file_path = '/data/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl'
-    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'    
-    pred_folder = '/data/epic_kitchen/llavavideo_avion_mc_top10_5epoch_preds'
+    #train_file_path = '/data/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl'
+    #root = '/data/EK100/EK100_320p_15sec_30fps_libx264'    
+    #pred_folder = '/data/epic_kitchen/llavavideo_avion_mc_top10_5epoch_preds'
 
-    #multi_process_annotate(train_file_path, root)
+    root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
+    train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
+
+    multi_process_annotate(train_file_path, root, debug = True)
     #explore_wrong_examples(root, pred_folder)
     # multi_process_inference(root, 
     #                         pred_folder, 
@@ -572,4 +565,4 @@ if __name__ == '__main__':
     #                         annotation_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv',                            
     #                         topk = 10)
 
-    calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames_fixed_narration.json')
+    #calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames_fixed_narration.json')
