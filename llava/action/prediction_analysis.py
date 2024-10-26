@@ -171,7 +171,7 @@ class PredictionAnalysis:
 if __name__ == '__main__':
 
     # at rcp server
-    save_folder = '/storage-rcp-pure/upmwmathis_scratch/shaokai/LLaVA-NeXT/llavavideo_avion_mc_top10_5epoch_preds_without_frame_time'
+    save_folder = '/storage-rcp-pure/upmwmathis_scratch/shaokai/LLaVA-NeXT/llavavideo_avion_mc_top5_preds_gt_narration_random'
     # at amg0 
     #save_folder = '/data/epic_kitchen/llavavideo_avion_mc_top10_5epoch_preds'
 
