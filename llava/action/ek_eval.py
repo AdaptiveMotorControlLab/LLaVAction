@@ -320,10 +320,10 @@ def evaluate_on_EK100(eval_args,
             local_total_samples.add_(1)
             global_total_samples.add_(1)
 
-            logger.info(f'Process {dist.get_rank()} - local_total_samples: {local_total_samples:.4f}')
-            logger.info(f'Process {dist.get_rank()} - loca_llava_correct: {llava_correct:.4f}')
-            logger.info(f'Process {dist.get_rank()} - local_avion_corrects: {local_avion_correct:.4f}')
-            logger.info(f'Process {dist.get_rank()} - local_running_corrects: {local_running_corrects:.4f}')
+            # logger.info(f'Process {dist.get_rank()} - local_total_samples: {local_total_samples:.4f}')
+            # logger.info(f'Process {dist.get_rank()} - loca_llava_correct: {llava_correct:.4f}')
+            # logger.info(f'Process {dist.get_rank()} - local_avion_corrects: {local_avion_correct:.4f}')
+            # logger.info(f'Process {dist.get_rank()} - local_running_corrects: {local_running_corrects:.4f}')
             
 
     dist.barrier()
