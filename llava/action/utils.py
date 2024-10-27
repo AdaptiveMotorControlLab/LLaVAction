@@ -12,8 +12,9 @@ import copy
 from tqdm import tqdm
 from collections import Counter
 from llava.utils import rank0_print
+import pickle
 
-def remove_sub_nouns(nlp, narration, verb, nouns):
+def remove_sub_nouns(nlp, narration, verb, nouns, cache_file = None):
     narration = copy.deepcopy(narration)
     noun_list = ast.literal_eval(nouns)
     if len(noun_list) > 0:
@@ -34,7 +35,13 @@ def remove_sub_nouns(nlp, narration, verb, nouns):
         words = copy.deepcopy(v_words + n_words)
         narration_words = narration.split(' ')
         # new_narration_words = [inflect_tool.singular_noun(word) or word for word in narration_words]
-        doc = nlp(narration)
+        if cache_file and os.path.exists(cache_file):
+            with open(cache_file, "rb") as f:
+                doc = pickle.load(f)
+        else:
+            doc = nlp(narration)
+            with open(cache_file, "wb") as f:
+                pickle.dump(doc, f)
         new_narration_words = [token.lemma_ for token in doc]
         keep_words = []
         for word, new_word in zip(narration_words, new_narration_words):
@@ -87,7 +94,7 @@ def remove_option_letter(answer):
     else:
         return answer
 
-def generate_label_map(anno_root, action_representation):
+def generate_label_map(anno_root, action_representation, cache_file = None):
     print("Preprocess ek100 action label space")
     vn_list = []
     mapping_vn2narration = {}
@@ -132,7 +139,7 @@ def generate_label_map(anno_root, action_representation):
             if 'cut' in action_representation:
                 import spacy
                 nlp = spacy.load('en_core_web_sm')
-                narration = remove_sub_nouns(nlp, narration, row[9], row[13])
+                narration = remove_sub_nouns(nlp, narration, row[9], row[13], cache_file = cache_file)
                 
             if vn not in mapping_vn2narration:
                 mapping_vn2narration[vn] = [narration]

@@ -49,6 +49,9 @@ from llava.mm_utils import process_highres_image, process_anyres_image, process_
 from llava.utils import rank0_print,  process_video_with_decord, process_EK100_video_with_decord
 
 from llava.action.utils import format_llava_prompt
+from llava.action.dataset import VideoMultiChoiceDataset
+from pathlib import Path
+
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -983,7 +986,38 @@ class LazySupervisedDataset(Dataset):
         super(LazySupervisedDataset, self).__init__()
         self.tokenizer = tokenizer
         self.list_data_dict = []  
-        self.eval_args = eval_args      
+        self.eval_args = eval_args
+        self.ek_100_anno_root = str(Path(self.eval_args.val_meta).parent)
+        identical_transform = []
+        identical_transform = torch.nn.Sequential(*identical_transform)
+        self.ek_100_train_dataset = VideoMultiChoiceDataset(self.eval_args.dataset, 
+                                                            self.eval_args.root,
+                                                            os.path.join(self.ek_100_anno_root, 'EPIC_100_train.csv'),
+                                                            identical_transform,
+                                                            is_training = True,
+                                                            num_clips = self.eval_args.num_clips,
+                                                            chunk_len = self.eval_args.video_chunk_length,
+                                                            clip_length = self.eval_args.clip_length,
+                                                            clip_stride = self.eval_args.clip_stride,
+                                                            threads=self.eval_args.decode_threads,
+                                                            fast_rcc=self.eval_args.fused_decode_crop, rcc_params=(336, ),
+                                                            is_trimmed=not eval_args.dataset == 'charades_ego',
+                                                            labels = labels,
+                                                            eval_args = eval_args,
+                                                            topk_predictions = eval_args.topk_predictions,
+                                                            verb_maps = verb_maps,
+                                                            noun_maps = noun_maps,
+                                                            eval_result_folder = eval_result_folder,
+                                                            action_representation = eval_args.action_representation,
+                                                            mapping_vn2narration = mapping_vn2narration,
+                                                            avion_predictions = predictions if eval_args.action_predictions else None,
+                                                            n_narrations = eval_args.n_narrations,)
+
+
+
+
+
+
 
         # Handle multiple JSON files specified in the data_path
         if "{" in data_path and "}" in data_path:
@@ -1185,7 +1219,6 @@ class LazySupervisedDataset(Dataset):
             else:
                 video_file = os.path.join(video_folder, video_info)
 
-            suffix = video_file.split(".")[-1]
             if not os.path.exists(video_file):
                 print("File {} not exist!".format(video_file))
 
