@@ -46,7 +46,8 @@ from llava.train.llava_trainer import LLaVATrainer
 from llava import conversation as conversation_lib
 from llava.model import *
 from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token
-from llava.utils import rank0_print,  process_video_with_decord, process_EK100_video_with_decord
+from llava.utils import rank0_print,  process_video_with_decord
+from llava.action.utils import avion_video_loader
 
 from llava.action.utils import format_llava_prompt
 from llava.action.dataset import VideoMultiChoiceDataset
@@ -138,6 +139,8 @@ class DataArguments:
     frames_upbound: Optional[int] = field(default=0)
     add_time_instruction: Optional[bool] = field(default=False)
     force_sample: Optional[bool] = field(default=False)
+    train_fused_decode_crop: bool = False
+    train_jitter: bool = False
 
 
 @dataclass
@@ -986,38 +989,7 @@ class LazySupervisedDataset(Dataset):
         super(LazySupervisedDataset, self).__init__()
         self.tokenizer = tokenizer
         self.list_data_dict = []  
-        self.eval_args = eval_args
-        self.ek_100_anno_root = str(Path(self.eval_args.val_meta).parent)
-        identical_transform = []
-        identical_transform = torch.nn.Sequential(*identical_transform)
-        self.ek_100_train_dataset = VideoMultiChoiceDataset(self.eval_args.dataset, 
-                                                            self.eval_args.root,
-                                                            os.path.join(self.ek_100_anno_root, 'EPIC_100_train.csv'),
-                                                            identical_transform,
-                                                            is_training = True,
-                                                            num_clips = self.eval_args.num_clips,
-                                                            chunk_len = self.eval_args.video_chunk_length,
-                                                            clip_length = self.eval_args.clip_length,
-                                                            clip_stride = self.eval_args.clip_stride,
-                                                            threads=self.eval_args.decode_threads,
-                                                            fast_rcc=self.eval_args.fused_decode_crop, rcc_params=(336, ),
-                                                            is_trimmed=not eval_args.dataset == 'charades_ego',
-                                                            labels = labels,
-                                                            eval_args = eval_args,
-                                                            topk_predictions = eval_args.topk_predictions,
-                                                            verb_maps = verb_maps,
-                                                            noun_maps = noun_maps,
-                                                            eval_result_folder = eval_result_folder,
-                                                            action_representation = eval_args.action_representation,
-                                                            mapping_vn2narration = mapping_vn2narration,
-                                                            avion_predictions = predictions if eval_args.action_predictions else None,
-                                                            n_narrations = eval_args.n_narrations,)
-
-
-
-
-
-
+        self.eval_args = eval_args              
 
         # Handle multiple JSON files specified in the data_path
         if "{" in data_path and "}" in data_path:
@@ -1257,8 +1229,26 @@ class LazySupervisedDataset(Dataset):
                 elif 'EK100' in video_file:
                     start_second = float(self.list_data_dict[i]['start_timestamp'])
                     end_second = float(self.list_data_dict[i]['end_timestamp'])            
-                    video, video_time, frame_time, num_frames_to_sample = process_EK100_video_with_decord(video_file, self.data_args, start_second, end_second, 15)
-
+                    pid = sources[0]['video'].split('-')[0]
+                    vid = sources[0]['video'].split('-')[1]
+            
+                    video, time_meta = avion_video_loader(os.path.join(video_folder, pid),
+                                                          vid, 
+                                                          'MP4', 
+                                                          start_second,
+                                                          end_second,
+                                                          chunk_len = 15,
+                                                          clip_length = self.eval_args.clip_length,
+                                                          threads = self.eval_args.decode_threads,
+                                                          fast_rcc = False, #self.data_args.train_fused_decode_crop,
+                                                          rcc_params = (336, ),
+                                                          fast_rrc = True,
+                                                          rrc_params = (336, (0.5, 1.0)),
+                                                          jitter = self.data_args.train_jitter)
+                    #video, video_time, frame_time, num_frames_to_sample = process_EK100_video_with_decord(video_file, self.data_args, start_second, end_second, 15)
+                    frame_time = time_meta['frame_time']
+                    video_time = time_meta['duration']
+                    num_frames_to_sample = time_meta['n_frames']
                     # add log 
 
                 else:

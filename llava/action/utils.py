@@ -407,6 +407,7 @@ def get_frame_ids(start_frame, end_frame, num_segments=32, jitter=True):
 
 def get_video_reader(videoname, num_threads, fast_rrc, rrc_params, fast_rcc, rcc_params):
     video_reader = None
+
     if fast_rrc:
         video_reader = decord.VideoReader(
             videoname,
