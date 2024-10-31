@@ -459,6 +459,7 @@ class GPTAugmentationAnnotator(ChatGPT):
             except Exception as e:
                 print ("An exception occurred: ", e)
                 continue
+            
             item['conversations'][1]['value'] = gpt_answer
             item['question_type'] = self.anno_type
             ret[index] = item
