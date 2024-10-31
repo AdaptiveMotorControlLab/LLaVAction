@@ -12,9 +12,8 @@ from pathlib import Path
 from tqdm import tqdm
 import csv
 import llava
-from llava.action.prediction_analysis import PredictionAnalysis
-from llava.action.utils import avion_video_loader, create_multi_choice_from_avion_predictions
-
+from llava.action.utils import avion_video_loader, create_multi_choice_from_avion_predictions, generate_label_map, AvionMultiChoiceGenerator
+from llava.action.dataset import datetime2sec
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -23,6 +22,48 @@ GPT_MODEL = "gpt-4o-2024-08-06"
 prices = {
     "gpt-4o-2024-08-06": {"input": 2.5 / 10**6, "output": 10 / 10**6},
 }
+
+
+class LLaVAWrongAnswerAwarePrompt:
+    """
+    The prompt for the annotation
+    """
+    @classmethod
+    def generate_prompt(cls, start_second, end_second, option_text, gt_answer):
+        prompt = f"""
+You are seeing video frames from an egocentric view of a person. 
+Please talk as if you are the person in the video and describe what action you are performing.
+To assist you for how to describe the action, the video's start time is {start_second} and the end time is {end_second} and the duration is {end_second - start_second} seconds.
+To further assist you for how to describe the action, note that in a multi-choice video question answering, you were given following options {option_text} and the correct answer is {gt_answer}.
+In addition to describe what you see, describe why wrong answers were wrong and why right answer was right.
+When you explain why wrong answers were wrong and why right answer was right, you should use the following flow of reasoning:
+
+The flow of reasoning:
+1. What objects need to be visible to support the answer?
+2. Whether the duration in time supports that answer?
+
+Based on the answers above, why right answer is right and why wrong answers were wrong."""
+        return prompt   
+class GPTWrongAnswerAwarePrompt:
+    """
+    Inference the GPT once and if the prediction is wrong compared to gt,
+    explain why the prediction is wrong and why the gt is correct.
+    """
+    pass
+
+class GPTReasoningWithoutGTPrompt:
+    """
+    The perhaps simplest reasoning explanation.
+    """
+    @classmethod
+    def generate_prompt(cls, start_second, end_second, option_text, gt_answer):
+        prompt = f"""
+You are seeing video frames from an egocentric view of a person. The person is interacting with objects in a kitchen.
+Describe the action the person is performing. Pay attention to the objects the person's hands are interacting.
+Explain in details what are the supporting evidences for the action. Useful evidences include the duration of the video, the objects the person is interacting with, and the context of the video. 
+"""
+        return prompt
+
 
 class GT_Agnostic_Response(BaseModel):
     """
@@ -155,12 +196,13 @@ class GPTInferenceAnnotator(ChatGPT):
     """
 
     def __init__(self, 
-                 root, 
-                 prediction_save_folder, 
+                 root,                 
+                 annotation_file,
+                 avion_prediction_file,
                  clip_length = 4, 
+                 action_representation = 'GT_random_narration',
                  debug = False,
                  topk = 10,
-                 annotation_file = None
                  ):
         """
         Parameters
@@ -170,36 +212,67 @@ class GPTInferenceAnnotator(ChatGPT):
         """
         super().__init__(clip_length = clip_length)
         self.root = root
-        self.prediction_save_folder = prediction_save_folder 
-        self.prediction_analysis = PredictionAnalysis(self.prediction_save_folder)
-        self.prediction_analysis.load()
-        self.data = self.prediction_analysis.data
         self.debug = debug
         self.topk = topk
         self.annotation_file = annotation_file
-        if self.annotation_file is not None:
-            self.narration_map = self.get_narration_map()
-        else:
-            self.narration_map = None
+        self.avion_prediction_file = avion_prediction_file     
+        self.annotation_root = Path(annotation_file).parent
+        self.action_representation = action_representation
+        self.labels, self.mapping_vn2narration, self.mapping_vn2act, self.verb_maps, self.noun_maps = generate_label_map(self.annotation_root,                                                                                           
+                                                                                            action_representation,
+                                                                                            cache_file =  os.path.join(self.annotation_root, 'nlp_cache.pkl'))
 
-    def get_narration_map(self):
-        ret = {}
+      
+        self.mc_generator = AvionMultiChoiceGenerator(self.annotation_root)
+        with open(avion_prediction_file, 'r') as f:
+            self.avion_predictions = json.load(f)
+
+        self.data = self.init_data()
+       
+     
+    def init_data(self):
+        ret = {}      
         csv_reader = csv.reader(open(self.annotation_file))
         _ = next(csv_reader) # skip the header
+
         for idx, row in enumerate(csv_reader):
             narration = row[8]
-            ret[idx] = narration
+            pid, vid = row[1:3]
+            start_second, end_second = datetime2sec(row[4]), datetime2sec(row[5])
+            vid_path = '{}/{}'.format(pid, vid)
+            verb, noun = int(row[10]), int(row[12])
+            gt_vn = '{}:{}'.format(verb, noun)
+            avion_preds = self.avion_predictions[str(idx)]['predictions']
+            narration = row[8]
+            mc_data = self.mc_generator.generate_multi_choice(gt_vn,
+                                                        avion_preds,
+                                                        narration,
+                                                        self.topk,
+                                                        self.action_representation,
+                                                        -1, # n_narrations
+                                                        self.labels,
+                                                        self.mapping_vn2narration,
+                                                        self.verb_maps,
+                                                        self.noun_maps,
+                                                        is_train = False)
+
+            options = mc_data['options'][0]
+
+            option_string = ','.join(options)
+            ret[idx] = {
+                'options': option_string,
+                'gt_answer': narration,
+                'start_second': start_second,
+                'end_second': end_second,
+                'vid_path': vid_path
+            }
 
         return ret
 
-
     def multi_process_run(self):
-        prediction_analysis = PredictionAnalysis(self.prediction_save_folder)
         # to initialize it
-        prediction_analysis.load()
-        data = prediction_analysis.data
 
-        indices = list(range(len(data)))
+        indices = list(range(len(self.data)))
 
         num_chunks = os.cpu_count() if not self.debug else 2
 
@@ -215,72 +288,31 @@ class GPTInferenceAnnotator(ChatGPT):
                 result_dict = future.result()
                 combined_results.update(result_dict)
 
-        self.checkpoint(combined_results, "gpt_inference_results.json")
-                        
+        if self.debug:
+            print (combined_results)
 
-    def parse_item(self, item, replace_gt = None):
-        """
-        replace gt is used if there was a problem with the gt_name
-        It also replaces the avion prediction if it matches the gt_name
-        Be cautious that replacing gt alone might leak hint to GPT so it's better to replace all avion predictions as well
-        """
+        calculation = calculate_gpt_accuracy(data = combined_results)
 
-        gt_name = item['gt_name']
-        
-        avion_predictions = item['avion_preds']['predictions']
-        assert self.topk <= len(avion_predictions)
-        avion_predictions = avion_predictions[:self.topk]
-
-        vid_path = item['vid_path'][0]
-        start_second = item['start_second']
-        end_second = item['end_second']
-
-        mc_data = create_multi_choice_from_avion_predictions(avion_predictions, len(avion_predictions))
-        options = mc_data['options'][0]
-
-        if replace_gt:
-            for idx, option in enumerate(options):
-                letter = option[0]
-                option_name = option[option.index('.') + 2:]
-                if option_name == gt_name:
-                    print ('old gt_name', gt_name, 'new gt_name', replace_gt)
-                    options[idx] = f'{letter}. {replace_gt}'
-                    gt_name = replace_gt   
-
-        option_string = ','.join(options)
-        parsed_item = {
-            'options': option_string,
-            'gt_answer': gt_name,
-            'start_second': start_second,
-            'end_second': end_second,
-            'vid_path': vid_path
-        }
-
-        return parsed_item                   
-        
+        self.checkpoint(combined_results, "gpt_inference_results.json")                            
 
     def run(self, indices):
         data_batch = {i : self.data[i] for i in range(len(self.data)) if i in indices}
         ret = {}
 
         for k,v in tqdm(data_batch.items()):            
-            if self.narration_map:
-                parsed_item = self.parse_item(v, replace_gt = self.narration_map[k])
-            else:
-                parsed_item = self.parse_item(v)
-
-            start_timestamp = parsed_item['start_second']
-            end_timestamp = parsed_item['end_second']
-            vid_path = parsed_item['vid_path']
+         
+            start_timestamp = v['start_second']
+            end_timestamp = v['end_second']
+            vid_path = v['vid_path']
 
             frames, time_meta = self.extract_frames(vid_path, start_timestamp, end_timestamp)
             try:
-                parsed_answer = self.predict_images(frames, parsed_item)
+                parsed_answer = self.predict_images(frames, v)
             except Exception as e:
                 print ("An exception occurred: ", e)
             predicted_answer = parsed_answer.answer
             explanation = parsed_answer.explanation
-            gt_name = parsed_item['gt_answer']
+            gt_name = v['gt_answer']
             ret[k] = {
                 'gt_name': gt_name,
                 'chatgpt_answer': predicted_answer,
@@ -290,42 +322,7 @@ class GPTInferenceAnnotator(ChatGPT):
                 break
         return ret 
 
-    def explore_wrong_examples(self):
-        wrong_examples = self.prediction_analysis.get_wrong_examples()
-        ret = {}
-        count = 0
-        for k,v in wrong_examples.items():                     
-            parsed_item = self.parse_item(v)
 
-            start_timestamp = parsed_item['start_second']
-            end_timestamp = parsed_item['end_second']
-            vid_path = parsed_item['vid_path']
-            gt_name = parsed_item['gt_answer']
-            frames, time_meta = self.extract_frames(vid_path, start_timestamp, end_timestamp)
-
-            parsed_answer = self.predict_images(frames, parsed_item)
-            
-            predicted_answer = parsed_answer.answer
-            explanation = parsed_answer.explanation
-
-            print ('gt_name', gt_name)
-            print ('avion_predictions', v['avion_preds']['predictions'])
-            print ('llava_pred', v['llava_pred'])
-            print ('chatgpt answer', predicted_answer)
-            print ('explanation', explanation)
-
-            ret[k] = {
-                'gt_name': gt_name,
-                'avion_predictions': v['avion_preds']['predictions'],
-                'llava_pred': v['llava_pred'],
-                'chatgpt_answer': predicted_answer,
-                'explanation': explanation
-            }                  
-            if self.debug:
-                break
-
-
-        return ret
 
     def predict_images(self, images, parsed_item):
         """
@@ -391,16 +388,10 @@ class GPTAugmentationAnnotator(ChatGPT):
         """
         conversations = item['conversations']
         human_dict = conversations[0]
-
-        # the offset is to remove the quote ' 
-        option_start = human_dict['value'].index('[') + 2
-        option_end = human_dict['value'].index(']') - 1
-
-        option_text =  human_dict['value'][option_start:option_end]        
+        option_text = ','.join(eval(human_dict['value']))        
         gpt_dict = conversations[1]
         gt_answer = gpt_dict['value']
-        gt_answer = gt_answer[gt_answer.index('.'):].strip()
-
+        print ('gt_answer', gt_answer)
         assert human_dict['from'] == 'human' and gpt_dict['from'] =='gpt'
 
         ret = {'options': option_text,
@@ -460,26 +451,7 @@ class GPTAugmentationAnnotator(ChatGPT):
         start_second = 0
         end_second = data_item['end_second']  - data_item['start_second']
         temperature = 0
-        system_prompt_prefix = f"""
-You are seeing video frames from an egocentric view of a person. 
-Please talk as if you are the person in the video and describe what action you are performing.
-To assist you for how to describe the action, the video's start time is {start_second} and the end time is {end_second} and the duration is {end_second - start_second} seconds.
-To further assist you for how to describe the action, note that in a multi-choice video question answering, you were given following options {option_text} and the correct answer is {gt_answer}.
-In addition to describe what you see, why wrong answers were wrong and why right answer was right.
-When you explain why wrong answers were wrong and why right answer was right, you should use the following flow of reasoning:
-
-The flow of reasoning:
-1. What objects need to be visible to support the answer?
-2. What sequence of actions before and after the current action need to be seen to support the answer?
-3. Whether the duration in time supports that answer?
-
-Based on the answers above, why right answer is right and why wrong answers were wrong.
-
-
-"""
-        system_prompt_suffix = """"""
-
-        system_prompt = system_prompt_prefix + system_prompt_suffix
+        system_prompt = GPTReasoningWithoutGTPrompt.generate_prompt(start_second, end_second, option_text, gt_answer)
 
         system_message =  [{"role": "system", "content": system_prompt}]
 
@@ -494,7 +466,7 @@ Based on the answers above, why right answer is right and why wrong answers were
             temperature = temperature
         )
         total_cost = self.calculate_cost(response)
-
+      
         return response.choices[0].message.parsed
     
 
@@ -506,32 +478,32 @@ def multi_process_annotate(train_file_path, root, debug = False):
 
     results = annotator.multi_process_run()
 
-def explore_wrong_examples(root, prediction_save_folder, debug = False):
-    annotator = GPTInferenceAnnotator(root, 
-                                    prediction_save_folder, 
-                                    clip_length = 4, 
-                                    debug = debug)
-    annotator.explore_wrong_examples()
-
-def multi_process_inference(root, 
-                            prediction_save_folder, 
+def multi_process_inference(root,
+                            annotation_file, 
+                            avion_prediction_file,
+                            action_representation = 'GT_random_narration',
                             clip_length = 4,
-                            topk = 10, 
-                            annotation_file = None,
+                            topk = 5,                             
                             debug = False):
 
     annotator = GPTInferenceAnnotator(root, 
-    prediction_save_folder, 
+    annotation_file,
+    avion_prediction_file,
     clip_length = clip_length,
     debug = debug,
-    annotation_file=annotation_file,
+    action_representation = action_representation,
     topk = topk)
 
     annotator.multi_process_run()
 
-def calculate_gpt_accuracy(path):
-    with open(path, 'r') as f:
-        data = json.load(f)
+def calculate_gpt_accuracy(path = None, data = None):
+
+    assert path is not None or data is not None
+    assert all([path,data]) == False
+
+    if path:
+        with open(path, 'r') as f:
+            data = json.load(f)
 
     keys = list(data.keys())
     print ('length of the data', len(keys))
@@ -544,25 +516,28 @@ def calculate_gpt_accuracy(path):
             correct_count += 1
         else:
             print (chatgpt_answer, gt_name)
+
     print ('accuracy', correct_count / len(keys))
 
-if __name__ == '__main__':
-    #train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl'
+if __name__ == '__main__':    
+
+    train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
+    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+    val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
+
+
+
     #root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
-    #train_file_path = '/data/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl'
-    #root = '/data/EK100/EK100_320p_15sec_30fps_libx264'    
-    #pred_folder = '/data/epic_kitchen/llavavideo_avion_mc_top10_5epoch_preds'
+    #train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
 
-    root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
-    train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
-
-    multi_process_annotate(train_file_path, root, debug = True)
+    #multi_process_annotate(train_file_path, root, debug = True)
     #explore_wrong_examples(root, pred_folder)
-    # multi_process_inference(root, 
-    #                         pred_folder, 
-    #                         debug = False,
-    #                         clip_length = 4,
-    #                         annotation_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv',                            
-    #                         topk = 10)
+    multi_process_inference(root, 
+                            val_file, 
+                            avion_prediction_file,
+                            debug = True,
+                            clip_length = 4,
+                            topk = 5)
 
     #calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames_fixed_narration.json')
