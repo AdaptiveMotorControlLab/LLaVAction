@@ -181,7 +181,7 @@ def evaluate_on_EK100(eval_args,
     crop_size = 336
     labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps = generate_label_map(Path(eval_args.val_metadata).parent,                                                                                            
                                                                                             eval_args.action_representation,
-                                                                                            cache_file =  Path(eval_args.val_metadata).parent / 'nlp_cache.pkl'),
+                                                                                            cache_file =  Path(eval_args.val_metadata).parent / 'nlp_cache.pkl')
 
     if eval_args.action_predictions:
         with open(eval_args.action_predictions, 'r') as f:
