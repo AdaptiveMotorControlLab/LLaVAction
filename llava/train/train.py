@@ -1262,6 +1262,7 @@ class LazySupervisedDataset(Dataset):
                         sources[0]["conversations"][0]["value"] = f'{DEFAULT_IMAGE_TOKEN}\n{time_instruciton}\n{sources[0]["conversations"][0]["value"].replace(DEFAULT_IMAGE_TOKEN, "")}'
                 else:
                     # We use our own prompting logic when it's EK100
+                    # We turn a string of list to a python list
                     options = eval(sources[0]["conversations"][0]["value"])
                     assert isinstance(options, list)
                     assert len(options) == self.eval_args.topk_predictions, f"len(options) = {len(options)} !=  {self.eval_args.topk_predictions}"
@@ -1270,6 +1271,7 @@ class LazySupervisedDataset(Dataset):
                                                  options,
                                                  video_time,
                                                  num_frames_to_sample,
+                                                 sources[0]['question_type'],
                                                  include_time_instruction= self.data_args.add_time_instruction,
                                                  include_frame_time = True)
                     sources[0]["conversations"][0]["value"] = llava_prompt

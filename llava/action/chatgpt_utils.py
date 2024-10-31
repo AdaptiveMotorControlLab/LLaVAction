@@ -64,6 +64,23 @@ Explain in details what are the supporting evidences for the action. Useful evid
 """
         return prompt
 
+class GPTReasoningWithGTPrompt:
+    @classmethod
+    def generate_prompt(cls, start_second, end_second, option_text, gt_answer):
+        prompt = f"""
+You are seeing video frames from an egocentric view of a person. The person is interacting with objects in a kitchen.
+Describe the action the person is performing but do not say you see the person as you can only see the person's hands.
+You can say something that the video is showing the egocentric view of person doing something.
+Pay attention to the objects the person's hands are interacting.
+The true ground-truth action is {gt_answer}. However, I want you to come to your ownconclusion from your own observation and show your reasoning steps. Make sure it matches the ground-truth action.
+Your reasoning steps should include supporting evidences for the action. Useful evidences include the duration of the video, the objects the person is interacting with, and the context of the video. 
+The video duration is {end_second - start_second:.3f} seconds.
+"""
+        print (prompt)
+        return prompt    
+
+
+PROMPT_FACTORY = {'gpt-gt-reason': GPTReasoningWithGTPrompt}
 
 class GT_Agnostic_Response(BaseModel):
     """
@@ -370,7 +387,7 @@ class GPTAugmentationAnnotator(ChatGPT):
     that augments the gt annotations.
     """
 
-    def __init__(self, ann_file, root, clip_length = 4, debug = False):
+    def __init__(self, ann_file, root, clip_length = 4, debug = False, anno_type = 'gpt-gt-reason'):
         super().__init__(clip_length = clip_length) 
         self.ann_file = ann_file
         self.root = root
@@ -381,6 +398,7 @@ class GPTAugmentationAnnotator(ChatGPT):
                 data.append(json.loads(line))
         self.data = data
         self.debug = debug
+        self.anno_type = anno_type
 
     def parse_conversation_from_train_convs(self, item):
         """
@@ -401,8 +419,14 @@ class GPTAugmentationAnnotator(ChatGPT):
         
         return ret
 
-    def multi_process_run(self):
-        indices = list(range(len(self.data)))
+    def multi_process_run(self, n_samples = -1):
+        if n_samples == -1:
+            indices = list(range(len(self.data)))
+        else:
+            indices = list(range(n_samples))[:n_samples]
+
+        sample_suffix = 'all' if n_samples == -1 else str(n_samples)
+
         num_cores = os.cpu_count() if not self.debug else 2
         indices_groups = self.split_indices(indices, num_cores)
 
@@ -416,7 +440,7 @@ class GPTAugmentationAnnotator(ChatGPT):
                 result_dict = future.result()
                 combined_results.update(result_dict)
 
-        self.checkpoint(combined_results, "gpt_annotated.json")
+        self.checkpoint(combined_results, f"train_anno_{self.anno_type}_{self.clip_length}_{sample_suffix}.json")
         print ('finished the annotation')
         return combined_results
 
@@ -436,6 +460,7 @@ class GPTAugmentationAnnotator(ChatGPT):
                 print ("An exception occurred: ", e)
                 continue
             item['conversations'][1]['value'] = gpt_answer
+            item['question_type'] = self.anno_type
             ret[index] = item
             if self.debug:
                 break
@@ -451,7 +476,7 @@ class GPTAugmentationAnnotator(ChatGPT):
         start_second = 0
         end_second = data_item['end_second']  - data_item['start_second']
         temperature = 0
-        system_prompt = GPTReasoningWithoutGTPrompt.generate_prompt(start_second, end_second, option_text, gt_answer)
+        system_prompt = PROMPT_FACTORY[self.anno_type].generate_prompt(start_second, end_second, option_text, gt_answer)
 
         system_message =  [{"role": "system", "content": system_prompt}]
 
@@ -465,18 +490,19 @@ class GPTAugmentationAnnotator(ChatGPT):
             response_format = GT_Augmentation_Response,
             temperature = temperature
         )
-        total_cost = self.calculate_cost(response)
-      
+        total_cost = self.calculate_cost(response)      
+
         return response.choices[0].message.parsed
     
 
-def multi_process_annotate(train_file_path, root, debug = False):
+def multi_process_annotate(train_file_path, root, debug = False, anno_type = 'gpt-gt-reason', n_samples = -1):
     annotator = GPTAugmentationAnnotator(train_file_path, 
     root, 
     clip_length = 4,
-    debug = debug)
+    debug = debug,
+    anno_type = anno_type)
 
-    results = annotator.multi_process_run()
+    results = annotator.multi_process_run(n_samples = n_samples)
 
 def multi_process_inference(root,
                             annotation_file, 
@@ -519,6 +545,15 @@ def calculate_gpt_accuracy(path = None, data = None):
 
     print ('accuracy', correct_count / len(keys))
 
+def convert_json_to_jsonl(path):
+    with open(path, 'r') as f:
+        data = json.load(f)
+
+    with open(path.replace('.json', '.jsonl'), 'w') as f:
+        for k,v in data.items():
+            json.dump(v, f)
+            f.write('\n')
+
 if __name__ == '__main__':    
 
     train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
@@ -531,13 +566,15 @@ if __name__ == '__main__':
     #root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
     #train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
 
-    #multi_process_annotate(train_file_path, root, debug = True)
-    #explore_wrong_examples(root, pred_folder)
-    multi_process_inference(root, 
-                            val_file, 
-                            avion_prediction_file,
-                            debug = True,
-                            clip_length = 4,
-                            topk = 5)
+    # multi_process_annotate(train_file_path, root, debug = False, n_samples = 10000)
+
+    # multi_process_inference(root, 
+    #                         val_file, 
+    #                         avion_prediction_file,
+    #                         debug = True,
+    #                         clip_length = 4,
+    #                         topk = 5)
 
     #calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames_fixed_narration.json')
+
+    convert_json_to_jsonl('train_anno_gpt-gt-reason_4_10000.json')

@@ -159,12 +159,21 @@ def generate_label_map(anno_root, action_representation, cache_file = None):
 
     return labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps
 
-def format_task_related_prompt(option_list):
-    prefix = "The video is taken from egocentric view. What action is the person performing? Given multiple choices, format your answer as the 'option letter. option_name' such as 'A. move knife' where A is the option letter and knife is the option_name.\n"
-    assert isinstance(option_list, list)
-    suffix = ",".join(option_list)
-    suffix = "Here are the options you are tasked:\n" + suffix 
-    ret = prefix + suffix
+def format_task_related_prompt(option_list, question_type):
+    """
+    Task related prompt is impacted by the question_type.
+    For open-ended (to be renamed to multi-choice), we ask multi-choice question.
+    """
+
+    if question_type == "open-ended":
+        prefix = "The video is taken from egocentric view. What action is the person performing? Given multiple choices, format your answer as the 'option letter. option_name' such as 'A. move knife' where A is the option letter and knife is the option_name.\n"
+        assert isinstance(option_list, list)
+        suffix = ",".join(option_list)
+        suffix = "Here are the options you are tasked:\n" + suffix 
+        ret = prefix + suffix
+    elif question_type == "gpt-gt-reason":
+
+        ret = "The video is taken from egocentric view. What action is the person performing? Please explain how you reasoning steps to reach your answer."
     return ret
 
 def format_time_instruction(video_duration, n_frames, include_frame_time = False):
@@ -185,6 +194,7 @@ def format_llava_prompt(image_token,
                         option_list, 
                         video_duration,
                         n_frames,
+                        question_type,
                         include_time_instruction = False,
                         include_frame_time = False
                         ):
@@ -193,7 +203,9 @@ def format_llava_prompt(image_token,
     with time instruction: {image_token}\n{time_instruction}\n{task_related_prompt}
 
     """
-    task_related_prompt = format_task_related_prompt(option_list)
+
+    task_related_prompt = format_task_related_prompt(option_list, question_type)
+
     time_instruction =  format_time_instruction(video_duration, n_frames, include_frame_time)
 
     if include_time_instruction:
