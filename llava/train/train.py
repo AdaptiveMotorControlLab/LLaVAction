@@ -1242,7 +1242,7 @@ class LazySupervisedDataset(Dataset):
                                                           threads = self.eval_args.decode_threads,
                                                           fast_rcc = False, #self.data_args.train_fused_decode_crop,
                                                           rcc_params = (336, ),
-                                                          fast_rrc = True,
+                                                          fast_rrc = False,
                                                           rrc_params = (336, (0.5, 1.0)),
                                                           jitter = self.data_args.train_jitter)
                     #video, video_time, frame_time, num_frames_to_sample = process_EK100_video_with_decord(video_file, self.data_args, start_second, end_second, 15)
