@@ -95,8 +95,9 @@ def llava_video_process(
     
     question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
                                    options,
-                                   video_duration,
+                                   video_duration,                                  
                                    n_frames,
+                                   "open-ended",
                                    include_frame_time = True,
                                    include_time_instruction= True)
 
