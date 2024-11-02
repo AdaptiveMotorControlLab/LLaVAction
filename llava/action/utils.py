@@ -185,7 +185,7 @@ def format_time_instruction(video_duration, n_frames, include_frame_time = False
     
     suffix = ""
     if include_frame_time:
-        suffix = f"These frames are located at {frame_time}."
+        suffix = f"These frames are located at {frame_time}. The video duration is {video_duration:.2f} seconds."
     
     return prefix + suffix
 

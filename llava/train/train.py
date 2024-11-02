@@ -137,7 +137,7 @@ class DataArguments:
     video_folder: Optional[str] = field(default=None)
     video_fps: Optional[int] = field(default=1)
     frames_upbound: Optional[int] = field(default=0)
-    add_time_instruction: Optional[bool] = field(default=False)
+    add_time_instruction: Optional[bool] = field(default=True)
     force_sample: Optional[bool] = field(default=False)
     train_fused_decode_crop: bool = False
     train_jitter: bool = False
