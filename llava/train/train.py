@@ -212,6 +212,7 @@ class EK100EvalArguments:
     pretrained_name: str = ""
     action_representation: str = "GT_random_narration_cut"
     n_narrations: int = -1
+    ensemble_test: bool = False
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero
@@ -1275,7 +1276,6 @@ class LazySupervisedDataset(Dataset):
                                                  include_time_instruction= self.data_args.add_time_instruction,
                                                  include_frame_time = False)
                     sources[0]["conversations"][0]["value"] = llava_prompt
-
                 image = [(image, video[0].size, "video")]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
                 # print(sources)

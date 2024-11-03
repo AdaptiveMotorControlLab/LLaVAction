@@ -6,12 +6,10 @@ import argparse
 import spacy
 import sys
 sys.path[0] = os.path.dirname(os.path.dirname(sys.path[0]))
-from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator, format_task_related_prompt, remove_sub_nouns
+import llava
+from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator, format_llava_prompt, remove_sub_nouns
+from llava.action.dataset import datetime2sec
 from pathlib import Path
-
-def datetime2sec(str):
-    hh, mm, ss = str.split(':')
-    return int(hh) * 3600 + int(mm) * 60 + float(ss)
 
 def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_maps, gen_type = 'naive', avion_prediction_path = '', n_options = 5,
                        action_representation = 'official_key', n_narrations=-1):
@@ -21,6 +19,7 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_m
     ret = []
     ann_root = Path(ann_file).parent
     if gen_type == "random_mc":
+        # DEPRECATED
         mc_generator = MultiChoiceGenerator(ann_root)
     elif gen_type == 'avion_mc':
         mc_generator = AvionMultiChoiceGenerator(ann_root)
@@ -36,10 +35,11 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_m
         vid_path = '{}-{}'.format(pid, vid)
 
         if gen_type == 'naive':
-            # here we directly use the names
+            # here we directly ask the model to output the action representation
             verb_noun = f'{verb_maps[row[10]]} {noun_maps[row[12]]}'
             conversation = generate_naive_conversation(verb_noun)
         elif gen_type == 'direct_narration':
+            # here we directly use the model to predict gt narration
             narration = row[8]
             conversation = generate_direct_conversation(narration)
         elif gen_type == "random_mc":
@@ -80,7 +80,7 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_m
                 'split': 'train',
                 'task_instruction': '',
                 'num_samples': 1,
-                'question_type': 'open-ended',
+                'question_type': f'mc_{action_representation}',
                 'dataset_name': 'EK100',
                 'start_timestamp': start_timestamp,
                 'end_timestamp': end_timestamp}
@@ -88,6 +88,7 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_m
     return ret
 
 def generate_naive_conversation(vn_str:str):
+    # DEPRECATED. As this is hard-coding the prompt into the data
     # in this version, we do not care about diversifying the questions
     return [
         {"from": "human", "value": "<image>\n the video is taken from egocentric view. What action is the person performing? Hint: provide your answer in verb-noun pair. "},
@@ -95,6 +96,7 @@ def generate_naive_conversation(vn_str:str):
     ]
 
 def generate_direct_conversation(vn_str:str):
+    # DEPRECATED. As this is hard-coding the prompt into the data
     # in this version, we do not care about diversifying the questions
     return [
         {"from": "human", "value": "<image>\n the video is taken from egocentric view. What action is the person performing? "},
@@ -108,6 +110,36 @@ def generate_random_mc_conversation(options:list[str], gt_answer_letter, gt_answ
     ]
 
 
+def combine_reason_and_mc(reason_path, mc_path, out_folder):
+    """
+    Looks like that it's hard to balance mc and reason if we train it separately. So we just cmoine them together
+    """
+    
+    # reason_path and mc_path are jsonl
+    os.makedirs(out_folder, exist_ok=True)
+    with open(reason_path, 'r') as f:
+        reasons = f.readlines()
+    with open(mc_path, 'r') as f:
+        mcs = f.readlines()
+    
+    assert len(reasons) == len(mcs)
+
+    ret = []
+    for reason_conv, mc_conv in zip(reasons, mcs):
+        reason_traj = json.loads(reason_conv)['conversations'][1]['value']
+        mc_dict = json.loads(mc_conv)
+        mc_answer = mc_dict['conversations'][1]['value']
+        combined_traj = reason_traj + ' The answer is ' + mc_answer
+        mc_dict['conversations'][1]['value'] = combined_traj
+        ret.append(mc_dict)
+    
+    
+    out_path = os.path.join(out_folder, 'train_convs_narration.jsonl')
+    with open(out_path, 'w') as f:
+        for conv in ret:
+            f.write(json.dumps(conv) + '\n')
+
+
 def get_args():
     parser = argparse.ArgumentParser(description="For generating VQA for EPIC-KITCHEN")
     parser.add_argument('--train_metadata', default='/data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv', type=str)
@@ -117,7 +149,7 @@ def get_args():
     parser.add_argument('--n_options', default = 5, type = int)
     parser.add_argument('--action_representation', default = 'GT_random_narration_cut', type = str, 
                                             choices = ['first_sample', 'official_key', 
-                                                       'random_narration_cut', 'top1_narration_cut', 'topk_narration_cut_key',
+                                                       'random_narration_cut', 'top1_narration', 'top1_narration_cut', 'topk_narration_cut_key',
                                                        'GT_key', 'GT_random_narration', 'GT_random_narration_cut'])
     parser.add_argument('--n_narrations', default = -1, type = int)
     return parser.parse_args()
@@ -155,4 +187,10 @@ def main():
 
    
 if __name__ == "__main__":
-    main()
+    #main()
+
+
+    reason_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/train_anno_gpt-gt-reason_4_all.jsonl"
+    mc_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl"
+    out_folder = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration_cot/"
+    combine_reason_and_mc(reason_path, mc_path, out_folder)

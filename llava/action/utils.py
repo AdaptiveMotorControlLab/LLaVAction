@@ -11,7 +11,6 @@ import ast
 import copy
 from tqdm import tqdm
 from collections import Counter
-from llava.utils import rank0_print
 import pickle
 
 def remove_sub_nouns(nlp, narration, verb, nouns, cache_file = None):
@@ -159,21 +158,37 @@ def generate_label_map(anno_root, action_representation, cache_file = None):
 
     return labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps
 
+
+
 def format_task_related_prompt(option_list, question_type):
     """
     Task related prompt is impacted by the question_type.
-    For open-ended (to be renamed to multi-choice), we ask multi-choice question.
+    We currently support mc_{action_representation} and gpt-gt-reason
+    We are thinking about tweaking the prompt based on the action representation.
     """
 
-    if question_type == "open-ended":
-        prefix = "The video is taken from egocentric view. What action is the person performing? Given multiple choices, format your answer as the 'option letter. option_name' such as 'A. move knife' where A is the option letter and knife is the option_name.\n"
+    if 'mc_' in question_type:
+        action_rep_suffix = "Given multiple choices, format your answer as the 'option letter. option_name' such as 'A. move knife' where A is the option letter and knife is the option_name."              
+        prefix = f"The video is taken from egocentric view. What action is the person performing? {action_rep_suffix}\n"
         assert isinstance(option_list, list)
         suffix = ",".join(option_list)
         suffix = "Here are the options you are tasked:\n" + suffix 
         ret = prefix + suffix
     elif question_type == "gpt-gt-reason":
+        ret = "The video is taken from egocentric view. What action is the person performing? Please explain your reasoning steps before reaching to your answer."
+    
+    elif question_type == "cot_multiple_choice":
+        """
+        Explain the reasoning first and do the multiple-choice.        
+        """
+        action_rep_suffix = "Given multiple choices, format your answer as the 'option letter. option_name' such as 'A. move knife' where A is the option letter and knife is the option_name."              
+        prefix = f"The video is taken from egocentric view. What action is the person performing? {action_rep_suffix}\n"
+        assert isinstance(option_list, list)
+        suffix = ",".join(option_list)
+        suffix = "Here are the options you are tasked:\n" + suffix 
+        ret = prefix + suffix        
+        
 
-        ret = "The video is taken from egocentric view. What action is the person performing? Please explain how you reasoning steps to reach your answer."
     return ret
 
 def format_time_instruction(video_duration, n_frames, include_frame_time = False):
@@ -437,27 +452,7 @@ def get_video_reader(videoname, num_threads, fast_rrc, rrc_params, fast_rcc, rcc
     else:
         video_reader = decord.VideoReader(videoname, num_threads=num_threads)
     return video_reader
-
-def create_multi_choice_from_avion_predictions(avion_predictions, k)-> dict:
     
-    letters = [chr(65+i) for i in range(26)][:k]
-    options = list(range(26))[:k]
-
-    predictions = avion_predictions[:k]
-    predictions = parse_avion_predictions(predictions)    
-
-    for i in range(len(options)):              
-        options[i] = f'{letters[i]}. {predictions[i]}'
-                
-    mc_data = {
-        'options': {0: options},
-        'valid_letters': letters,
-        'avion_pred': predictions[0]
-        }    
-    
-    return mc_data
-    
-
 
 def avion_video_loader(root, vid, ext, second, end_second,
                  chunk_len=300, fps=30, clip_length=32,

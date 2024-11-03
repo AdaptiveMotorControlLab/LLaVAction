@@ -92,11 +92,16 @@ def llava_video_process(
 
     options = mc_data['options'][0]
     
+    if temperature == 0:
+        question_type = "mc_top5_official_key"
+    else:
+        question_type = "cot_multiple_choice"
+
     question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
                                    options,
                                    video_duration,                                  
                                    n_frames,
-                                   "open-ended",
+                                   question_type,
                                    include_frame_time = False,
                                    include_time_instruction= True)
 
@@ -124,6 +129,7 @@ def llava_video_process(
     )
 
     text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)
+    
     return text_outputs[0]
 
 

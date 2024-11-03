@@ -70,6 +70,7 @@ def get_args_parser():
                                    'random_narration_cut', 'top1_narration_cut', 'topk_narration_cut_key',
                                    'GT_key', 'GT_random_narration', 'GT_random_narration_cut'])
     parser.add_argument('--n_narrations', default = -1, type = int)
+    parser.add_argument('--ensemble_test', action='store_true')
 
     
     return parser
@@ -113,7 +114,6 @@ def ensemble_llava_evaluation(
                               temperature = 0,
                               ensemble_k = 1,
                               time_meta = None,
-                              is_test = False
                               ):
     """
     This function tests how consistent the model is if we shuffle the position of the answers
@@ -145,7 +145,7 @@ def ensemble_llava_evaluation(
                             temperature = temperature,
                             time_meta = time_meta
                                )
-                
+        rank0_print('raw output', pred)
         pred = remove_option_letter(pred)
         rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name) 
         preds.append(pred)
@@ -286,7 +286,13 @@ def evaluate_on_EK100(eval_args,
                 break                     
         
             # Update running corrects and total samples
-            
+            temperature = 0
+            ensemble_k = 1
+
+            if eval_args.ensemble_test:
+                temperature = 1
+                ensemble_k = 3
+
             llava_correct, llava_pred = ensemble_llava_evaluation(
                                                         eval_args.pretrained_name,
                                                         gt_name,
@@ -297,10 +303,10 @@ def evaluate_on_EK100(eval_args,
                                                         mc_data,
                                                         eval_args.clip_length,
                                                         eval_args.llava_num_frames,
-                                                        temperature = 0,
-                                                        ensemble_k = 1,
-                                                        time_meta = time_meta,
-                                                        is_test = not finish_early)
+                                                        temperature = temperature,
+                                                        ensemble_k = ensemble_k,
+                                                        time_meta = time_meta)
+                                                        
 
             # log the predictions into prediciton analysis
         
