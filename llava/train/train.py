@@ -1273,7 +1273,7 @@ class LazySupervisedDataset(Dataset):
                                                  num_frames_to_sample,
                                                  sources[0]['question_type'],
                                                  include_time_instruction= self.data_args.add_time_instruction,
-                                                 include_frame_time = True)
+                                                 include_frame_time = False)
                     sources[0]["conversations"][0]["value"] = llava_prompt
 
                 image = [(image, video[0].size, "video")]

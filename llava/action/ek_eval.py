@@ -143,7 +143,6 @@ def ensemble_llava_evaluation(
                             clip_length = clip_length, 
                             num_frames=num_frames, 
                             temperature = temperature,
-                            is_test = is_test,
                             time_meta = time_meta
                                )
                 
@@ -206,7 +205,6 @@ def evaluate_on_EK100(eval_args,
                 mapping_vn2narration = mapping_vn2narration,
                 avion_predictions = predictions if eval_args.action_predictions else None,
                 n_narrations = eval_args.n_narrations,
-
             )
 
     def collate_fn(batch):

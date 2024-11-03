@@ -16,7 +16,7 @@ def llava_ov_process(video_frames,
     clip_length = 16,
     num_frames = 16,
     temperature = 0,
-    is_test = False):
+    ):
 
     device = "cuda" 
     video_frames = video_frames[0]
@@ -68,8 +68,7 @@ def llava_video_process(
     clip_length = 16,
     num_frames = 16,
     temperature = 0,
-    time_meta = {},
-    is_test = False):
+    time_meta = {}):
 
     device = "cuda"
 
@@ -98,7 +97,7 @@ def llava_video_process(
                                    video_duration,                                  
                                    n_frames,
                                    "open-ended",
-                                   include_frame_time = True,
+                                   include_frame_time = False,
                                    include_time_instruction= True)
 
 
@@ -139,7 +138,6 @@ def llava_inference(
     clip_length = 16,
     num_frames = 16,
     temperature = 0,
-    is_test = False,
     time_meta = None
     ):
 
@@ -155,7 +153,7 @@ def llava_inference(
                          clip_length,
                          num_frames,
                          temperature,
-                         is_test)
+                         )
     elif 'Video' in pretrained_name:
         return llava_video_process(
             video_frames, 
@@ -167,5 +165,4 @@ def llava_inference(
             num_frames = num_frames,
             temperature = temperature,
             time_meta = time_meta,
-            is_test = is_test            
         )
