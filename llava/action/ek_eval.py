@@ -10,11 +10,18 @@ from llava.action.llava_inference import llava_inference
 import json
 import logging
 from llava.utils import rank0_print
-from llava.action.utils import generate_label_map,  match_answer, remove_option_letter
+from llava.action.utils import generate_label_map,  match_answer
 from collections import Counter 
 import torch.distributed as dist
 from llava.action.dataset import VideoMultiChoiceDataset
+import re
 
+def process_raw_pred(raw_pred):
+    match = re.search(r"[A-Z]\.\s(.+)", raw_pred)
+    if match:
+        return match.group(1)
+    else:
+        return raw_pred
 
 def setup(rank, world_size):
     # Check if the process group is already initialized
@@ -146,7 +153,7 @@ def ensemble_llava_evaluation(
                             time_meta = time_meta
                                )
         rank0_print('raw output', pred)
-        pred = remove_option_letter(pred)
+        pred = process_raw_pred(pred)
         rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name) 
         preds.append(pred)
         

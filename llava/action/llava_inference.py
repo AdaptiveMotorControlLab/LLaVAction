@@ -5,7 +5,7 @@ from llava.conversation import conv_templates, SeparatorStyle
 import torch
 import numpy as np
 import copy
-from llava.action.utils import format_llava_prompt, remove_option_letter
+from llava.action.utils import format_llava_prompt
 from llava.utils import rank0_print
 
 def llava_ov_process(video_frames, 
@@ -95,7 +95,7 @@ def llava_video_process(
     if temperature == 0:
         question_type = "mc_top5_official_key"
     else:
-        question_type = "cot_multiple_choice"
+        question_type = "cot_mc"
 
     question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
                                    options,

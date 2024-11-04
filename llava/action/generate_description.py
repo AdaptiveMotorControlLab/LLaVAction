@@ -131,6 +131,7 @@ def combine_reason_and_mc(reason_path, mc_path, out_folder):
         mc_answer = mc_dict['conversations'][1]['value']
         combined_traj = reason_traj + ' The answer is ' + mc_answer
         mc_dict['conversations'][1]['value'] = combined_traj
+        mc_dict['question_type'] = 'cot_mc'
         ret.append(mc_dict)
     
     

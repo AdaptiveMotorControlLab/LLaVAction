@@ -87,7 +87,6 @@ def remove_sub_nouns(nlp, narration, verb, nouns, cache_file = None):
 
 
 def remove_option_letter(answer):
-
     if '. ' in answer:
         return answer.split('. ')[1]
     else:
@@ -167,7 +166,7 @@ def format_task_related_prompt(option_list, question_type):
     We are thinking about tweaking the prompt based on the action representation.
     """
 
-    if 'mc_' in question_type:
+    if question_type.startswith("mc_"):
         action_rep_suffix = "Given multiple choices, format your answer as the 'option letter. option_name' such as 'A. move knife' where A is the option letter and knife is the option_name."              
         prefix = f"The video is taken from egocentric view. What action is the person performing? {action_rep_suffix}\n"
         assert isinstance(option_list, list)
@@ -175,18 +174,19 @@ def format_task_related_prompt(option_list, question_type):
         suffix = "Here are the options you are tasked:\n" + suffix 
         ret = prefix + suffix
     elif question_type == "gpt-gt-reason":
-        ret = "The video is taken from egocentric view. What action is the person performing? Please explain your reasoning steps before reaching to your answer."
-    
-    elif question_type == "cot_multiple_choice":
+        ret = "The video is taken from egocentric view. What action is the person performing? Please explain your reasoning steps before reaching to your answer."    
+    elif question_type == "cot_mc":
         """
         Explain the reasoning first and do the multiple-choice.        
         """
-        action_rep_suffix = "Given multiple choices, format your answer as the 'option letter. option_name' such as 'A. move knife' where A is the option letter and knife is the option_name."              
+        action_rep_suffix = "Given multiple choices, explain your reasoning steps before you reach to your answer."              
         prefix = f"The video is taken from egocentric view. What action is the person performing? {action_rep_suffix}\n"
         assert isinstance(option_list, list)
-        suffix = ",".join(option_list)
+        suffix = ",".join(option_list)  
         suffix = "Here are the options you are tasked:\n" + suffix 
-        ret = prefix + suffix        
+        ret = prefix + suffix  
+    else:
+        raise NotImplementedError(f"question_type: {question_type} is not supported")      
         
 
     return ret
