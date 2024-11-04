@@ -13,6 +13,8 @@ from tqdm import tqdm
 from collections import Counter
 from llava.utils import rank0_print
 import pickle
+from llava.action.render_utils import render_frame
+import matplotlib.pyplot as plt
 
 def remove_sub_nouns(nlp, narration, verb, nouns, cache_file = None):
     narration = copy.deepcopy(narration)
@@ -522,6 +524,104 @@ def avion_video_loader(root, vid, ext, second, end_second,
     time_meta['frame_time'] = frame_time
     assert res.shape[0] == clip_length, "{}, {}, {}, {}, {}, {}, {}".format(root, vid, second, end_second, res.shape[0], rel_frame_ids, frame_ids)
     return res, time_meta
+
+def avion_video_render_loader(root, handobj_root, vid, ext, second, end_second,
+                 chunk_len=300, fps=30, clip_length=32,
+                 threads=1,
+                 fast_rrc=False, rrc_params=(224, (0.5, 1.0)),
+                 fast_rcc=False, rcc_params=(224, ),
+                 jitter=False):
+    assert fps > 0, 'fps should be greater than 0' 
+    time_meta = {}
+    
+    time_meta['duration'] = end_second - second
+
+    assert end_second > second, 'end_second should be greater than second'
+
+    chunk_start = int(second) // chunk_len * chunk_len
+    chunk_end = int(end_second) // chunk_len * chunk_len
+    while True:
+        video_filename = osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk_end, ext))
+        if not osp.exists(video_filename):
+            # print("{} does not exists!".format(video_filename))
+            chunk_end -= chunk_len
+        else:
+            vr = decord.VideoReader(video_filename)
+            end_second = min(end_second, (len(vr) - 1) / fps + chunk_end)
+            assert chunk_start <= chunk_end
+            break
+    # calculate frame_ids
+    frame_ids = get_frame_ids(
+        int(np.round(second * fps)),
+        int(np.round(end_second * fps)),
+        num_segments=clip_length, jitter=jitter
+    )
+    all_frames = []
+    all_frame_ids = []
+    # allocate absolute frame-ids into the relative ones
+    for chunk in range(chunk_start, chunk_end + chunk_len, chunk_len):
+        rel_frame_ids = list(filter(lambda x: int(chunk * fps) <= x < int((chunk + chunk_len) * fps), frame_ids))
+        rel_frame_ids = [int(frame_id - chunk * fps) for frame_id in rel_frame_ids]
+        vr = get_video_reader(
+            osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk, ext)),
+            num_threads=threads,
+            fast_rrc=fast_rrc, rrc_params=rrc_params,
+            fast_rcc=fast_rcc, rcc_params=rcc_params,
+        )
+        handobj_df = pd.read_csv(osp.join(handobj_root, '{}.{}'.format(vid, ext), '{}.{}.csv'.format(chunk, ext)))
+        hand_dets_list = handobj_df.iloc[rel_frame_ids]['hand_dets'].tolist()
+        obj_dets_list = handobj_df.iloc[rel_frame_ids]['obj_dets'].tolist()
+
+        try:
+            frames = vr.get_batch(rel_frame_ids).asnumpy()
+        except decord.DECORDError as error:
+            print(error)
+            frames = vr.get_batch([0] * len(rel_frame_ids)).asnumpy()
+        except IndexError:
+            print('IndexError', root, vid, ext, second, end_second)
+
+        if frames.shape[0] == 0:
+            continue
+        
+        # aa = 1
+        # show one of the frames
+        # plt.figure()
+        # plt.imshow(frames[0])
+        # plt.savefig('frame.png')
+        # plt.close()
+        
+        frames = render_frames(frames, hand_dets_list, obj_dets_list, thresh_hand=0.5, thresh_obj=0.5)
+
+        # plt.figure()
+        # plt.imshow(frames[0])
+        # plt.savefig('frame_rendered.png')
+        # plt.close()
+
+        all_frames.append(frames)
+        all_frame_ids.append(frame_ids)
+        if sum(map(lambda x: x.shape[0], all_frames)) == clip_length:
+            break
+    res = torch.from_numpy(np.concatenate(all_frames, axis=0).astype(np.float32))
+    time_meta['n_frames'] = res.shape[0]
+    all_frame_ids = np.concatenate(all_frame_ids, axis = 0)
+    frame_time = [e/fps for e in all_frame_ids]
+    frame_time-= frame_time[0]
+    frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
+    time_meta['frame_time'] = frame_time
+    assert res.shape[0] == clip_length, "{}, {}, {}, {}, {}, {}, {}".format(root, vid, second, end_second, res.shape[0], rel_frame_ids, frame_ids)
+    return res, time_meta
+
+def render_frames(frames, hand_dets_list, obj_dets_list, thresh_hand=0.5, thresh_obj=0.5):
+    """
+    Render frames with hand and object detections
+    """
+    rendered_frames = []
+    for i in range(frames.shape[0]):
+        rendered_frame = render_frame(frames[i], hand_dets_list[i], obj_dets_list[i], thresh_hand, thresh_obj)
+        rendered_frames.append(rendered_frame)
+    return np.array(rendered_frames)
+
+
 
 
 if __name__ == '__main__':
