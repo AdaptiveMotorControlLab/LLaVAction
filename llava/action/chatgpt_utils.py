@@ -197,10 +197,9 @@ class ChatGPT:
         return multi_image_content 
 
     def extract_frames(self,  vid_path, start_second, end_second):
-        video_loader = avion_video_loader if self.handobj_root is None else avion_video_render_loader
 
         if self.handobj_root is None:
-            frames, time_meta = video_loader(self.root, 
+            frames, time_meta = avion_video_loader(self.root, 
                         vid_path,
                         'MP4',
                         start_second,
@@ -212,7 +211,7 @@ class ChatGPT:
                         fast_rcc = False,
                         jitter = False)
         else:            
-            frames, time_meta = video_loader(self.root, self.handobj_root,
+            frames, time_meta = avion_video_render_loader(self.root, self.handobj_root,
                         vid_path,
                         'MP4',
                         start_second,

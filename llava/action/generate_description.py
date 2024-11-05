@@ -10,6 +10,7 @@ import llava
 from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator, format_llava_prompt, remove_sub_nouns
 from llava.action.dataset import datetime2sec
 from pathlib import Path
+from llava.action.utils import hand_obj_ann_loader
 
 def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_maps, gen_type = 'naive', avion_prediction_path = '', n_options = 5,
                        action_representation = 'official_key', n_narrations=-1):
@@ -141,6 +142,42 @@ def combine_reason_and_mc(reason_path, mc_path, out_folder):
             f.write(json.dumps(conv) + '\n')
 
 
+
+
+def generate_hand_object_instruction_tuning_data(root, ann_file, hand_obj_root, image_out_folder):
+    """
+    iterate through the training dataset.
+    take a few frames from each action and use opencv to save them into a folder
+    load the corresponding hand-object annotations and use chatGPT to annotate it
+    finally save it to a jsonl file
+    """
+
+    csv_reader = csv.reader(open(ann_file))
+    _ = next(csv_reader)
+    ret = []
+    ann_root = Path(ann_file).parent
+
+    for idx, row in enumerate(csv_reader):
+        start_timestamp, end_timestamp = datetime2sec(row[4]), datetime2sec(row[5])
+
+        vid_path = '{}-{}'.format(row[1], row[2])
+
+        frames, hand_dets_list, obj_dets_list = hand_obj_ann_loader(root,
+                                                                    hand_obj_root,
+                                                                    vid_path,
+                                                                    'MP4',
+                                                                    start_timestamp,
+                                                                    end_timestamp,
+                                                                    chunk_len = 15,
+                                                                    clip_length = 16)
+        print (hand_dets_list)
+        print (obj_dets_list)
+        break
+
+      
+
+
+
 def get_args():
     parser = argparse.ArgumentParser(description="For generating VQA for EPIC-KITCHEN")
     parser.add_argument('--train_metadata', default='/data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv', type=str)
@@ -189,9 +226,15 @@ def main():
    
 if __name__ == "__main__":
     #main()
+    
+    # reason_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/train_anno_gpt-gt-reason_4_all.jsonl"
+    # mc_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl"
+    # out_folder = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration_cot/"
+    # combine_reason_and_mc(reason_path, mc_path, out_folder)
 
+    data_root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100/'
+    ann_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv'
+    hand_obj_root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/hand_obj_anns/'
+    out_image_folder = ''
 
-    reason_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/train_anno_gpt-gt-reason_4_all.jsonl"
-    mc_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl"
-    out_folder = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration_cot/"
-    combine_reason_and_mc(reason_path, mc_path, out_folder)
+    generate_hand_object_instruction_tuning_data(data_root, ann_file_path, hand_obj_root, out_image_folder)

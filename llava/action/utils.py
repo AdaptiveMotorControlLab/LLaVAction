@@ -13,7 +13,7 @@ from tqdm import tqdm
 from collections import Counter
 import pickle
 from llava.action.render_utils import render_frame
-import matplotlib.pyplot as plt
+
 
 def remove_sub_nouns(nlp, narration, verb, nouns, cache_file = None):
     narration = copy.deepcopy(narration)
@@ -520,6 +520,64 @@ def avion_video_loader(root, vid, ext, second, end_second,
     assert res.shape[0] == clip_length, "{}, {}, {}, {}, {}, {}, {}".format(root, vid, second, end_second, res.shape[0], rel_frame_ids, frame_ids)
     return res, time_meta
 
+
+def hand_obj_ann_loader(root, handobj_root, vid, ext, second, end_second,
+                 chunk_len=300, fps=30, clip_length=32,
+                 threads=1,
+                 fast_rrc=False, rrc_params=(224, (0.5, 1.0)),
+                 fast_rcc=False, rcc_params=(224, ),
+                 jitter=False):
+    
+    assert fps > 0, 'fps should be greater than 0' 
+    time_meta = {}
+    import matplotlib.pyplot as plt
+    time_meta['duration'] = end_second - second
+
+    assert end_second > second, 'end_second should be greater than second'
+
+    chunk_start = int(second) // chunk_len * chunk_len
+    chunk_end = int(end_second) // chunk_len * chunk_len
+    while True:
+        video_filename = osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk_end, ext))
+        if not osp.exists(video_filename):
+            # print("{} does not exists!".format(video_filename))
+            chunk_end -= chunk_len
+        else:
+            vr = decord.VideoReader(video_filename)
+            end_second = min(end_second, (len(vr) - 1) / fps + chunk_end)
+            assert chunk_start <= chunk_end
+            break
+    # calculate frame_ids
+    frame_ids = get_frame_ids(
+        int(np.round(second * fps)),
+        int(np.round(end_second * fps)),
+        num_segments=clip_length, jitter=jitter
+    )
+    
+    # allocate absolute frame-ids into the relative ones
+    for chunk in range(chunk_start, chunk_end + chunk_len, chunk_len):
+        rel_frame_ids = list(filter(lambda x: int(chunk * fps) <= x < int((chunk + chunk_len) * fps), frame_ids))
+        rel_frame_ids = [int(frame_id - chunk * fps) for frame_id in rel_frame_ids]
+        vr = get_video_reader(
+            osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk, ext)),
+            num_threads=threads,
+            fast_rrc=fast_rrc, rrc_params=rrc_params,
+            fast_rcc=fast_rcc, rcc_params=rcc_params,
+        )
+        handobj_df = pd.read_csv(osp.join(handobj_root, '{}.{}'.format(vid, ext), '{}.{}.csv'.format(chunk, ext)))
+        hand_dets_list = handobj_df.iloc[rel_frame_ids]['hand_dets'].tolist()
+        obj_dets_list = handobj_df.iloc[rel_frame_ids]['obj_dets'].tolist()
+
+        try:
+            frames = vr.get_batch(rel_frame_ids).asnumpy()
+        except decord.DECORDError as error:
+            print(error)
+            frames = vr.get_batch([0] * len(rel_frame_ids)).asnumpy()
+        except IndexError:
+            print('IndexError', root, vid, ext, second, end_second)
+
+    return frames, hand_dets_list, obj_dets_list    
+
 def avion_video_render_loader(root, handobj_root, vid, ext, second, end_second,
                  chunk_len=300, fps=30, clip_length=32,
                  threads=1,
@@ -528,7 +586,7 @@ def avion_video_render_loader(root, handobj_root, vid, ext, second, end_second,
                  jitter=False):
     assert fps > 0, 'fps should be greater than 0' 
     time_meta = {}
-    
+    import matplotlib.pyplot as plt
     time_meta['duration'] = end_second - second
 
     assert end_second > second, 'end_second should be greater than second'

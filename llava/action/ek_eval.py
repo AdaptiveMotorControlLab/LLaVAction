@@ -297,8 +297,8 @@ def evaluate_on_EK100(eval_args,
             ensemble_k = 1
 
             if eval_args.ensemble_test:
-                temperature = 1
-                ensemble_k = 3
+                temperature = 0.5
+                ensemble_k = 1
 
             llava_correct, llava_pred = ensemble_llava_evaluation(
                                                         eval_args.pretrained_name,
