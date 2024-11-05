@@ -3,14 +3,15 @@ import json
 import csv
 import os
 import argparse
-import spacy
 import sys
+import numpy as np
 sys.path[0] = os.path.dirname(os.path.dirname(sys.path[0]))
 import llava
 from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator, format_llava_prompt, remove_sub_nouns
 from llava.action.dataset import datetime2sec
 from pathlib import Path
 from llava.action.utils import hand_obj_ann_loader
+import ast
 
 def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_maps, gen_type = 'naive', avion_prediction_path = '', n_options = 5,
                        action_representation = 'official_key', n_narrations=-1):
@@ -160,7 +161,8 @@ def generate_hand_object_instruction_tuning_data(root, ann_file, hand_obj_root, 
     for idx, row in enumerate(csv_reader):
         start_timestamp, end_timestamp = datetime2sec(row[4]), datetime2sec(row[5])
 
-        vid_path = '{}-{}'.format(row[1], row[2])
+        pid, vid = row[1:3]
+        vid_path = '{}/{}'.format(pid, vid)
 
         frames, hand_dets_list, obj_dets_list = hand_obj_ann_loader(root,
                                                                     hand_obj_root,
@@ -168,15 +170,17 @@ def generate_hand_object_instruction_tuning_data(root, ann_file, hand_obj_root, 
                                                                     'MP4',
                                                                     start_timestamp,
                                                                     end_timestamp,
-                                                                    chunk_len = 15,
+                                                                    chunk_len = 15,                       
                                                                     clip_length = 16)
+
+        def contains_nan(lst):
+            # Check each element in the list individually for NaN
+            return any(isinstance(x, float) and np.isnan(x) for x in lst)
+        if contains_nan(hand_dets_list) or contains_nan(obj_dets_list):
+            continue
         print (hand_dets_list)
-        print (obj_dets_list)
-        break
-
-      
-
-
+        print (obj_dets_list)        
+    
 
 def get_args():
     parser = argparse.ArgumentParser(description="For generating VQA for EPIC-KITCHEN")
@@ -232,9 +236,9 @@ if __name__ == "__main__":
     # out_folder = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration_cot/"
     # combine_reason_and_mc(reason_path, mc_path, out_folder)
 
-    data_root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100/'
-    ann_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv'
-    hand_obj_root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/hand_obj_anns/'
+    data_root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+    ann_file_path = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_train.csv'
+    hand_obj_root = '/data/epic_kitchen/hand_obj_anns/'
     out_image_folder = ''
 
     generate_hand_object_instruction_tuning_data(data_root, ann_file_path, hand_obj_root, out_image_folder)

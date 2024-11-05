@@ -36,9 +36,7 @@ class LLaVAWrongAnswerAwarePrompt:
 You are seeing video frames from an egocentric view of a person. 
 Please talk as if you are the person in the video and describe what action you are performing.
 To assist you for how to describe the action, the video's start time is {start_second} and the end time is {end_second} and the duration is {end_second - start_second} seconds.
-Meanwhile, the left hand region is marked as 'L' in red bounding box and the right hand region is marked as 'R' in blue bounding box.
-The contact information is also provided in the bouding box tags with 'N' for no contact, 'S' for self contact, 'O' for other person contact, 'P' for portable object contact, and 'F' for stationary object contact.
-The contacted objects are also marked as 'O' in yellow bounding box.
+
 To further assist you for how to describe the action, note that in a multi-choice video question answering, you were given following options {option_text} and the correct answer is {gt_answer}.
 In addition to describe what you see, describe why wrong answers were wrong and why right answer was right.
 When you explain why wrong answers were wrong and why right answer was right, you should use the following flow of reasoning:
@@ -85,7 +83,8 @@ The video duration is {end_second - start_second:.3f} seconds.
         return prompt    
 
 
-PROMPT_FACTORY = {'gpt-gt-reason': GPTReasoningWithGTPrompt}
+PROMPT_FACTORY = {'gpt-gt-reason': GPTReasoningWithGTPrompt,
+                   'gpt-gt-reason-wrong-aware': GPTWrongAnswerAwarePrompt}
 
 class GT_Agnostic_Response(BaseModel):
     """

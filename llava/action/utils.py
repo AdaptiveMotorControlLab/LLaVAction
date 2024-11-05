@@ -576,6 +576,11 @@ def hand_obj_ann_loader(root, handobj_root, vid, ext, second, end_second,
         except IndexError:
             print('IndexError', root, vid, ext, second, end_second)
 
+    for i in range(frames.shape[0]):
+
+        hand_dets_list[i] = np.array(ast.literal_eval(hand_dets_list[i])) if hand_dets_list[i] != '[]' else np.nan
+        obj_dets_list[i] = np.array(ast.literal_eval(obj_dets_list[i])) if obj_dets_list[i] != '[]' else np.nan
+
     return frames, hand_dets_list, obj_dets_list    
 
 def avion_video_render_loader(root, handobj_root, vid, ext, second, end_second,
