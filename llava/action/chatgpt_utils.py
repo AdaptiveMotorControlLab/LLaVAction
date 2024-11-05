@@ -2,6 +2,8 @@ import base64
 import io
 import json
 import os
+import sys
+sys.path[0] = os.path.dirname(os.path.dirname(sys.path[0]))
 import numpy as np
 import openai
 from pydantic import BaseModel
@@ -12,7 +14,7 @@ from pathlib import Path
 from tqdm import tqdm
 import csv
 import llava
-from llava.action.utils import avion_video_loader, create_multi_choice_from_avion_predictions, generate_label_map, AvionMultiChoiceGenerator
+from llava.action.utils import avion_video_loader, create_multi_choice_from_avion_predictions, generate_label_map, AvionMultiChoiceGenerator, avion_video_render_loader
 from llava.action.dataset import datetime2sec
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -34,6 +36,9 @@ class LLaVAWrongAnswerAwarePrompt:
 You are seeing video frames from an egocentric view of a person. 
 Please talk as if you are the person in the video and describe what action you are performing.
 To assist you for how to describe the action, the video's start time is {start_second} and the end time is {end_second} and the duration is {end_second - start_second} seconds.
+Meanwhile, the left hand region is marked as 'L' in red bounding box and the right hand region is marked as 'R' in blue bounding box.
+The contact information is also provided in the bouding box tags with 'N' for no contact, 'S' for self contact, 'O' for other person contact, 'P' for portable object contact, and 'F' for stationary object contact.
+The contacted objects are also marked as 'O' in yellow bounding box.
 To further assist you for how to describe the action, note that in a multi-choice video question answering, you were given following options {option_text} and the correct answer is {gt_answer}.
 In addition to describe what you see, describe why wrong answers were wrong and why right answer was right.
 When you explain why wrong answers were wrong and why right answer was right, you should use the following flow of reasoning:
@@ -192,7 +197,8 @@ class ChatGPT:
         return multi_image_content 
 
     def extract_frames(self,  vid_path, start_second, end_second):
-        frames, time_meta = avion_video_loader(self.root,
+        frames, time_meta = avion_video_render_loader(self.root, self.handobj_root,
+        # frames, time_meta = avion_video_loader(self.root,
                         vid_path,
                         'MP4',
                         start_second,
@@ -216,6 +222,7 @@ class GPTInferenceAnnotator(ChatGPT):
                  root,                 
                  annotation_file,
                  avion_prediction_file,
+                 handobj_root,
                  clip_length = 4, 
                  action_representation = 'GT_random_narration',
                  debug = False,
@@ -233,6 +240,7 @@ class GPTInferenceAnnotator(ChatGPT):
         self.topk = topk
         self.annotation_file = annotation_file
         self.avion_prediction_file = avion_prediction_file     
+        self.handobj_root = handobj_root
         self.annotation_root = Path(annotation_file).parent
         self.action_representation = action_representation
         self.labels, self.mapping_vn2narration, self.mapping_vn2act, self.verb_maps, self.noun_maps = generate_label_map(self.annotation_root,                                                                                           
@@ -289,7 +297,7 @@ class GPTInferenceAnnotator(ChatGPT):
     def multi_process_run(self):
         # to initialize it
 
-        indices = list(range(len(self.data)))
+        indices = list(range(len(self.data)))[:500]
 
         num_chunks = os.cpu_count() if not self.debug else 2
 
@@ -312,8 +320,11 @@ class GPTInferenceAnnotator(ChatGPT):
 
         self.checkpoint(combined_results, "gpt_inference_results.json")                            
 
-    def run(self, indices):
-        data_batch = {i : self.data[i] for i in range(len(self.data)) if i in indices}
+    def run(self, indices=None):
+        if indices is None:
+            data_batch = {i : self.data[i] for i in range(len(self.data)) if i in list(range(len(self.data)))}
+        else:
+            data_batch = {i : self.data[i] for i in range(len(self.data)) if i in indices}
         ret = {}
 
         for k,v in tqdm(data_batch.items()):            
@@ -337,7 +348,11 @@ class GPTInferenceAnnotator(ChatGPT):
             }
             if self.debug:
                 break
-        return ret 
+        if indices is None:
+            calculation = calculate_gpt_accuracy(data = ret)
+            self.checkpoint(ret, "gpt_inference_results.json")
+        else:
+            return ret 
 
 
 
@@ -508,6 +523,7 @@ def multi_process_annotate(train_file_path, root, debug = False, anno_type = 'gp
 def multi_process_inference(root,
                             annotation_file, 
                             avion_prediction_file,
+                            handobj_root,
                             action_representation = 'GT_random_narration',
                             clip_length = 4,
                             topk = 5,                             
@@ -516,10 +532,14 @@ def multi_process_inference(root,
     annotator = GPTInferenceAnnotator(root, 
     annotation_file,
     avion_prediction_file,
+    handobj_root,
     clip_length = clip_length,
     debug = debug,
     action_representation = action_representation,
     topk = topk)
+
+    # indices = list(range(len(annotator.data)))[:100]
+    # annotator.run()
 
     annotator.multi_process_run()
 
@@ -557,10 +577,15 @@ def convert_json_to_jsonl(path):
 
 if __name__ == '__main__':    
 
-    train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
-    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-    val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-    avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
+    # train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
+    # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+    # val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    # avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
+
+    root = '/mediaPFM/data/haozhe/onevision/llava_video/EK100'
+    val_file = '/mediaPFM/data/haozhe/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    avion_prediction_file = '/mediaPFM/data/haozhe/EK100/EK100_in_LLAVA/avion_pred_ids_val.json'
+    handobj_root = '/mnt/SV_storage/VFM/hand_object_detector/Save_dir'
 
 
 
@@ -569,13 +594,14 @@ if __name__ == '__main__':
 
     # multi_process_annotate(train_file_path, root, debug = False, n_samples = 10000)
 
-    # multi_process_inference(root, 
-    #                         val_file, 
-    #                         avion_prediction_file,
-    #                         debug = True,
-    #                         clip_length = 4,
-    #                         topk = 5)
+    multi_process_inference(root, 
+                            val_file, 
+                            avion_prediction_file,
+                            handobj_root,
+                            debug = False,
+                            clip_length = 4,
+                            topk = 5)
 
     #calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames_fixed_narration.json')
 
-    convert_json_to_jsonl('train_anno_gpt-gt-reason_4_10000.json')
+    # convert_json_to_jsonl('train_anno_gpt-gt-reason_4_10000.json')
