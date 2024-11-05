@@ -587,10 +587,10 @@ def avion_video_render_loader(root, handobj_root, vid, ext, second, end_second,
         
         frames = render_frames(frames, hand_dets_list, obj_dets_list, thresh_hand=0.5, thresh_obj=0.5)
 
-        # plt.figure()
-        # plt.imshow(frames[0])
-        # plt.savefig('frame_rendered.png')
-        # plt.close()
+        plt.figure()
+        plt.imshow(frames[0])
+        plt.savefig('frame_rendered.png')
+        plt.close()
 
         all_frames.append(frames)
         all_frame_ids.append(frame_ids)

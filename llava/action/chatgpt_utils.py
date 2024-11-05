@@ -14,7 +14,7 @@ from pathlib import Path
 from tqdm import tqdm
 import csv
 import llava
-from llava.action.utils import avion_video_loader, create_multi_choice_from_avion_predictions, generate_label_map, AvionMultiChoiceGenerator, avion_video_render_loader
+from llava.action.utils import avion_video_loader,  generate_label_map, AvionMultiChoiceGenerator, avion_video_render_loader
 from llava.action.dataset import datetime2sec
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -197,8 +197,22 @@ class ChatGPT:
         return multi_image_content 
 
     def extract_frames(self,  vid_path, start_second, end_second):
-        frames, time_meta = avion_video_render_loader(self.root, self.handobj_root,
-        # frames, time_meta = avion_video_loader(self.root,
+        video_loader = avion_video_loader if self.handobj_root is None else avion_video_render_loader
+
+        if self.handobj_root is None:
+            frames, time_meta = video_loader(self.root, 
+                        vid_path,
+                        'MP4',
+                        start_second,
+                        end_second,
+                        chunk_len = 15,
+                        clip_length = self.clip_length,
+                        threads = 1,
+                        fast_rrc=False,
+                        fast_rcc = False,
+                        jitter = False)
+        else:            
+            frames, time_meta = video_loader(self.root, self.handobj_root,
                         vid_path,
                         'MP4',
                         start_second,
@@ -222,7 +236,7 @@ class GPTInferenceAnnotator(ChatGPT):
                  root,                 
                  annotation_file,
                  avion_prediction_file,
-                 handobj_root,
+                 handobj_root = None,
                  clip_length = 4, 
                  action_representation = 'GT_random_narration',
                  debug = False,
@@ -294,10 +308,11 @@ class GPTInferenceAnnotator(ChatGPT):
 
         return ret
 
-    def multi_process_run(self):
+    def multi_process_run(self, n_samples = -1):
         # to initialize it
 
-        indices = list(range(len(self.data)))[:500]
+        if n_samples != -1:
+            indices = list(range(len(self.data)))[:n_samples]
 
         num_chunks = os.cpu_count() if not self.debug else 2
 
@@ -340,6 +355,7 @@ class GPTInferenceAnnotator(ChatGPT):
                 print ("An exception occurred: ", e)
             predicted_answer = parsed_answer.answer
             explanation = parsed_answer.explanation
+            print (explanation)
             gt_name = v['gt_answer']
             ret[k] = {
                 'gt_name': gt_name,
@@ -365,19 +381,18 @@ class GPTInferenceAnnotator(ChatGPT):
         end_second = parsed_item['end_second'] - parsed_item['start_second']
         temperature = 0
         duration = end_second - start_second
-        system_prompt_prefix = f"""
+
+        system_prompt = f"""
         You are seeing video frames from an egocentric view of a person. Pretend that you are the person.  Your task is to describe what action you are performing.
         To assist you for how to describe the action, the video's start time is {start_second} and the end time is {end_second:.3f} and the duration is {duration:.3f} seconds.
-        You were given multiple choice options {option_text}. Pick the correct one and put that into the answer. Note in the answer do not include the option letter, just the name of the action.
-        Also explain why the correct answer is correct and why the other options are incorrect.
+        You were given multiple choice options {option_text}. Pick the correct one and put that into the answer. Note in the answer do not include the option letter, just the name of the action.        
         """
 
-        # print ('system prompt prefix')
-        # print (system_prompt_prefix)
+        if self.handobj_root is not None:
+            system_prompt += f"""To further assist you, we mark hands and object when they are visible. The left hand is marked with a bounding box that contains letter L and the right hand's bounding box contains letter R. The object is marked as 'O'."""
+        
+        system_prompt += f"""Before giving the answer, explain why the correct answer is correct and why the other options are incorrect. You must pay attention to the hands and objects to support your reasoning when they are present."""
 
-        system_prompt_suffix = """"""
-
-        system_prompt = system_prompt_prefix + system_prompt_suffix
 
         system_message =  [{"role": "system", "content": system_prompt}]
 
@@ -523,16 +538,18 @@ def multi_process_annotate(train_file_path, root, debug = False, anno_type = 'gp
 def multi_process_inference(root,
                             annotation_file, 
                             avion_prediction_file,
-                            handobj_root,
+                            handobj_root = None,
                             action_representation = 'GT_random_narration',
                             clip_length = 4,
                             topk = 5,                             
-                            debug = False):
+                            debug = False,
+                            n_samples = -1
+                            ):
 
     annotator = GPTInferenceAnnotator(root, 
     annotation_file,
     avion_prediction_file,
-    handobj_root,
+    handobj_root = handobj_root,
     clip_length = clip_length,
     debug = debug,
     action_representation = action_representation,
@@ -541,7 +558,7 @@ def multi_process_inference(root,
     # indices = list(range(len(annotator.data)))[:100]
     # annotator.run()
 
-    annotator.multi_process_run()
+    annotator.multi_process_run(n_samples = n_samples)
 
 def calculate_gpt_accuracy(path = None, data = None):
 
@@ -577,15 +594,18 @@ def convert_json_to_jsonl(path):
 
 if __name__ == '__main__':    
 
-    # train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
-    # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-    # val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-    # avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
+    # amg0
+    train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
+    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+    val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
+    handobj_root = '/data/epic_kitchen/Save_dir'
 
-    root = '/mediaPFM/data/haozhe/onevision/llava_video/EK100'
-    val_file = '/mediaPFM/data/haozhe/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-    avion_prediction_file = '/mediaPFM/data/haozhe/EK100/EK100_in_LLAVA/avion_pred_ids_val.json'
-    handobj_root = '/mnt/SV_storage/VFM/hand_object_detector/Save_dir'
+    # haozhe's path
+    # root = '/mediaPFM/data/haozhe/onevision/llava_video/EK100'
+    # val_file = '/mediaPFM/data/haozhe/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    # avion_prediction_file = '/mediaPFM/data/haozhe/EK100/EK100_in_LLAVA/avion_pred_ids_val.json'
+    # handobj_root = '/mnt/SV_storage/VFM/hand_object_detector/Save_dir'
 
 
 
@@ -594,13 +614,17 @@ if __name__ == '__main__':
 
     # multi_process_annotate(train_file_path, root, debug = False, n_samples = 10000)
 
+
+
     multi_process_inference(root, 
                             val_file, 
                             avion_prediction_file,
-                            handobj_root,
+                            handobj_root = handobj_root,
                             debug = False,
-                            clip_length = 4,
-                            topk = 5)
+                            clip_length = 8,
+                            topk = 5,
+                            n_samples = 100)
+
 
     #calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames_fixed_narration.json')
 
