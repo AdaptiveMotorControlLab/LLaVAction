@@ -1,21 +1,14 @@
-import base64
-import io
-import json
 import os
 import sys
 sys.path[0] = os.path.dirname(os.path.dirname(sys.path[0]))
-import numpy as np
 import openai
 from pydantic import BaseModel
+import json
 from concurrent.futures import ProcessPoolExecutor
-import torch
-import cv2
-from pathlib import Path
 from tqdm import tqdm
-import csv
-import llava
-from llava.action.utils import avion_video_loader,  generate_label_map, AvionMultiChoiceGenerator, avion_video_render_loader
-from llava.action.dataset import datetime2sec
+from llava.action.utils import AvionMultiChoiceGenerator
+from llava.action.utils import avion_video_loader, avion_video_render_loader
+
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -24,6 +17,31 @@ GPT_MODEL = "gpt-4o-2024-08-06"
 prices = {
     "gpt-4o-2024-08-06": {"input": 2.5 / 10**6, "output": 10 / 10**6},
 }
+
+
+
+class ExpandReasonMCPrompt:
+    """
+    Given the reasoning + mc description, create multiple questions
+    The questions include 
+    1) Why wrong answers are wrong
+    2) Other questions that can be asked given the reasoning
+    """
+    @classmethod
+    def generate_prompt(cls, start_second, end_second, option_text, gt_answer):
+
+        reason_mc_string = gt_answer 
+
+        prompt = f"""Your job is to create 3 question and answer pairs based on the text below.
+        {reason_mc_string}
+        Example questions you can ask include. Note you are not limited to these questions:
+        What object the person is interacting with?
+        What objects are visible in the video?
+        What is the sequence of the atomic actions that the person is performing?
+        Make sure your only ask questions that can be answered with enough grounding in the text.
+
+        """
+        return prompt
 
 
 class LLaVAWrongAnswerAwarePrompt:
@@ -47,12 +65,7 @@ The flow of reasoning:
 
 Based on the answers above, why right answer is right and why wrong answers were wrong."""
         return prompt   
-class GPTWrongAnswerAwarePrompt:
-    """
-    Inference the GPT once and if the prediction is wrong compared to gt,
-    explain why the prediction is wrong and why the gt is correct.
-    """
-    pass
+
 
 class GPTReasoningWithoutGTPrompt:
     """
@@ -83,9 +96,6 @@ The video duration is {end_second - start_second:.3f} seconds.
         return prompt    
 
 
-PROMPT_FACTORY = {'gpt-gt-reason': GPTReasoningWithGTPrompt,
-                   'gpt-gt-reason-wrong-aware': GPTWrongAnswerAwarePrompt}
-
 class GT_Agnostic_Response(BaseModel):
     """
     The GT was not known. The response is to generate a new answer
@@ -99,6 +109,25 @@ class GT_Augmentation_Response(BaseModel):
     """
     explanation: str
 
+
+class ExpandReasonMCResponse(BaseModel):
+    """
+    The response for the ExpandReasonMCPrompt
+    """
+    first_question: str
+    first_answer: str
+    second_question: str
+    second_answer: str
+    third_question: str
+    third_answer: str
+
+PROMPT_FACTORY = {'gpt-gt-reason': GPTReasoningWithGTPrompt,
+                   'gpt-gt-instruct-reason': ExpandReasonMCPrompt}
+
+REQUIRES_VIS = set(['gpt-gt-reason'])
+
+RESPONSE_FACTORY = {'gpt-gt-reason': GT_Augmentation_Response,
+                    'gpt-gt-instruct-reason': ExpandReasonMCResponse}
 
 class ChatGPT:
     """
@@ -164,7 +193,8 @@ class ChatGPT:
     def prepare_multiple_images(self, images):
         """
 
-        """               
+        """
+        import cv2               
         encoded_image_list = []
 
         for image in images:
@@ -196,31 +226,32 @@ class ChatGPT:
         return multi_image_content 
 
     def extract_frames(self,  vid_path, start_second, end_second):
+        if hasattr(self, 'handobj_root') and self.handobj_root is not None:
 
-        if self.handobj_root is None:
-            frames, time_meta = avion_video_loader(self.root, 
-                        vid_path,
-                        'MP4',
-                        start_second,
-                        end_second,
-                        chunk_len = 15,
-                        clip_length = self.clip_length,
-                        threads = 1,
-                        fast_rrc=False,
-                        fast_rcc = False,
-                        jitter = False)
-        else:            
             frames, time_meta = avion_video_render_loader(self.root, self.handobj_root,
-                        vid_path,
-                        'MP4',
-                        start_second,
-                        end_second,
-                        chunk_len = 15,
-                        clip_length = self.clip_length,
-                        threads = 1,
-                        fast_rrc=False,
-                        fast_rcc = False,
-                        jitter = False)
+                            vid_path,
+                            'MP4',
+                            start_second,
+                            end_second,
+                            chunk_len = 15,
+                            clip_length = self.clip_length,
+                            threads = 1,
+                            fast_rrc=False,
+                            fast_rcc = False,
+                            jitter = False)               
+                
+        else:
+            frames, time_meta = avion_video_loader(self.root, 
+                            vid_path,
+                            'MP4',
+                            start_second,
+                            end_second,
+                            chunk_len = 15,
+                            clip_length = self.clip_length,
+                            threads = 1,
+                            fast_rrc=False,
+                            fast_rcc = False,
+                            jitter = False)
         return frames, time_meta               
 
 class GPTInferenceAnnotator(ChatGPT):
@@ -415,16 +446,26 @@ class GPTAugmentationAnnotator(ChatGPT):
     that augments the gt annotations.
     """
 
-    def __init__(self, ann_file, root, clip_length = 4, debug = False, anno_type = 'gpt-gt-reason'):
+    def __init__(self, 
+                 ann_file, 
+                 root, 
+                 clip_length = 4, 
+                 debug = False, 
+                 anno_type = 'gpt-gt-reason'):
+        """
+        Parameters
+        ----------
+        ann_file: jsonl that has the llava's instruction tuning format 
+        """
         super().__init__(clip_length = clip_length) 
         self.ann_file = ann_file
         self.root = root
         self.clip_length = clip_length
-        data = []
+        self.data = []
         with open(ann_file, 'r') as f:
             for line in f:
-                data.append(json.loads(line))
-        self.data = data
+                self.data.append(json.loads(line))
+
         self.debug = debug
         self.anno_type = anno_type
 
@@ -457,7 +498,6 @@ class GPTAugmentationAnnotator(ChatGPT):
 
         num_cores = os.cpu_count() if not self.debug else 2
         indices_groups = self.split_indices(indices, num_cores)
-
         with ProcessPoolExecutor(max_workers=num_cores) as executor:
             # Pass additional arguments to the function
             futures = [executor.submit(self.run, group) for group in indices_groups]
@@ -468,7 +508,10 @@ class GPTAugmentationAnnotator(ChatGPT):
                 result_dict = future.result()
                 combined_results.update(result_dict)
 
-        self.checkpoint(combined_results, f"train_anno_{self.anno_type}_{self.clip_length}_{sample_suffix}.json")
+        if self.debug:
+            self.checkpoint(combined_results, 'train_anno_debug.json')
+        else:
+            self.checkpoint(combined_results, f"train_anno_{self.anno_type}_{self.clip_length}_{sample_suffix}.json")
         print ('finished the annotation')
         return combined_results
 
@@ -480,10 +523,16 @@ class GPTAugmentationAnnotator(ChatGPT):
             start_timestamp = item['start_timestamp']
             end_timestamp = item['end_timestamp']
             vid_path = '{}/{}'.format(item['video'].split('-')[0], item['video'].split('-')[1])
-            frames, time_meta = self.extract_frames(vid_path, start_timestamp, end_timestamp)
+            if self.anno_type in REQUIRES_VIS:
+                frames, time_meta = self.extract_frames(vid_path, start_timestamp, end_timestamp)
+            else:
+                frames = []
             parsed_item = self.parse_conversation_from_train_convs(item)
             try:
-                gpt_answer = self.annotate(frames, parsed_item).explanation
+                if self.anno_type == 'gpt-gt-reason':
+                    gpt_answer = self.annotate(frames, parsed_item).explanation
+                elif self.anno_type == 'gpt-gt-instruct-reason':
+                    gpt_answer = dict(self.annotate(frames, parsed_item))
             except Exception as e:
                 print ("An exception occurred: ", e)
                 continue
@@ -492,6 +541,7 @@ class GPTAugmentationAnnotator(ChatGPT):
             item['question_type'] = self.anno_type
             ret[index] = item
             if self.debug:
+                print (item)
                 break
 
         return ret       
@@ -509,16 +559,20 @@ class GPTAugmentationAnnotator(ChatGPT):
 
         system_message =  [{"role": "system", "content": system_prompt}]
 
-        multi_image_content = self.prepare_multiple_images(images)
-        multi_modal_content = [{"type": "text", "text": ""}] + multi_image_content
-        user_message = [{"role": "user", "content": multi_modal_content}]               
+        if self.anno_type in REQUIRES_VIS:
+            multi_image_content = self.prepare_multiple_images(images)
+            multi_modal_content = [{"type": "text", "text": ""}] + multi_image_content
+            user_message = [{"role": "user", "content": multi_modal_content}]
+        else:
+            user_message = [{"role": "user", "content": ""}]
 
         response = client.beta.chat.completions.parse(
             model=GPT_MODEL,
             messages=system_message + user_message, 
-            response_format = GT_Augmentation_Response,
+            response_format = RESPONSE_FACTORY[self.anno_type],
             temperature = temperature
         )
+
         total_cost = self.calculate_cost(response)      
 
         return response.choices[0].message.parsed
@@ -593,11 +647,11 @@ def convert_json_to_jsonl(path):
 if __name__ == '__main__':    
 
     # amg0
-    train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
-    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-    val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-    avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
-    handobj_root = '/data/epic_kitchen/Save_dir'
+    # train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
+    # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+    # val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    # avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
+    # handobj_root = '/data/epic_kitchen/Save_dir'
 
     # haozhe's path
     # root = '/mediaPFM/data/haozhe/onevision/llava_video/EK100'
@@ -606,24 +660,22 @@ if __name__ == '__main__':
     # handobj_root = '/mnt/SV_storage/VFM/hand_object_detector/Save_dir'
 
 
-
     #root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
     #train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
 
-    # multi_process_annotate(train_file_path, root, debug = False, n_samples = 10000)
+    train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/train_anno_gpt-gt-reason_4_all.jsonl'
+    
+    root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
+    multi_process_annotate(train_file_path, root, debug = False, n_samples = -1, anno_type = 'gpt-gt-instruct-reason')
 
+    # multi_process_inference(root, 
+    #                         val_file, 
+    #                         avion_prediction_file,
+    #                         handobj_root = handobj_root,
+    #                         debug = False,
+    #                         clip_length = 8,
+    #                         topk = 5,
+    #                         n_samples = 100)
 
-
-    multi_process_inference(root, 
-                            val_file, 
-                            avion_prediction_file,
-                            handobj_root = handobj_root,
-                            debug = False,
-                            clip_length = 8,
-                            topk = 5,
-                            n_samples = 100)
-
-
-    #calculate_gpt_accuracy('valset_chatgpt_inference_results/gpt-4o-avion_top10_4frames_fixed_narration.json')
 
     # convert_json_to_jsonl('train_anno_gpt-gt-reason_4_10000.json')

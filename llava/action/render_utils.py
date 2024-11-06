@@ -1,5 +1,5 @@
 import numpy as np
-import cv2
+
 import ast
 from PIL import Image, ImageDraw, ImageFont
 
@@ -144,6 +144,7 @@ def vis_detections_filtered_objects_PIL(im, obj_dets, hand_dets, thresh_hand=0.8
     return image
 
 def render_frame(im, hand_dets, obj_dets, thresh_hand=0.5, thresh_obj=0.5):
+    import cv2
     im_show = im.copy()
     im_show = cv2.cvtColor(im_show, cv2.COLOR_RGB2BGR)
     hand_dets = np.array(ast.literal_eval(hand_dets)) if hand_dets != '[]' else None

@@ -1776,6 +1776,11 @@ def train(attn_implementation=None):
 
     eval_args.pretrained_name = model_args.model_name_or_path.split('/')[1]
 
+
+    if 'experiments/' in model_args.model_name_or_path:
+        from llava.action.ek_eval import prepare_llava
+        _, model, _, _ = prepare_llava(model_args.model_name_or_path)
+
     trainer = LLaVATrainer(model=model, 
                            tokenizer = tokenizer, 
                            eval_args = eval_args, 
