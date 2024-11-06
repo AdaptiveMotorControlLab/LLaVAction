@@ -161,7 +161,7 @@ def generate_label_map(anno_root, action_representation, cache_file = None):
 
 
 
-def format_task_related_prompt(option_list, question_type):
+def format_task_related_prompt(question, question_type):
     """
     Task related prompt is impacted by the question_type.
     We currently support mc_{action_representation} and gpt-gt-reason
@@ -169,22 +169,24 @@ def format_task_related_prompt(option_list, question_type):
     """
 
     if question_type.startswith("mc_"):
-        action_rep_suffix = "Given multiple choices, format your answer as the 'option letter. option_name' such as 'A. move knife' where A is the option letter and knife is the option_name."              
+        action_rep_suffix = "Given multiple choices, format your answer briefly such as 'A. move knife'"              
         prefix = f"The video is taken from egocentric view. What action is the person performing? {action_rep_suffix}\n"
-        assert isinstance(option_list, list)
-        suffix = ",".join(option_list)
-        suffix = "Here are the options you are tasked:\n" + suffix 
+        assert isinstance(question, list)
+        suffix = ",".join(question)
+        suffix = "Here are the options you are tasked :\n" + suffix 
         ret = prefix + suffix
     elif question_type == "gpt-gt-reason":
-        ret = "The video is taken from egocentric view. What action is the person performing? Please explain your reasoning steps before reaching to your answer."    
+        ret = "The video is taken from egocentric view. What action is the person performing? Please explain your reasoning steps before reaching to your answer."
+    elif question_type == "gpt-gt-instruct-reason":
+        ret = question
     elif question_type == "cot_mc":
         """
         Explain the reasoning first and do the multiple-choice.        
         """
         action_rep_suffix = "Given multiple choices, explain your reasoning steps before you reach to your answer."              
         prefix = f"The video is taken from egocentric view. What action is the person performing? {action_rep_suffix}\n"
-        assert isinstance(option_list, list)
-        suffix = ",".join(option_list)  
+        assert isinstance(question, list)
+        suffix = ",".join(question)  
         suffix = "Here are the options you are tasked:\n" + suffix 
         ret = prefix + suffix  
     else:
@@ -208,7 +210,7 @@ def format_time_instruction(video_duration, n_frames, include_frame_time = False
 
 
 def format_llava_prompt(image_token, 
-                        option_list, 
+                        question, 
                         video_duration,
                         n_frames,
                         question_type,
@@ -221,7 +223,7 @@ def format_llava_prompt(image_token,
 
     """
 
-    task_related_prompt = format_task_related_prompt(option_list, question_type)
+    task_related_prompt = format_task_related_prompt(question, question_type)
 
     time_instruction =  format_time_instruction(video_duration, n_frames, include_frame_time)
 

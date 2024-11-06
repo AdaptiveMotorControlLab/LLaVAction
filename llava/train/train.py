@@ -1264,18 +1264,22 @@ class LazySupervisedDataset(Dataset):
                 else:
                     # We use our own prompting logic when it's EK100
                     # We turn a string of list to a python list
-                    options = eval(sources[0]["conversations"][0]["value"])
-                    assert isinstance(options, list)
-                    assert len(options) == self.eval_args.topk_predictions, f"len(options) = {len(options)} !=  {self.eval_args.topk_predictions}"
+                    question_type = sources[0]['question_type']
+                    question = sources[0]["conversations"][0]["value"]
+                    if question_type.startswith('mc_'):
+                        question = eval(question)
+                        assert isinstance(question, list)
+                        assert len(question) == self.eval_args.topk_predictions, f"len(options) = {len(question)} !=  {self.eval_args.topk_predictions}"
                     # We only store the option list in the annotation file to make it easier to use consistent prompting
                     llava_prompt = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
-                                                 options,
+                                                 question,
                                                  video_time,
                                                  num_frames_to_sample,
-                                                 sources[0]['question_type'],
+                                                 question_type,
                                                  include_time_instruction= self.data_args.add_time_instruction,
                                                  include_frame_time = False)
                     sources[0]["conversations"][0]["value"] = llava_prompt
+                    rank0_print (sources[0])
                 image = [(image, video[0].size, "video")]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
                 # print(sources)
