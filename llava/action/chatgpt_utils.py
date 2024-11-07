@@ -745,6 +745,10 @@ def convert_json_to_jsonl(path):
 
     with open(path.replace('.json', '.jsonl'), 'w') as f:
         for k,v in data.items():
+            conversations = v['conversations']
+            if isinstance(conversations[1]['value'], dict):
+                new_value = conversations[1]['value']['caption_with_reasoning']
+                conversations[1]['value'] = new_value                   
             json.dump(v, f)
             f.write('\n')
 
@@ -820,10 +824,13 @@ def convert_instruct_json_to_jsonl(path, apply_filter = False):
             temp_3['conversations'][0]['value'] = third_question
             temp_3['conversations'][1]['value'] = third_answer
 
+            temps = [temp_1, temp_2, temp_3]
+
             if apply_filter:
                 if 'disagree_with_human_annotation' in v['conversations'][1]['value'] and v['conversations'][1]['value']['disagree_with_human_annotation'] is True:
-                    continue                  
-                ret.append(temp_1)
+                    continue   
+                random_index = np.random.randint(0, 3)               
+                ret.append(temps[random_index])
             else:
                 ret.append(temp_1)
                 ret.append(temp_2)
@@ -882,8 +889,10 @@ if __name__ == '__main__':
     # ann = GPTHandObjectAnnotator(train_file_path, debug = False)
     # ann.multi_process_run(n_samples = -1)
 
-    #convert_json_to_jsonl('train_anno_gpt-gt-reason_4_first_person_all.json')
+    convert_json_to_jsonl('train_anno_gpt-gt-reason_4_first_person_all.json')
 
     #calc_disagree_ratio_from_jsonl('train_anno_gpt-gt-reason_4_first_person_all.jsonl')
 
-    convert_instruct_json_to_jsonl('train_anno_gpt-hand-object_all.json', apply_filter = True)
+    #convert_instruct_json_to_jsonl('train_anno_gpt-hand-object_all.json', apply_filter = True)
+
+    #convert_instruct_json_to_jsonl('train_anno_gpt-gt-instruct-reason_4_first_person_all.json', apply_filter = True)
