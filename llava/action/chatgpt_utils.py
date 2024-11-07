@@ -8,7 +8,11 @@ from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
 from llava.action.utils import AvionMultiChoiceGenerator
 from llava.action.utils import avion_video_loader, avion_video_render_loader
-
+import copy 
+import torch
+import io
+import numpy as np 
+import base64
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -84,30 +88,23 @@ class GPTReasoningWithGTPrompt:
     @classmethod
     def generate_prompt(cls, start_second, end_second, option_text, gt_answer):
         prompt = f"""
-You are seeing video frames from an egocentric view of a person. The person is interacting with objects in a kitchen.
-Describe the action the person is performing but do not say you see the person as you can only see the person's hands.
-You can say something that the video is showing the egocentric view of person doing something.
-Pay attention to the objects the person's hands are interacting.
-The true ground-truth action is {gt_answer}. However, I want you to come to your ownconclusion from your own observation and show your reasoning steps. Make sure it matches the ground-truth action.
-Your reasoning steps should include supporting evidences for the action. Useful evidences include the duration of the video, the objects the person is interacting with, and the context of the video. 
+You are viewing video frames from an egocentric perspective of a person interacting with objects in a kitchen. Describe the video frames in detail and reason about the actions the person is performing. You will be provided with the human-annotated ground-truth for the action, but you should independently come to your own conclusion.
+If you disagree with the human annotation, indicate "true" in the "disagree_with_human_annotation" field of your response, and provide your reasoning without mentioning the ground-truth answer. This will keep your reasoning clean. If you agree with the human annotation, indicate "false" in the "disagree_with_human_annotation" field and provide your reasoning without referencing the ground-truth to maintain a clean description.
+Pay close attention to the objects the person's hands are interacting with.
+The true ground-truth action is {gt_answer}.
+Your reasoning steps should include supporting evidence for the action, such as the duration of the video, the sequence of actions the person performs, the objects they interact with, and the overall context of the video.
+As a general guideline, for videos longer than 3 seconds, provide detailed reasoning steps, and for videos shorter than 3 seconds, generate less detailed reasoning.
 The video duration is {end_second - start_second:.3f} seconds.
 """
         print (prompt)
         return prompt    
 
-
-class GT_Agnostic_Response(BaseModel):
-    """
-    The GT was not known. The response is to generate a new answer
-    """
-    explanation: str
-    answer: str
-
 class GT_Augmentation_Response(BaseModel):
     """
     The GT was known. The response is to add more information to the GT
     """
-    explanation: str
+    caption_with_reasoning: str
+    disagree_with_human_annotation: bool
 
 
 class ExpandReasonMCResponse(BaseModel):
@@ -496,7 +493,7 @@ class GPTAugmentationAnnotator(ChatGPT):
 
         sample_suffix = 'all' if n_samples == -1 else str(n_samples)
 
-        num_cores = os.cpu_count() if not self.debug else 2
+        num_cores = os.cpu_count() * 2 if not self.debug else 2
         indices_groups = self.split_indices(indices, num_cores)
         with ProcessPoolExecutor(max_workers=num_cores) as executor:
             # Pass additional arguments to the function
@@ -530,7 +527,7 @@ class GPTAugmentationAnnotator(ChatGPT):
             parsed_item = self.parse_conversation_from_train_convs(item)
             try:
                 if self.anno_type == 'gpt-gt-reason':
-                    gpt_answer = self.annotate(frames, parsed_item).explanation
+                    gpt_answer = dict(self.annotate(frames, parsed_item))
                 elif self.anno_type == 'gpt-gt-instruct-reason':
                     gpt_answer = dict(self.annotate(frames, parsed_item))
             except Exception as e:
@@ -540,8 +537,9 @@ class GPTAugmentationAnnotator(ChatGPT):
             item['conversations'][1]['value'] = gpt_answer
             item['question_type'] = self.anno_type
             ret[index] = item
+            print (item)
             if self.debug:
-                print (item)
+                
                 break
 
         return ret       
@@ -578,14 +576,19 @@ class GPTAugmentationAnnotator(ChatGPT):
         return response.choices[0].message.parsed
     
 
-def multi_process_annotate(train_file_path, root, debug = False, anno_type = 'gpt-gt-reason', n_samples = -1):
+def multi_process_annotate(train_file_path, 
+                            root, 
+                            debug = False, 
+                            clip_length = 4,
+                            anno_type = 'gpt-gt-reason', 
+                            n_samples = -1):
     annotator = GPTAugmentationAnnotator(train_file_path, 
     root, 
-    clip_length = 4,
+    clip_length = clip_length,
     debug = debug,
     anno_type = anno_type)
 
-    results = annotator.multi_process_run(n_samples = n_samples)
+    annotator.multi_process_run(n_samples = n_samples)
 
 def multi_process_inference(root,
                             annotation_file, 
@@ -643,6 +646,73 @@ def convert_json_to_jsonl(path):
         for k,v in data.items():
             json.dump(v, f)
             f.write('\n')
+def convert_instruct_json_to_jsonl(path):
+    """
+    We split multiple-question answer into multiple lines in the jsonl format. An example of such a json
+    "2": {
+        "video": "P01-P01_01",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "['A. open tap', 'B. pick up knife', 'C. turn off tap', 'D. open drawer', 'E. open cupboard']"
+            },
+            {
+                "from": "gpt",
+                "value": {
+                    "first_question": "What action is the person performing in the video?",
+                    "first_answer": "The person is pulling a drawer open inside a refrigerator.",
+                    "second_question": "What evidence suggests that the person is opening a drawer?",
+                    "second_answer": "The movement of the drawer outward and the person's hand gripping the handle indicate that the person is opening the drawer.",
+                    "third_question": "What is the duration of the action shown in the video?",
+                    "third_answer": "The action of opening the drawer is shown in a short duration of 1.230 seconds."
+                }
+            }
+        ],
+        "id": "P01-P01_01",
+        "split": "train",
+        "task_instruction": "",
+        "num_samples": 1,
+        "question_type": "gpt-gt-instruct-reason",
+        "dataset_name": "EK100",
+        "start_timestamp": 24.97,
+        "end_timestamp": 26.2}
+    """
+    with open(path, 'r') as f:
+        data = json.load(f)
+    ret = []
+    with open(path.replace('.json', '.jsonl'), 'w') as f:
+        for k,v in data.items():
+            temp_1 = copy.deepcopy(v)
+            temp_2 = copy.deepcopy(v)
+            temp_3 = copy.deepcopy(v)
+            
+            conversations = v['conversations']
+            first_question = conversations[1]['value']['first_question']
+            first_answer = conversations[1]['value']['first_answer']
+
+            temp_1['conversations'][0]['value'] = first_question
+            temp_1['conversations'][1]['value'] = first_answer
+
+            second_question = conversations[1]['value']['second_question']
+            second_answer = conversations[1]['value']['second_answer']
+
+            temp_2['conversations'][0]['value'] = second_question
+            temp_2['conversations'][1]['value'] = second_answer
+
+            third_question = conversations[1]['value']['third_question']
+            third_answer = conversations[1]['value']['third_answer']
+
+            temp_3['conversations'][0]['value'] = third_question
+            temp_3['conversations'][1]['value'] = third_answer
+
+            ret.append(temp_1)
+            ret.append(temp_2)
+            ret.append(temp_3)
+             
+        for item in ret:
+            json.dump(item, f)
+            f.write('\n')
+    
 
 if __name__ == '__main__':    
 
@@ -663,10 +733,14 @@ if __name__ == '__main__':
     #root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
     #train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
 
-    train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/train_anno_gpt-gt-reason_4_all.jsonl'
-    
-    root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
-    multi_process_annotate(train_file_path, root, debug = False, n_samples = -1, anno_type = 'gpt-gt-instruct-reason')
+    #train_file_path = '/data/epic_kitchen/shaokai_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_all.jsonl'
+    train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
+    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+    multi_process_annotate(train_file_path, 
+                    root, 
+                    debug = True, 
+                    clip_length = 8,
+                    n_samples = -1, anno_type = 'gpt-gt-reason')
 
     # multi_process_inference(root, 
     #                         val_file, 
@@ -679,3 +753,5 @@ if __name__ == '__main__':
 
 
     # convert_json_to_jsonl('train_anno_gpt-gt-reason_4_10000.json')
+
+    #convert_instruct_json_to_jsonl('train_anno_gpt-gt-instruct-reason_4_all.json')
