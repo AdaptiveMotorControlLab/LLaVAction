@@ -161,30 +161,35 @@ def generate_label_map(anno_root, action_representation, cache_file = None):
 
 
 
-def format_task_related_prompt(question, question_type):
+def format_task_related_prompt(question, question_type, perspective = "first_person"):
     """
     Task related prompt is impacted by the question_type.
     We currently support mc_{action_representation} and gpt-gt-reason
     We are thinking about tweaking the prompt based on the action representation.
     """
-
+    if perspective == "first_person":
+        perspective_prefix = "You are seeing this video from egocentric view and your hands are sometimes interacting with obects. What action are you performing? "
+    elif perspective == "third_person":
+        perspective_prefix = "The video is taken from egocentric view. What action is the person performing? "
     if question_type.startswith("mc_"):
-        action_rep_suffix = "Given multiple choices, format your answer briefly such as 'A. move knife'"              
-        prefix = f"The video is taken from egocentric view. What action is the person performing? {action_rep_suffix}\n"
+        action_rep_suffix = "Given multiple choices, format your answer briefly such as 'A. move knife'. "              
+        prefix = f"{perspective_prefix}{action_rep_suffix}\n"
         assert isinstance(question, list)
         suffix = ",".join(question)
-        suffix = "Here are the options you are tasked :\n" + suffix 
+        suffix = "Here are the options you are tasked:\n" + suffix 
         ret = prefix + suffix
     elif question_type == "gpt-gt-reason":
-        ret = "The video is taken from egocentric view. What action is the person performing? Please explain your reasoning steps before reaching to your answer."
+        ret = f"{perspective_prefix}Please explain your reasoning steps before reaching to your answer. "
     elif question_type == "gpt-gt-instruct-reason":
+        ret = question
+    elif question_type == "gpt-hand-object":
         ret = question
     elif question_type == "cot_mc":
         """
         Explain the reasoning first and do the multiple-choice.        
         """
-        action_rep_suffix = "Given multiple choices, explain your reasoning steps before you reach to your answer."              
-        prefix = f"The video is taken from egocentric view. What action is the person performing? {action_rep_suffix}\n"
+        action_rep_suffix = "Given multiple choices, explain your reasoning steps before you reach to your answer. "              
+        prefix = f"{perspective_prefix} {action_rep_suffix}\n"
         assert isinstance(question, list)
         suffix = ",".join(question)  
         suffix = "Here are the options you are tasked:\n" + suffix 
@@ -197,14 +202,14 @@ def format_task_related_prompt(question, question_type):
 
 def format_time_instruction(video_duration, n_frames, include_frame_time = False):
 
-    prefix = f"You are seeing a video taken from egocentric view. The video lasts for {video_duration:.2f} seconds, and {n_frames} frames are uniformly sampled from it."
+    prefix = f"You are seeing a video taken from egocentric view. The video lasts for {video_duration:.3f} seconds, and {n_frames} frames are uniformly sampled from it."
 
     frame_time = [i * (video_duration / n_frames) for i in range(n_frames)]
     frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
     
     suffix = ""
     if include_frame_time:
-        suffix = f"These frames are located at {frame_time}. The video duration is {video_duration:.2f} seconds."
+        suffix = f"These frames are located at {frame_time}. The video duration is {video_duration:.3f} seconds. "
     
     return prefix + suffix
 

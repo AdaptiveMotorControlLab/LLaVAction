@@ -36,52 +36,38 @@ class ExpandReasonMCPrompt:
 
         reason_mc_string = gt_answer 
 
-        prompt = f"""Your job is to create 3 question and answer pairs based on the text below.
-        {reason_mc_string}
-        Example questions you can ask include. Note you are not limited to these questions:
-        What object the person is interacting with?
-        What objects are visible in the video?
-        What is the sequence of the atomic actions that the person is performing?
-        Make sure your only ask questions that can be answered with enough grounding in the text.
+        prompt = f"""Your job is to create 3 question-answer pairs based on the text below. The text contains a first-person narrative of video frames from an egocentric perspective of a person interacting with objects in a kitchen.
+{reason_mc_string}
+You can ask questions such as:
+What object am I interacting with?
+What objects are visible in the video?
+What is the sequence of the atomic actions I am performing?
+
+Make sure your questions can be answered based on the information provided in the text. Do not ask questions that require additional context or information beyond what is given.
 
         """
         return prompt
 
 
-class LLaVAWrongAnswerAwarePrompt:
-    """
-    The prompt for the annotation
-    """
+class GPTHandObjectPrompt:
     @classmethod
-    def generate_prompt(cls, start_second, end_second, option_text, gt_answer):
-        prompt = f"""
-You are seeing video frames from an egocentric view of a person. 
-Please talk as if you are the person in the video and describe what action you are performing.
-To assist you for how to describe the action, the video's start time is {start_second} and the end time is {end_second} and the duration is {end_second - start_second} seconds.
+    def generate_prompt(cls, left_hand_state, right_hand_state, gt_narration):
+        prompt = f""" 
+You are a helpful AI assistant, and you will assist in creating question-answer pairs.
+I will provide you with the state of the left hand and the right hand, as well as the ground-truth narration.
+For the hand states:
+- -1 denotes the hand is not visible
+- 0 denotes the hand is visible but not interacting with objects
+- 1 denotes the hand is interacting with another hand
+- 3 denotes the hand is interacting with a portable object
+- 4 denotes the hand is interacting with a stationary object
 
-To further assist you for how to describe the action, note that in a multi-choice video question answering, you were given following options {option_text} and the correct answer is {gt_answer}.
-In addition to describe what you see, describe why wrong answers were wrong and why right answer was right.
-When you explain why wrong answers were wrong and why right answer was right, you should use the following flow of reasoning:
-
-The flow of reasoning:
-1. What objects need to be visible to support the answer?
-2. Whether the duration in time supports that answer?
-
-Based on the answers above, why right answer is right and why wrong answers were wrong."""
-        return prompt   
-
-
-class GPTReasoningWithoutGTPrompt:
-    """
-    The perhaps simplest reasoning explanation.
-    """
-    @classmethod
-    def generate_prompt(cls, start_second, end_second, option_text, gt_answer):
-        prompt = f"""
-You are seeing video frames from an egocentric view of a person. The person is interacting with objects in a kitchen.
-Describe the action the person is performing. Pay attention to the objects the person's hands are interacting.
-Explain in details what are the supporting evidences for the action. Useful evidences include the duration of the video, the objects the person is interacting with, and the context of the video. 
-"""
+The state for the left hand is {left_hand_state}, and the state for the right hand is {right_hand_state}.
+Using this information, create 3 question-answer pairs. Pretend you are seeing an image from a first-person perspective and can see your hands and the objects you are interacting with.
+Do not ask questions about the action, as you are viewing an image and not a video.
+Do not describe what the object is, only mention whether it's portable or stationary.
+Ask and answer the questions in the first-person perspective.
+        """
         return prompt
 
 class GPTReasoningWithGTPrompt:
@@ -95,6 +81,7 @@ The true ground-truth action is {gt_answer}.
 Your reasoning steps should include supporting evidence for the action, such as the duration of the video, the sequence of actions the person performs, the objects they interact with, and the overall context of the video.
 As a general guideline, for videos longer than 3 seconds, provide detailed reasoning steps, and for videos shorter than 3 seconds, generate less detailed reasoning.
 The video duration is {end_second - start_second:.3f} seconds.
+Make sure you use the first-person perspective in your reasoning.
 """
         print (prompt)
         return prompt    
@@ -106,6 +93,17 @@ class GT_Augmentation_Response(BaseModel):
     caption_with_reasoning: str
     disagree_with_human_annotation: bool
 
+
+class GPTHandObjectResponse(BaseModel):
+    """
+    The response for the GPTHandObjectPrompt
+    """
+    first_question: str
+    first_answer: str
+    second_question: str
+    second_answer: str
+    third_question: str
+    third_answer: str
 
 class ExpandReasonMCResponse(BaseModel):
     """
@@ -119,12 +117,14 @@ class ExpandReasonMCResponse(BaseModel):
     third_answer: str
 
 PROMPT_FACTORY = {'gpt-gt-reason': GPTReasoningWithGTPrompt,
-                   'gpt-gt-instruct-reason': ExpandReasonMCPrompt}
+                   'gpt-gt-instruct-reason': ExpandReasonMCPrompt,
+                   'gpt-hand-object': GPTHandObjectPrompt}
 
 REQUIRES_VIS = set(['gpt-gt-reason'])
 
 RESPONSE_FACTORY = {'gpt-gt-reason': GT_Augmentation_Response,
-                    'gpt-gt-instruct-reason': ExpandReasonMCResponse}
+                    'gpt-gt-instruct-reason': ExpandReasonMCResponse,
+                    'gpt-hand-object': GPTHandObjectResponse}
 
 class ChatGPT:
     """
@@ -436,6 +436,108 @@ class GPTInferenceAnnotator(ChatGPT):
 
         return response.choices[0].message.parsed
 
+class GPTHandObjectAnnotator(ChatGPT):
+    """
+    No need to see the video frames. Just annotate the hand and object
+    """
+    def __init__(self, ann_file, debug = False):
+        super().__init__()
+        self.ann_file = ann_file
+        self.anno_type = 'gpt-hand-object'
+        self.data = []
+        self.debug = debug
+        with open(ann_file, 'r') as f:
+            for line in f:
+                self.data.append(json.loads(line))
+
+    def parse_conversation_from_train_convs(self, item):
+        """
+        The item has the structure of convs defined in the train anno.
+        """
+        left_hand_state = item['left_hand_state']
+        right_hand_state = item['right_hand_state']
+        gt_narration = item['narration']
+
+        ret = {'left_hand_state': left_hand_state,
+               'right_hand_state': right_hand_state,
+               'gt_narration': gt_narration}
+        
+        return ret 
+
+    def run(self, indices):
+
+        ret = {}
+        for index in tqdm(indices):
+            item = self.data[index]                       
+            parsed_item = self.parse_conversation_from_train_convs(item)
+            print ('gt_narration', parsed_item['gt_narration'])          
+            try:
+                gpt_answer = dict(self.annotate(parsed_item))               
+            except Exception as e:
+                print ("An exception occurred: ", e)
+                continue
+            conversations = [{'from': 'human', 'value':''}, {'from': 'gpt', 'value': ''}]
+            item['conversations'] = conversations                
+            item['conversations'][1]['value'] = gpt_answer
+            item['question_type'] = self.anno_type
+            ret[index] = item
+            print (item)          
+            if self.debug:                
+                break
+
+        return ret
+
+    def annotate(self, data_item):
+        """
+        Assuming that data_item already has the multi-choice options and the gt_answer
+        """
+        gt_narration = data_item['gt_narration']
+        left_hand_state = data_item['left_hand_state']
+        right_hand_state = data_item['right_hand_state']
+        temperature = 0
+        system_prompt = GPTHandObjectPrompt.generate_prompt(left_hand_state, right_hand_state, gt_narration)       
+        system_message =  [{"role": "system", "content": system_prompt}]
+       
+        user_message = [{"role": "user", "content": ""}]
+
+        response = client.beta.chat.completions.parse(
+            model=GPT_MODEL,
+            messages=system_message + user_message, 
+            response_format = RESPONSE_FACTORY[self.anno_type],
+            temperature = temperature
+        )
+
+        total_cost = self.calculate_cost(response)
+        ret = response.choices[0].message.parsed        
+        return ret 
+
+    def multi_process_run(self, n_samples = -1):
+        if n_samples == -1:
+            indices = list(range(len(self.data)))
+        else:
+            indices = list(range(n_samples))[:n_samples]
+
+        sample_suffix = 'all' if n_samples == -1 else str(n_samples)
+
+        num_cores = os.cpu_count() * 2 if not self.debug else 2
+        indices_groups = self.split_indices(indices, num_cores)
+        with ProcessPoolExecutor(max_workers=num_cores) as executor:
+            # Pass additional arguments to the function
+            futures = [executor.submit(self.run, group) for group in indices_groups]
+            
+            # Wait for all futures to complete
+            combined_results = {}
+            for future in futures:
+                result_dict = future.result()
+                combined_results.update(result_dict)
+
+        if self.debug:
+            self.checkpoint(combined_results, 'train_anno_debug.json')
+        else:
+            self.checkpoint(combined_results, f"train_anno_{self.anno_type}_{sample_suffix}.json")
+        print ('finished the annotation')
+        return combined_results
+
 
 class GPTAugmentationAnnotator(ChatGPT):
     """
@@ -513,7 +615,6 @@ class GPTAugmentationAnnotator(ChatGPT):
         return combined_results
 
     def run(self, indices):
-
         ret = {}
         for index in tqdm(indices):
             item = self.data[index]
@@ -646,7 +747,21 @@ def convert_json_to_jsonl(path):
         for k,v in data.items():
             json.dump(v, f)
             f.write('\n')
-def convert_instruct_json_to_jsonl(path):
+
+def calc_disagree_ratio_from_jsonl(path):
+    # note it's a jsonl file
+    with open(path, 'r') as f:
+        data = [json.loads(line) for line in f]
+    
+    disagree_count = 0
+    for item in data:
+        if item['conversations'][1]['value']['disagree_with_human_annotation']:
+            print (item)
+            disagree_count += 1
+    
+    print ('disagree ratio', disagree_count / len(data))
+
+def convert_instruct_json_to_jsonl(path, apply_filter = False):
     """
     We split multiple-question answer into multiple lines in the jsonl format. An example of such a json
     "2": {
@@ -705,9 +820,14 @@ def convert_instruct_json_to_jsonl(path):
             temp_3['conversations'][0]['value'] = third_question
             temp_3['conversations'][1]['value'] = third_answer
 
-            ret.append(temp_1)
-            ret.append(temp_2)
-            ret.append(temp_3)
+            if apply_filter:
+                if 'disagree_with_human_annotation' in v['conversations'][1]['value'] and v['conversations'][1]['value']['disagree_with_human_annotation'] is True:
+                    continue                  
+                ret.append(temp_1)
+            else:
+                ret.append(temp_1)
+                ret.append(temp_2)
+                ret.append(temp_3)
              
         for item in ret:
             json.dump(item, f)
@@ -734,13 +854,16 @@ if __name__ == '__main__':
     #train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
 
     #train_file_path = '/data/epic_kitchen/shaokai_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_all.jsonl'
-    train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
-    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-    multi_process_annotate(train_file_path, 
-                    root, 
-                    debug = True, 
-                    clip_length = 8,
-                    n_samples = -1, anno_type = 'gpt-gt-reason')
+    # train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
+
+    # train_file_path = '/data/epic_kitchen/shaokai_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_first_person_all.jsonl'
+    # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+    # multi_process_annotate(train_file_path, 
+    #                 root, 
+    #                 debug = False, 
+    #                 clip_length = 4,
+    #                 n_samples = -1, 
+    #                 anno_type = 'gpt-gt-instruct-reason')
 
     # multi_process_inference(root, 
     #                         val_file, 
@@ -751,7 +874,16 @@ if __name__ == '__main__':
     #                         topk = 5,
     #                         n_samples = 100)
 
-
     # convert_json_to_jsonl('train_anno_gpt-gt-reason_4_10000.json')
 
     #convert_instruct_json_to_jsonl('train_anno_gpt-gt-instruct-reason_4_all.json')
+
+    # train_file_path = '/data/epic_kitchen/haozhe/handobj_imageset/train/EPIC_100_handobj_imageset_train_8.jsonl'
+    # ann = GPTHandObjectAnnotator(train_file_path, debug = False)
+    # ann.multi_process_run(n_samples = -1)
+
+    #convert_json_to_jsonl('train_anno_gpt-gt-reason_4_first_person_all.json')
+
+    #calc_disagree_ratio_from_jsonl('train_anno_gpt-gt-reason_4_first_person_all.jsonl')
+
+    convert_instruct_json_to_jsonl('train_anno_gpt-hand-object_all.json', apply_filter = True)
