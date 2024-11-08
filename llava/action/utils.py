@@ -168,18 +168,18 @@ def format_task_related_prompt(question, question_type, perspective = "first_per
     We are thinking about tweaking the prompt based on the action representation.
     """
     if perspective == "first_person":
-        perspective_prefix = "You are seeing this video from egocentric view and your hands are sometimes interacting with obects. What action are you performing? "
+        perspective_prefix = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with obects. What action are you performing? "
     elif perspective == "third_person":
         perspective_prefix = "The video is taken from egocentric view. What action is the person performing? "
     if question_type.startswith("mc_"):
         action_rep_suffix = "Given multiple choices, format your answer briefly such as 'A. move knife'. "              
         prefix = f"{perspective_prefix}{action_rep_suffix}\n"
         assert isinstance(question, list)
-        suffix = ",".join(question)
-        suffix = "Here are the options you are tasked:\n" + suffix 
+        suffix = ", ".join(question)
+        suffix = "Here are the options of actions you are selecting:\n" + suffix 
         ret = prefix + suffix
     elif question_type == "gpt-gt-reason":
-        ret = f"{perspective_prefix}Please explain your reasoning steps before reaching to your answer. "
+        ret = f"{perspective_prefix}Describe in details what you see from the video frames."
     elif question_type == "gpt-gt-instruct-reason":
         ret = question
     elif question_type == "gpt-hand-object":
@@ -188,11 +188,11 @@ def format_task_related_prompt(question, question_type, perspective = "first_per
         """
         Explain the reasoning first and do the multiple-choice.        
         """
-        action_rep_suffix = "Given multiple choices, explain your reasoning steps before you reach to your answer. "              
+        action_rep_suffix = "Describe what you see in details. Afterwards, briefly format your answer such as 'A. move knife'. "              
         prefix = f"{perspective_prefix} {action_rep_suffix}\n"
         assert isinstance(question, list)
-        suffix = ",".join(question)  
-        suffix = "Here are the options you are tasked:\n" + suffix 
+        suffix = ", ".join(question)  
+        suffix = "Here are the options of choices you are selecting:\n" + suffix 
         ret = prefix + suffix  
     else:
         raise NotImplementedError(f"question_type: {question_type} is not supported")      
@@ -202,10 +202,10 @@ def format_task_related_prompt(question, question_type, perspective = "first_per
 
 def format_time_instruction(video_duration, n_frames, include_frame_time = False):
 
-    prefix = f"You are seeing a video taken from egocentric view. The video lasts for {video_duration:.3f} seconds, and {n_frames} frames are uniformly sampled from it."
+    prefix = f"The provided video lasts for {video_duration:.3f} seconds, and {n_frames} frames are uniformly sampled from it."
 
     frame_time = [i * (video_duration / n_frames) for i in range(n_frames)]
-    frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
+    frame_time = ", ".join([f"{i:.2f}s" for i in frame_time])
     
     suffix = ""
     if include_frame_time:
@@ -671,7 +671,7 @@ def avion_video_render_loader(root, handobj_root, vid, ext, second, end_second,
     all_frame_ids = np.concatenate(all_frame_ids, axis = 0)
     frame_time = [e/fps for e in all_frame_ids]
     frame_time-= frame_time[0]
-    frame_time = ",".join([f"{i:.2f}s" for i in frame_time])
+    frame_time = ", ".join([f"{i:.2f}s" for i in frame_time])
     time_meta['frame_time'] = frame_time
     assert res.shape[0] == clip_length, "{}, {}, {}, {}, {}, {}, {}".format(root, vid, second, end_second, res.shape[0], rel_frame_ids, frame_ids)
     return res, time_meta

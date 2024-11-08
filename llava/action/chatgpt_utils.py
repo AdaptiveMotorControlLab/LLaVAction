@@ -7,12 +7,17 @@ import json
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
 from llava.action.utils import AvionMultiChoiceGenerator
-from llava.action.utils import avion_video_loader, avion_video_render_loader
+from llava.action.utils import avion_video_loader, avion_video_render_loader, generate_label_map
+from llava.action.dataset import datetime2sec
+from llava.action.ek_eval import process_raw_pred
+import csv
 import copy 
 import torch
 import io
 import numpy as np 
 import base64
+from pathlib import Path
+
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -92,6 +97,12 @@ class GT_Augmentation_Response(BaseModel):
     """
     caption_with_reasoning: str
     disagree_with_human_annotation: bool
+
+class GT_Agnostic_Response(BaseModel):
+    """
+    The GT was known. The response is to add more information to the GT
+    """
+    answer: str
 
 
 class GPTHandObjectResponse(BaseModel):
@@ -265,6 +276,7 @@ class GPTInferenceAnnotator(ChatGPT):
                  handobj_root = None,
                  clip_length = 4, 
                  action_representation = 'GT_random_narration',
+                 question_type = 'cot_mc',
                  debug = False,
                  topk = 10,
                  ):
@@ -281,6 +293,7 @@ class GPTInferenceAnnotator(ChatGPT):
         self.annotation_file = annotation_file
         self.avion_prediction_file = avion_prediction_file     
         self.handobj_root = handobj_root
+        self.question_type = question_type
         self.annotation_root = Path(annotation_file).parent
         self.action_representation = action_representation
         self.labels, self.mapping_vn2narration, self.mapping_vn2act, self.verb_maps, self.noun_maps = generate_label_map(self.annotation_root,                                                                                           
@@ -323,9 +336,8 @@ class GPTInferenceAnnotator(ChatGPT):
 
             options = mc_data['options'][0]
 
-            option_string = ','.join(options)
             ret[idx] = {
-                'options': option_string,
+                'options': options,
                 'gt_answer': narration,
                 'start_second': start_second,
                 'end_second': end_second,
@@ -380,14 +392,13 @@ class GPTInferenceAnnotator(ChatGPT):
             except Exception as e:
                 print ("An exception occurred: ", e)
             predicted_answer = parsed_answer.answer
-            explanation = parsed_answer.explanation
-            print (explanation)
+            print (predicted_answer)
             gt_name = v['gt_answer']
             ret[k] = {
                 'gt_name': gt_name,
-                'chatgpt_answer': predicted_answer,
-                'explanation': explanation
+                'chatgpt_answer': process_raw_pred(predicted_answer),
             }
+            print (ret)
             if self.debug:
                 break
         if indices is None:
@@ -401,24 +412,26 @@ class GPTInferenceAnnotator(ChatGPT):
     def predict_images(self, images, parsed_item):
         """
         Predict the action from the images
-        """        
-        option_text = parsed_item['options']
+        """
+        from llava.action.utils import format_task_related_prompt
+        options = parsed_item['options']
         start_second = 0
         end_second = parsed_item['end_second'] - parsed_item['start_second']
         temperature = 0
-        duration = end_second - start_second
+        video_duration = end_second - start_second
+        n_frames = len(images)
 
-        system_prompt = f"""
-        You are seeing video frames from an egocentric view of a person. Pretend that you are the person.  Your task is to describe what action you are performing.
-        To assist you for how to describe the action, the video's start time is {start_second} and the end time is {end_second:.3f} and the duration is {duration:.3f} seconds.
-        You were given multiple choice options {option_text}. Pick the correct one and put that into the answer. Note in the answer do not include the option letter, just the name of the action.        
-        """
+        task_related_prompt = format_task_related_prompt(options, self.question_type, perspective = 'first_person')
+
+        time_instruction = f"The provided video lasts for {video_duration:.3f} seconds, and {n_frames} frames are uniformly sampled from it. "
+
+        system_prompt = time_instruction + task_related_prompt
+     
+        print (system_prompt)
 
         if self.handobj_root is not None:
             system_prompt += f"""To further assist you, we mark hands and object when they are visible. The left hand is marked with a bounding box that contains letter L and the right hand's bounding box contains letter R. The object is marked as 'O'."""
         
-        system_prompt += f"""Before giving the answer, explain why the correct answer is correct and why the other options are incorrect. You must pay attention to the hands and objects to support your reasoning when they are present."""
-
 
         system_message =  [{"role": "system", "content": system_prompt}]
 
@@ -574,7 +587,7 @@ class GPTAugmentationAnnotator(ChatGPT):
         """
         conversations = item['conversations']
         human_dict = conversations[0]
-        option_text = ','.join(eval(human_dict['value']))        
+        option_text = ', '.join(eval(human_dict['value']))        
         gpt_dict = conversations[1]
         gt_answer = gpt_dict['value']
         print ('gt_answer', gt_answer)
@@ -688,31 +701,6 @@ def multi_process_annotate(train_file_path,
     clip_length = clip_length,
     debug = debug,
     anno_type = anno_type)
-
-    annotator.multi_process_run(n_samples = n_samples)
-
-def multi_process_inference(root,
-                            annotation_file, 
-                            avion_prediction_file,
-                            handobj_root = None,
-                            action_representation = 'GT_random_narration',
-                            clip_length = 4,
-                            topk = 5,                             
-                            debug = False,
-                            n_samples = -1
-                            ):
-
-    annotator = GPTInferenceAnnotator(root, 
-    annotation_file,
-    avion_prediction_file,
-    handobj_root = handobj_root,
-    clip_length = clip_length,
-    debug = debug,
-    action_representation = action_representation,
-    topk = topk)
-
-    # indices = list(range(len(annotator.data)))[:100]
-    # annotator.run()
 
     annotator.multi_process_run(n_samples = n_samples)
 
@@ -872,14 +860,22 @@ if __name__ == '__main__':
     #                 n_samples = -1, 
     #                 anno_type = 'gpt-gt-instruct-reason')
 
-    # multi_process_inference(root, 
-    #                         val_file, 
-    #                         avion_prediction_file,
-    #                         handobj_root = handobj_root,
-    #                         debug = False,
-    #                         clip_length = 8,
-    #                         topk = 5,
-    #                         n_samples = 100)
+    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+    val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'    
+
+
+    annotator = GPTInferenceAnnotator(root, 
+    val_file,
+    avion_prediction_file,
+    clip_length = 4,
+    debug = False,
+    action_representation = "GT_random_narration",
+    question_type = 'mc_GT_random_narration',
+    topk = 5)  
+
+    annotator.multi_process_run(n_samples = 100)
+
 
     # convert_json_to_jsonl('train_anno_gpt-gt-reason_4_10000.json')
 
@@ -889,7 +885,7 @@ if __name__ == '__main__':
     # ann = GPTHandObjectAnnotator(train_file_path, debug = False)
     # ann.multi_process_run(n_samples = -1)
 
-    convert_json_to_jsonl('train_anno_gpt-gt-reason_4_first_person_all.json')
+    # convert_json_to_jsonl('train_anno_gpt-gt-reason_4_first_person_all.json')
 
     #calc_disagree_ratio_from_jsonl('train_anno_gpt-gt-reason_4_first_person_all.jsonl')
 
