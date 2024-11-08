@@ -92,7 +92,7 @@ def prepare_llava(pretrained):
     device_map = "auto"
 
     overwrite_config = None
-    if 'video' in pretrained:
+    if 'video' in pretrained or 'Video' in pretrained:
         overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
 
 
