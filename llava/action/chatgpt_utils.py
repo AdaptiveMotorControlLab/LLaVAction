@@ -79,9 +79,9 @@ class GPTReasoningWithGTPrompt:
     @classmethod
     def generate_prompt(cls, start_second, end_second, option_text, gt_answer):
         prompt = f"""
-You are viewing video frames from an egocentric perspective of a person interacting with objects in a kitchen. Describe the video frames in detail and reason about the actions the person is performing. You will be provided with the human-annotated ground-truth for the action, but you should independently come to your own conclusion.
+You are viewing video frames from an egocentric perspective and you are the person. Describe the video frames in detail and reason about the actions you are performing. You will be provided with the human-annotated ground-truth for the action, but you should independently come to your own conclusion.
 If you disagree with the human annotation, indicate "true" in the "disagree_with_human_annotation" field of your response, and provide your reasoning without mentioning the ground-truth answer. This will keep your reasoning clean. If you agree with the human annotation, indicate "false" in the "disagree_with_human_annotation" field and provide your reasoning without referencing the ground-truth to maintain a clean description.
-Pay close attention to the objects the person's hands are interacting with.
+
 The true ground-truth action is {gt_answer}.
 Your reasoning steps should include supporting evidence for the action, such as the duration of the video, the sequence of actions the person performs, the objects they interact with, and the overall context of the video.
 As a general guideline, for videos longer than 3 seconds, provide detailed reasoning steps, and for videos shorter than 3 seconds, generate less detailed reasoning.
@@ -89,13 +89,43 @@ The video duration is {end_second - start_second:.3f} seconds.
 Make sure you use the first-person perspective in your reasoning.
 """
         print (prompt)
-        return prompt    
+        return prompt
+
+
+
+class GPTStrongReasoningWithGTPrompt:
+    @classmethod
+    def generate_prompt(cls, start_second, end_second, option_text, gt_answer):
+        prompt = f"""
+You are viewing video frames from an egocentric perspective of and you are the person. Sometimes you interact with objects. Describe the video frames in detail and reason about the actions the person is performing. You will be provided with the human-annotated ground-truth for the action, but you should independently come to your own conclusion.
+
+Your reasoning steps should include supporting evidence for the action, such as the duration of the video, the sequence of actions the person performs, the objects they interact with, and the overall context of the video.
+As a general guideline, for videos longer than 3 seconds, provide detailed reasoning steps, and for videos shorter than 3 seconds, generate less detailed reasoning.
+
+The video duration is {end_second - start_second:.3f} seconds.
+
+To summarize, in the field 'answer_with_reasoning':
+
+    Explain why wrong answers are incorrect and provide additional reasoning for the correct answer. Your final response should look like [your reasoning thoughts] .. the correct answer is [your answer]  \n
+    Make sure the multiple-choice answer follows the format of uppercase letter.  answer such as "A. move plate" 
+
+And in the field 'disagree_with_human_annotation':
+
+    If you disagree with the human annotation, indicate "true" in the "disagree_with_human_annotation" field of your response, and provide your reasoning without mentioning the ground-truth answer. This will keep your reasoning clean. If you agree with the human annotation, indicate "false" in the "disagree_with_human_annotation" field and provide your reasoning without referencing the ground-truth to maintain a clean description.
+
+The candidate actions you are selecting from are {option_text}.  The true ground-truth action is {gt_answer}.
+
+Make sure you use the first-person perspective in your reasoning.
+
+"""
+        print (prompt)
+        return prompt        
 
 class GT_Augmentation_Response(BaseModel):
     """
     The GT was known. The response is to add more information to the GT
     """
-    caption_with_reasoning: str
+    answer_with_reasoning: str
     disagree_with_human_annotation: bool
 
 class GT_Agnostic_Response(BaseModel):
@@ -128,12 +158,14 @@ class ExpandReasonMCResponse(BaseModel):
     third_answer: str
 
 PROMPT_FACTORY = {'gpt-gt-reason': GPTReasoningWithGTPrompt,
+                    'gpt-gt-strong-reason': GPTStrongReasoningWithGTPrompt,
                    'gpt-gt-instruct-reason': ExpandReasonMCPrompt,
                    'gpt-hand-object': GPTHandObjectPrompt}
 
-REQUIRES_VIS = set(['gpt-gt-reason'])
+REQUIRES_VIS = set(['gpt-gt-reason', 'gpt-gt-strong-reason'])
 
 RESPONSE_FACTORY = {'gpt-gt-reason': GT_Augmentation_Response,
+                    'gpt-gt-strong-reason': GT_Augmentation_Response,
                     'gpt-gt-instruct-reason': ExpandReasonMCResponse,
                     'gpt-hand-object': GPTHandObjectResponse}
 
@@ -640,7 +672,7 @@ class GPTAugmentationAnnotator(ChatGPT):
                 frames = []
             parsed_item = self.parse_conversation_from_train_convs(item)
             try:
-                if self.anno_type == 'gpt-gt-reason':
+                if self.anno_type == 'gpt-gt-reason' or self.anno_type == 'gpt-gt-strong-reason':
                     gpt_answer = dict(self.annotate(frames, parsed_item))
                 elif self.anno_type == 'gpt-gt-instruct-reason':
                     gpt_answer = dict(self.annotate(frames, parsed_item))
@@ -731,15 +763,20 @@ def convert_json_to_jsonl(path):
     with open(path, 'r') as f:
         data = json.load(f)
 
+    disaggree_count = 0
     with open(path.replace('.json', '.jsonl'), 'w') as f:
         for k,v in data.items():
             conversations = v['conversations']
             if isinstance(conversations[1]['value'], dict):
-                new_value = conversations[1]['value']['caption_with_reasoning']
+                if 'disagree_with_human_annotation' in conversations[1]['value'] and conversations[1]['value']['disagree_with_human_annotation'] is True:
+                    print ('skipping')
+                    disaggree_count += 1
+                    continue
+                new_value = conversations[1]['value']['answer_with_reasoning']
                 conversations[1]['value'] = new_value                   
             json.dump(v, f)
             f.write('\n')
-
+    print ('disagree count', disaggree_count)
 def calc_disagree_ratio_from_jsonl(path):
     # note it's a jsonl file
     with open(path, 'r') as f:
@@ -851,33 +888,33 @@ if __name__ == '__main__':
     #train_file_path = '/data/epic_kitchen/shaokai_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_all.jsonl'
     # train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
 
-    # train_file_path = '/data/epic_kitchen/shaokai_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_first_person_all.jsonl'
+    # # train_file_path = '/data/epic_kitchen/shaokai_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_first_person_all.jsonl'
     # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
     # multi_process_annotate(train_file_path, 
     #                 root, 
     #                 debug = False, 
     #                 clip_length = 4,
     #                 n_samples = -1, 
-    #                 anno_type = 'gpt-gt-instruct-reason')
+    #                 anno_type = 'gpt-gt-strong-reason')
 
-    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-    val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-    avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'    
-
-
-    annotator = GPTInferenceAnnotator(root, 
-    val_file,
-    avion_prediction_file,
-    clip_length = 4,
-    debug = False,
-    action_representation = "GT_random_narration",
-    question_type = 'mc_GT_random_narration',
-    topk = 5)  
-
-    annotator.multi_process_run(n_samples = 100)
+    # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+    # val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    # avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'    
 
 
-    # convert_json_to_jsonl('train_anno_gpt-gt-reason_4_10000.json')
+    # annotator = GPTInferenceAnnotator(root, 
+    # val_file,
+    # avion_prediction_file,
+    # clip_length = 8,
+    # debug = False,
+    # action_representation = "GT_random_narration",
+    # question_type = 'mc_GT_random_narration',
+    # topk = 5)  
+
+    # annotator.multi_process_run(n_samples = 100)
+
+
+    convert_json_to_jsonl('train_anno_gpt-gt-strong-reason_4_all.json')
 
     #convert_instruct_json_to_jsonl('train_anno_gpt-gt-instruct-reason_4_all.json')
 

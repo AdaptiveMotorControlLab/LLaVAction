@@ -180,6 +180,13 @@ def format_task_related_prompt(question, question_type, perspective = "first_per
         ret = prefix + suffix
     elif question_type == "gpt-gt-reason":
         ret = f"{perspective_prefix}Describe in details what you see from the video frames."
+    
+    elif question_type == "gpt-gt-strong-reason":
+        ret = f"{perspective_prefix} Describe in details what you see and answer the multi-choice question. Explain why wrong answers are wrong and why the correct answer is correct. "
+        suffix = ", ".join(question)
+        suffix = "Here are the options of actions you are selecting:\n" + suffix  
+        ret = ret + suffix       
+
     elif question_type == "gpt-gt-instruct-reason":
         ret = question
     elif question_type == "gpt-hand-object":
