@@ -52,6 +52,7 @@ from llava.action.utils import avion_video_loader
 from llava.action.utils import format_llava_prompt
 from llava.action.dataset import VideoMultiChoiceDataset
 from pathlib import Path
+import ast
 
 
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -1266,10 +1267,14 @@ class LazySupervisedDataset(Dataset):
                     # We turn a string of list to a python list
                     question_type = sources[0]['question_type']
                     question = sources[0]["conversations"][0]["value"]
-                    if question_type.startswith('mc_'):
-                        question = eval(question)
-                        assert isinstance(question, list)
-                        assert len(question) == self.eval_args.topk_predictions, f"len(options) = {len(question)} !=  {self.eval_args.topk_predictions}"
+                    try:
+                        result = ast.literal_eval(question)
+                        if isinstance(result, list):
+                            question = result
+                            assert len(question) == self.eval_args.topk_predictions, f"len(options) = {len(question)} !=  {self.eval_args.topk_predictions}"
+                    except:
+                        pass
+                    
                     # We only store the option list in the annotation file to make it easier to use consistent prompting
                     llava_prompt = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
                                                  question,
@@ -1387,6 +1392,10 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
     cfg_pretrained = None
 
     overwrite_config = {}
+
+    # if 'video' in model_args.model_name_or_path or 'Video' in model_args.model_name_or_path:
+    #     overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
+
     if any(
         [
             model_args.rope_scaling_factor is not None,

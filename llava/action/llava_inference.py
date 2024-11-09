@@ -95,7 +95,7 @@ def llava_video_process(
     if temperature == 0:
         question_type = "mc_top5_official_key"
     else:
-        question_type = "cot_mc"
+        question_type = "gpt-gt-strong-reason"
 
     question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
                                    options,
