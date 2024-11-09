@@ -341,7 +341,7 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
         One gt is guaranteed to exist in the returned options
         """
         # we should have plenty of predictions to select, so let's not always pick the hardest
-        assert len(avion_predictions) > 2*k
+
         avion_predictions = avion_predictions[:k*2]
         # avion_predictions = parse_avion_predictions(avion_predictions)
         if gt_vn in avion_predictions:

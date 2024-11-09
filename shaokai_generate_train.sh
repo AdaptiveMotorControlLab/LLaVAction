@@ -4,11 +4,11 @@ export PYTHONPATH=/usr/local/lib/python3.10/site-packages/decord-0.6.0-py3.10-li
 
 
 python3 llava/action/generate_description.py \
-    --train_metadata /data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv \
-    --out_folder /data/shaokai/EK100_inst_train/ \
-    --avion_train_predictions /data/shaokai/AVION_PREDS/avion_pred_ids_train.json \
-    --gen_type avion_mc \
-    --action_representation top1_narration \
+    --train_metadata /storage-rcp-pure/upmwmathis_scratch/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv \
+    --out_folder /storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/ \
+    --train_predictions /storage-rcp-pure/upmwmathis_scratch/shaokai/TIM_PREDS/tim_pred_ids_train.json \
+    --gen_type tim_mc \
+    --action_representation official_key \
     --n_options 5
 
 

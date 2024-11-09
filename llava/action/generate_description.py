@@ -13,7 +13,7 @@ from pathlib import Path
 from llava.action.utils import hand_obj_ann_loader
 import ast
 
-def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_maps, gen_type = 'naive', avion_prediction_path = '', n_options = 5,
+def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_maps, gen_type = 'naive', prediction_path = '', n_options = 5,
                        action_representation = 'official_key', n_narrations=-1):
     # epic kitchen uses csv
     csv_reader = csv.reader(open(ann_file))
@@ -23,11 +23,12 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_m
     if gen_type == "random_mc":
         # DEPRECATED
         mc_generator = MultiChoiceGenerator(ann_root)
-    elif gen_type == 'avion_mc':
+    elif gen_type == 'avion_mc' or gen_type == 'tim_mc':
         mc_generator = AvionMultiChoiceGenerator(ann_root)
-        with open(avion_prediction_path, 'r') as f:
-            avion_train_predictions = json.load(f)
+        with open(prediction_path, 'r') as f:
+            train_predictions = json.load(f)         
 
+    import spacy
     nlp = spacy.load('en_core_web_sm')
 
     for idx, row in enumerate(csv_reader):
@@ -52,16 +53,16 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_m
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
             conversation = generate_random_mc_conversation(options, gt_answer_letter, gt_answer_name )
-        elif gen_type == "avion_mc":
+        elif gen_type == "avion_mc" or gen_type == "tim_mc":
             vn_str = f'{row[10]}:{row[12]}'
-            avion_preds = avion_train_predictions[str(idx)]['predictions']
-            gt_from_avion = avion_train_predictions[str(idx)]['target']
-            assert gt_from_avion == vn_str
+            action_preds = train_predictions[str(idx)]['predictions']
+            gt_from_model = train_predictions[str(idx)]['target']
+            assert gt_from_model == vn_str
             narration = row[8]
             if 'cut' in action_representation:
                 narration = remove_sub_nouns(nlp, narration, row[9], row[13])
             mc_data = mc_generator.generate_multi_choice(vn_str, 
-                                                         avion_preds, 
+                                                         action_preds, 
                                                          narration, 
                                                          n_options, 
                                                          action_representation, 
@@ -186,8 +187,8 @@ def get_args():
     parser = argparse.ArgumentParser(description="For generating VQA for EPIC-KITCHEN")
     parser.add_argument('--train_metadata', default='/data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv', type=str)
     parser.add_argument('--out_folder', default = '/data/shaokai/EK100_in_LLAVA/', type = str)
-    parser.add_argument('--avion_train_predictions', default = '/data/shaokai/avion_predictions_train.json', type = str)
-    parser.add_argument('--gen_type', default = 'avion_mc', type = str, choices = ['naive', 'direct_narration', 'random_mc', 'avion_mc'])
+    parser.add_argument('--train_predictions', default = '/data/shaokai/avion_predictions_train.json', type = str)
+    parser.add_argument('--gen_type', default = 'avion_mc', type = str, choices = ['naive', 'direct_narration', 'random_mc', 'avion_mc', 'tim_mc'])
     parser.add_argument('--n_options', default = 5, type = int)
     parser.add_argument('--action_representation', default = 'GT_random_narration_cut', type = str, 
                                             choices = ['first_sample', 'official_key', 
@@ -203,7 +204,7 @@ def main():
 
     print ('train_metadata', args.train_metadata)
     print ('out_folder', args.out_folder)
-    print ('loading predictions from ', args.avion_train_predictions)
+    print ('loading predictions from ', args.train_predictions)
     print ('gen_type is ', args.gen_type)
     print ('n_options', args.n_options)
 
@@ -217,7 +218,7 @@ def main():
                                   verb_maps, 
                                   noun_maps, 
                                   gen_type = args.gen_type, 
-                                  avion_prediction_path = args.avion_train_predictions,
+                                  prediction_path = args.train_predictions,
                                   n_options = args.n_options,
                                   action_representation = args.action_representation,
                                   n_narrations = args.n_narrations)
@@ -229,16 +230,16 @@ def main():
 
    
 if __name__ == "__main__":
-    #main()
+    main()
     
     # reason_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/train_anno_gpt-gt-reason_4_all.jsonl"
     # mc_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl"
     # out_folder = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration_cot/"
     # combine_reason_and_mc(reason_path, mc_path, out_folder)
 
-    data_root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-    ann_file_path = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_train.csv'
-    hand_obj_root = '/data/epic_kitchen/hand_obj_anns/'
-    out_image_folder = ''
+    # data_root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+    # ann_file_path = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_train.csv'
+    # hand_obj_root = '/data/epic_kitchen/hand_obj_anns/'
+    # out_image_folder = ''
 
-    generate_hand_object_instruction_tuning_data(data_root, ann_file_path, hand_obj_root, out_image_folder)
+    # generate_hand_object_instruction_tuning_data(data_root, ann_file_path, hand_obj_root, out_image_folder)
