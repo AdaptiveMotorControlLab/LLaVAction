@@ -12,6 +12,8 @@ import copy
 from tqdm import tqdm
 from collections import Counter
 import pickle
+from PIL import Image, ImageFile
+import cv2
 from llava.action.render_utils import render_frame
 
 
@@ -524,7 +526,7 @@ def avion_video_loader(root, vid, ext, second, end_second,
         all_frame_ids.append(frame_ids)
         if sum(map(lambda x: x.shape[0], all_frames)) == clip_length:
             break
-    res = torch.from_numpy(np.concatenate(all_frames, axis=0).astype(np.float32))
+    res = np.concatenate(all_frames, axis=0)
     time_meta['n_frames'] = res.shape[0]
     all_frame_ids = np.concatenate(all_frame_ids, axis = 0)
     frame_time = [e/fps for e in all_frame_ids]
@@ -533,6 +535,32 @@ def avion_video_loader(root, vid, ext, second, end_second,
     time_meta['frame_time'] = frame_time
     assert res.shape[0] == clip_length, "{}, {}, {}, {}, {}, {}, {}".format(root, vid, second, end_second, res.shape[0], rel_frame_ids, frame_ids)
     return res, time_meta
+
+def EK100_frame_loader(root, start_frame, end_frame, start_second, end_second, clip_length=32, jitter=False):
+    frame_ids = get_frame_ids(start_frame, end_frame, num_segments=clip_length, jitter=jitter)
+    imgs = []
+    for frame_id in frame_ids:
+        frame_name = osp.join(root, 'frame_{:0>10d}.jpg'.format(frame_id))
+        with open(frame_name, "rb") as fp:
+            img_bytes = fp.read()
+        img_np = np.frombuffer(img_bytes, np.uint8)
+        img = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
+        cv2.cvtColor(img, cv2.COLOR_BGR2RGB, img)
+        imgs.append(img)
+    buffer = np.array(imgs)
+    # compute frame time
+    time_meta = {}
+    time_meta['duration'] = end_second - start_second
+    time_meta['n_frames'] = len(imgs)
+    fps = (end_frame - start_frame) / (end_second - start_second)
+    frame_time = [e/fps for e in frame_ids]
+    start_time = frame_time[0]
+    frame_time = ", ".join(["{:.2f}s".format(time - start_time) for time in frame_time])
+    time_meta['frame_time'] = frame_time
+    return buffer, time_meta
+
+
+
 
 
 def hand_obj_ann_loader(root, handobj_root, vid, ext, second, end_second,

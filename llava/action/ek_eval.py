@@ -6,6 +6,7 @@ from tqdm import tqdm
 from pathlib import Path
 import sys
 import os
+import numpy as np
 from llava.action.llava_inference import llava_inference
 import json
 import logging
@@ -46,7 +47,7 @@ def datetime2sec(str):
 
 def get_args_parser():
     parser = argparse.ArgumentParser(description='AVION finetune ek100 cls', add_help=False)
-    parser.add_argument('--dataset', default='ek100_cls', type=str, choices=['ek100_mir'])
+    parser.add_argument('--dataset', default='ek100_cls', type=str, choices=['ek100_mir', 'ek100_cls', 'ego4d', 'ekframes_cls'])
     parser.add_argument('--root', default='/data/EK100/EK100_320p_15sec_30fps_libx264', type=str, help='path to train dataset root')
     parser.add_argument('--train-metadata', type=str,
                         default='/data/EK100/epic-kitchens-100-annotations/EPIC_100_train.csv')
@@ -220,7 +221,7 @@ def evaluate_on_EK100(eval_args,
         time_meta = [item[2] for item in batch]
         global_index = [item[3] for item in batch]
 
-        frames =  torch.stack(frames)        
+        frames =  np.stack(frames)        
 
         return frames, mc_data, time_meta, global_index
 
