@@ -65,6 +65,7 @@ def llava_video_process(
     model, 
     image_processor, 
     mc_data,
+    test_type = 'base',
     clip_length = 16,
     num_frames = 16,
     temperature = 0,
@@ -92,18 +93,43 @@ def llava_video_process(
 
     options = mc_data['options'][0]
     
-    if temperature == 0:
+    if test_type == 'base':
         question_type = "mc_top5_official_key"
-    else:
-        question_type = "gpt-gt-strong-reason"
+    elif test_type == 'caption' or test_type == 'debug':
+        question_type = "gpt-gt-reason"
 
-    question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
-                                   options,
-                                   video_duration,                                  
-                                   n_frames,
-                                   question_type,
-                                   include_frame_time = False,
-                                   include_time_instruction= True)
+    if  test_type == 'caption_then_answer':
+        
+        caption_answer = llava_video_process([video_frames], 
+        tokenizer, 
+        model,  
+        image_processor, 
+        mc_data,
+        test_type = 'caption',
+        clip_length = 16,
+        num_frames = 16,
+        temperature = 0,
+        time_meta = time_meta)
+
+        question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
+                                    options,
+                                    video_duration,                                  
+                                    n_frames,
+                                    "mc_top5_official_key",
+                                    include_frame_time = False,
+                                    include_time_instruction= True)
+
+        question = f"You observed the video before and wrote down the notes: {caption_answer}. Now you watch the same video again and you can do better. " +  question
+        print (question)
+    
+    else:
+        question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
+                                    options,
+                                    video_duration,                                  
+                                    n_frames,
+                                    question_type,
+                                    include_frame_time = False,
+                                    include_time_instruction= True)
 
 
     rank0_print (question)
@@ -128,8 +154,8 @@ def llava_video_process(
         modalities=["video"],
     )
 
-    text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)
-    
+    text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)    
+
     return text_outputs[0]
 
 
@@ -144,6 +170,7 @@ def llava_inference(
     clip_length = 16,
     num_frames = 16,
     temperature = 0,
+    test_type = 'base',
     time_meta = None
     ):
 
@@ -167,6 +194,7 @@ def llava_inference(
             model, 
             image_processor, 
             mc_data,
+            test_type = test_type,
             clip_length = clip_length,
             num_frames = num_frames,
             temperature = temperature,

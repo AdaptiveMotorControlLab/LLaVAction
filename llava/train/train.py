@@ -213,7 +213,7 @@ class EK100EvalArguments:
     pretrained_name: str = ""
     action_representation: str = "GT_random_narration_cut"
     n_narrations: int = -1
-    ensemble_test: bool = False
+    test_type: str = 'base'
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero

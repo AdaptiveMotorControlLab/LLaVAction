@@ -14,6 +14,7 @@ from llava.action.utils import generate_label_map,  match_answer
 from collections import Counter 
 import torch.distributed as dist
 from llava.action.dataset import VideoMultiChoiceDataset
+import torchvision.io as io
 import re
 
 def process_raw_pred(raw_pred):
@@ -81,7 +82,7 @@ def get_args_parser():
                                    'random_narration_cut', 'top1_narration_cut', 'topk_narration_cut_key',
                                    'GT_key', 'GT_random_narration', 'GT_random_narration_cut'])
     parser.add_argument('--n_narrations', default = -1, type = int)
-    parser.add_argument('--ensemble_test', action='store_true')
+    parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'caption_then_answer'])
 
     
     return parser
@@ -122,14 +123,20 @@ def ensemble_llava_evaluation(
                               mc_data,
                               clip_length,  
                               num_frames,
-                              temperature = 0,
-                              ensemble_k = 1,
+                              test_type = 'base',                             
                               time_meta = None,
                               ):
     """
     This function tests how consistent the model is if we shuffle the position of the answers
     It also should use a higher temperature so we might get better performance by ensemble
     """
+    temperature = 0
+    ensemble_k = 1
+
+    if test_type == 'base':
+        temperature = 0,
+        ensemble_k = 1
+   
 
     # shuffle the options
     options = mc_data['options'][0]
@@ -138,7 +145,7 @@ def ensemble_llava_evaluation(
     # each option was in the format of {letter}. {answer}
     preds = []
     for _ in range(ensemble_k):
-            # let's just shuffle the options
+        # let's just shuffle the options
         random.shuffle(options)
         for idx, (option, letter) in enumerate(zip(options, letters)):
             sep = option.index('.')
@@ -151,6 +158,7 @@ def ensemble_llava_evaluation(
                             model, 
                             image_processor,  
                             mc_data,  
+                            test_type = test_type,
                             clip_length = clip_length, 
                             num_frames=num_frames, 
                             temperature = temperature,
@@ -272,10 +280,17 @@ def evaluate_on_EK100(eval_args,
     global_running_corrects = torch.tensor(0.0, device=device)
     global_total_samples = torch.tensor(0.0, device=device)
 
+    if eval_args.test_type == 'debug':
+        os.makedirs('debug_and_vis', exist_ok = True)
+
 
     for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):        
+                  
+
 
         with torch.no_grad():
+
+
             global_index = global_index[0]
             mc_data = mc_data[0]
             time_meta = time_meta[0]         
@@ -290,20 +305,16 @@ def evaluate_on_EK100(eval_args,
                     local_avion_correct.add_(1)
                     global_avion_correct.add_(1)
                 
+            if eval_args.test_type == 'debug':
+                squeezed_frames = torch.squeeze(frames)
+                io.write_video(os.path.join('debug_and_vis', f"{global_index}.mp4"), squeezed_frames, fps=16)                  
 
             # we don't want to evaluate the whole thing
             # let's evaluate 1000 samples to get the complete picture       
             if finish_early and idx> (1000 / dist.get_world_size()):
                 break                     
         
-            # Update running corrects and total samples
-            temperature = 0
-            ensemble_k = 1
-
-            if eval_args.ensemble_test:
-                temperature = 0.5
-                ensemble_k = 1
-
+                    
             llava_correct, llava_pred = ensemble_llava_evaluation(
                                                         eval_args.pretrained_name,
                                                         gt_name,
@@ -314,10 +325,17 @@ def evaluate_on_EK100(eval_args,
                                                         mc_data,
                                                         eval_args.clip_length,
                                                         eval_args.llava_num_frames,
-                                                        temperature = temperature,
-                                                        ensemble_k = ensemble_k,
+                                                        test_type = eval_args.test_type,                                                      
                                                         time_meta = time_meta)
-                                                        
+
+
+            if eval_args.test_type == 'debug':
+                temp = {'gt': gt_name,
+                        'llava_pred': llava_pred}
+
+                with open(os.path.join('debug_and_vis', f"{global_index}.json"), 'w') as f:
+                    json.dump(temp, f)
+
 
             # log the predictions into prediciton analysis
         
