@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # List of URLs to download
-academic_sources=(
+sources=(
 https://huggingface.co/datasets/lmms-lab/LLaVA-Video-178K/resolve/main/0_30_s_academic_v0_1/0_30_s_academic_mc_v0_1_qa_processed.json?download=true
 https://huggingface.co/datasets/lmms-lab/LLaVA-Video-178K/resolve/main/0_30_s_academic_v0_1/0_30_s_academic_oe_v0_1_qa_processed.json?download=true
 https://huggingface.co/datasets/lmms-lab/LLaVA-Video-178K/resolve/main/0_30_s_academic_v0_1/0_30_s_academic_v0_1_cap_processed.json?download=true
@@ -331,7 +331,7 @@ https://huggingface.co/datasets/ShareGPTVideo/train_video_and_instruction/resolv
 )
 
 # Download and rename files
-for url in "${urls[@]}"; do
+for url in "${sources[@]}"; do
     # Extract filename without the ?download=true part
     filename=$(basename "${url%%\?*}")
     
