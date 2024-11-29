@@ -31,8 +31,8 @@ torchrun --nproc_per_node=8 \
          --image_grid_pinpoints "(1x1),...,(6x6)" \
          --mm_patch_merge_type spatial_unpad \
          --bf16 True \
-         --run_name EK100_random_mc_originframes \
-         --output_dir experiments/EK100_random_mc_originframes \
+         --run_name EK100_random_mc_retrain \
+         --output_dir experiments/EK100_random_mc_retrain \
          --num_train_epochs 1 \
          --per_device_train_batch_size 1 \
          --per_device_eval_batch_size 4 \
@@ -56,11 +56,11 @@ torchrun --nproc_per_node=8 \
          --torch_compile_backend inductor \
          --dataloader_drop_last True \
          --frames_upbound 16 \
-         --root /media/data/haozhe/VFM/EK100/EPIC-KITCHENS/rgb_frames \
+         --root /media/data/haozhe/VFM/onevision/llava_video/EK100 \
          --action_predictions /media/data/haozhe/VFM/EK100/EK100_in_LLAVA/avion_pred_ids_val.json \
          --val_metadata /media/data/haozhe/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \
          --llava_num_frames 16 \
          --clip_length 16 \
          --action_representation GT_random_narration \
          --topk_predictions 5 \
-         --dataset ekframes_cls > EK100_random_mc_originframes.out 2>&1
+         --dataset ek100_cls > EK100_random_mc_retrain.out 2>&1

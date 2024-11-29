@@ -70,14 +70,14 @@
                 "--torch_compile_backend", "inductor",
                 "--dataloader_drop_last", "True",
                 "--frames_upbound", "16",
-                "--root", "/mediaPFM/data/haozhe/EK100/Frames/all_rgb_frames",
+                "--root", "/mediaPFM/data/haozhe/onevision/llava_video/EK100",
                 "--action_predictions", "/mediaPFM/data/haozhe/EK100/EK100_in_LLAVA/avion_pred_ids_val.json",
                 "--val_metadata", "/mediaPFM/data/haozhe/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv",
                 "--llava_num_frames", "16",
                 "--clip_length", "16",
                 "--action_representation", "GT_random_narration",
                 "--topk_predictions", "5",
-                "--dataset", "ekframes_cls"
+                "--dataset", "ek100_cls"
             ],
             "console": "integratedTerminal",
             "justMyCode": false,
