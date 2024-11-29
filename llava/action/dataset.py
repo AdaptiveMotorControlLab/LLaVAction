@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 import decord
 from pathlib import Path
-from llava.action.utils import  AvionMultiChoiceGenerator,  avion_video_loader
+from llava.action.utils import  AvionMultiChoiceGenerator,  avion_video_loader, EK100_frame_loader
 from llava.action.prediction_analysis import PredictionAnalysis
 import torch.distributed as dist
 
@@ -62,6 +62,23 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
                 else:
                     raise ValueError('{} should contain either "train" or "test"!'.format(metadata))
                 self.relevancy = .1
+        elif self.dataset in ['ekframes_cls']:
+            self.samples = []
+            with open(metadata) as f:
+                csv_reader = csv.reader(f)
+                _ = next(csv_reader)  # skip the header
+                for row in csv_reader:
+                    pid, vid = row[1:3]
+                    start_timestamp, end_timestamp = datetime2sec(row[4]), datetime2sec(row[5])
+                    start_frame, end_frame = int(row[6]), int(row[7])
+                    narration = row[8]
+                    verb, noun = int(row[10]), int(row[12])
+                    fps = end_frame / end_timestamp
+
+                    vid_path = '{}/{}'.format(pid, vid)
+
+                    self.samples.append((vid_path, start_timestamp, end_timestamp, fps, narration, verb, noun, start_frame, end_frame, vid))
+            aa = 1
         else:
             raise NotImplementedError
 
@@ -88,6 +105,16 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
                                   fast_rcc=fast_rcc,
                                   rcc_params=rcc_params,
                                   jitter=is_training)
+            time_meta['start_second'] = start_second
+            time_meta['end_second'] = end_second
+            time_meta['fps'] = fps
+            time_meta['vid_path'] = vid_path
+            return frames, '{}:{}'.format(verb, noun), time_meta
+        elif self.dataset == 'ekframes_cls':
+            vid_path, start_second, end_second, fps, narration, verb, noun, start_frame, end_frame, vid = self.samples[i]
+            video_file = osp.join(self.root, vid)
+            frames, time_meta = EK100_frame_loader(video_file, start_frame, end_frame, start_second, end_second, 
+                                                   clip_length = clip_length, jitter = is_training)
             time_meta['start_second'] = start_second
             time_meta['end_second'] = end_second
             time_meta['fps'] = fps
