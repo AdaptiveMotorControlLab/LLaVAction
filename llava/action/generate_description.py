@@ -13,7 +13,7 @@ from pathlib import Path
 from llava.action.utils import hand_obj_ann_loader
 import ast
 
-def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_maps, gen_type = 'naive', prediction_path = '', n_options = 5,
+def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps, gen_type = 'naive', prediction_path = '', n_options = 5,
                        action_representation = 'official_key', n_narrations=-1):
     # epic kitchen uses csv
     csv_reader = csv.reader(open(ann_file))
@@ -86,7 +86,10 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, verb_maps, noun_m
                 'question_type': f'mc_{action_representation}',
                 'dataset_name': 'EK100',
                 'start_timestamp': start_timestamp,
-                'end_timestamp': end_timestamp}
+                'end_timestamp': end_timestamp,
+                'verb_id': int(row[10]),
+                'noun_id': int(row[12]),
+                'action_id': mapping_vn2act[vn_str]}
         ret.append(data)
     return ret
 
@@ -215,6 +218,7 @@ def main():
     conv_lst = generate_train_ann(ann_file,
                                   labels,
                                   mapping_vn2narration,
+                                  mapping_vn2act,
                                   verb_maps, 
                                   noun_maps, 
                                   gen_type = args.gen_type, 
@@ -224,7 +228,7 @@ def main():
                                   n_narrations = args.n_narrations)
         
     # save it to a jsonl
-    with open(os.path.join(inst_train_folder,'train_convs_narration.jsonl'), 'w') as f:
+    with open(os.path.join(inst_train_folder,'train_convs_narration_actionids.jsonl'), 'w') as f:
         for conv in conv_lst:
             f.write(json.dumps(conv) + '\n')
 

@@ -44,6 +44,10 @@ class LlavaMetaModel:
 
             if "unpad" in getattr(config, "mm_patch_merge_type", ""):
                 self.image_newline = nn.Parameter(torch.empty(config.hidden_size, dtype=self.dtype))
+            if "one_token" in getattr(self.config, "vision_supervision", ""):
+                self.action_supervision = nn.Parameter(torch.empty((1, config.hidden_size), dtype=self.dtype))
+            elif "three_token" in getattr(self.config, "vision_supervision", ""):
+                self.action_supervision = nn.Parameter(torch.empty((3, config.hidden_size), dtype=self.dtype))
 
     def get_vision_tower(self):
         vision_tower = getattr(self, "vision_tower", None)
@@ -294,6 +298,7 @@ class LlavaMetaForCausalLM(ABC):
             mm_patch_merge_type = getattr(self.config, "mm_patch_merge_type", "flat")
             image_aspect_ratio = getattr(self.config, "image_aspect_ratio", "square")
             mm_newline_position = getattr(self.config, "mm_newline_position", "one_token")
+            vision_supervision = getattr(self.config, "vision_supervision", None)
 
             if mm_patch_merge_type == "flat":
                 image_features = [x.flatten(0, 1) for x in image_features]
@@ -337,6 +342,8 @@ class LlavaMetaForCausalLM(ABC):
                         elif mm_newline_position == "one_token":
                             # one-token
                             image_feature = image_feature.flatten(0, 1)
+                            if "token" in vision_supervision:
+                                image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
                             if 'unpad' in mm_patch_merge_type:
                                 image_feature = torch.cat((
                                     image_feature,
@@ -444,6 +451,7 @@ class LlavaMetaForCausalLM(ABC):
 
         new_input_embeds = []
         new_labels = []
+        new_action_idx = []
         cur_image_idx = 0
         # rank_print("Inserting Images embedding")
         for batch_idx, cur_input_ids in enumerate(input_ids):
@@ -484,6 +492,16 @@ class LlavaMetaForCausalLM(ABC):
                     cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, device=cur_labels.device, dtype=cur_labels.dtype))
 
             cur_new_input_embeds = [x.to(self.device) for x in cur_new_input_embeds]
+
+            if vision_supervision is not None:
+                if "newline" in vision_supervision:
+                    new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])
+                elif "one_token" in vision_supervision:
+                    new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 2])
+                elif "three_token" in vision_supervision:
+                    new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 4, 
+                                        len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 3,
+                                        len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 2])
 
             # import pdb; pdb.set_trace()
             cur_new_input_embeds = torch.cat(cur_new_input_embeds)
@@ -552,7 +570,8 @@ class LlavaMetaForCausalLM(ABC):
             position_ids[:, split_position:] += right_add
         # import pdb; pdb.set_trace()
         # rank0_print("Finish preparing")
-        return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
+        new_action_idx = torch.tensor(new_action_idx, device=new_input_embeds.device)
+        return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels, new_action_idx
 
     def initialize_vision_tokenizer(self, model_args, tokenizer):
         if model_args.mm_use_im_patch_token:
