@@ -256,7 +256,7 @@ class LlavaMetaForCausalLM(ABC):
         vision_tower = self.get_vision_tower()
         # rank_print(modalities)
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
-            return input_ids, position_ids, attention_mask, past_key_values, None, labels
+            return input_ids, position_ids, attention_mask, past_key_values, None, labels, None
 
         if isinstance(modalities, str):
             modalities = [modalities]

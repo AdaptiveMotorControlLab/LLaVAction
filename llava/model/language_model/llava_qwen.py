@@ -147,7 +147,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             logits = self.lm_head(hidden_states)
             logits = logits.float()
             
-            if getattr(self.config, "vision_supervision", None) is not None:
+            if getattr(self.config, "vision_supervision", None) is not None and actions is not None:
                 # move the action_idx to the device of the hidden_states
                 vision_supervision = self.config.vision_supervision
                 action_idx = action_idx.to(hidden_states.device)
@@ -175,7 +175,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                 loss = loss_fct(shift_logits, shift_labels)
 
                 # 这部分张量移动的代码不知道可不可以优化
-                if getattr(self.config, "vision_supervision", None) is not None:
+                if getattr(self.config, "vision_supervision", None) is not None and actions is not None:
                     device = shift_logits.device
                     verb_logits = verb_logits.to(device)
                     noun_logits = noun_logits.to(device)
@@ -214,7 +214,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             raise NotImplementedError("`inputs_embeds` is not supported")
 
         if images is not None:
-            (inputs, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_multimodal(inputs, position_ids, attention_mask, None, None, images, modalities, image_sizes=image_sizes)
+            (inputs, position_ids, attention_mask, _, inputs_embeds, _, _) = self.prepare_inputs_labels_for_multimodal(inputs, position_ids, attention_mask, None, None, images, modalities, image_sizes=image_sizes)
         else:
             inputs_embeds = self.get_model().embed_tokens(inputs)
 

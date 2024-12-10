@@ -52,7 +52,7 @@
                 "--per_device_eval_batch_size", "4",
                 "--gradient_accumulation_steps", "2",
                 "--evaluation_strategy", "steps",
-                "--eval_steps", "10",
+                "--eval_steps", "100",
                 "--save_strategy", "steps",
                 "--save_steps", "2000",
                 // "--save_total_limit", "1",
