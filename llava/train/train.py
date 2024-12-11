@@ -47,7 +47,7 @@ from llava import conversation as conversation_lib
 from llava.model import *
 from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token
 from llava.utils import rank0_print,  process_video_with_decord
-from llava.action.utils import avion_video_loader
+from llava.action.utils import avion_video_loader, EK100_frame_loader
 
 from llava.action.utils import format_llava_prompt
 from llava.action.dataset import VideoMultiChoiceDataset
@@ -1190,6 +1190,8 @@ class LazySupervisedDataset(Dataset):
             video_folder = os.path.join(self.data_args.video_folder, sources[0]['dataset_name'])
             if 'EK100' in video_folder:
                 video_file = os.path.join(video_folder, video_info.split("-")[0], video_info.split("-")[1]+".MP4")
+            elif 'EKframes' in video_folder:
+                video_file = os.path.join(self.eval_args.root, video_info.split("-")[1])
             else:
                 video_file = os.path.join(video_folder, video_info)
 
@@ -1197,7 +1199,7 @@ class LazySupervisedDataset(Dataset):
                 print("File {} not exist!".format(video_file))
 
             try:
-                if "sharegpt4video" in video_file:
+                if "sharegpt4video" in video_folder:
                     frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
                     frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
 
@@ -1228,7 +1230,7 @@ class LazySupervisedDataset(Dataset):
                                 video.append(frame)
                         except IOError:
                             print(f"Failed to read frame at path: {frame_path}")
-                elif 'EK100' in video_file:
+                elif 'EK100' in video_folder:
                     start_second = float(self.list_data_dict[i]['start_timestamp'])
                     end_second = float(self.list_data_dict[i]['end_timestamp'])            
                     pid = sources[0]['video'].split('-')[0]
@@ -1252,13 +1254,22 @@ class LazySupervisedDataset(Dataset):
                     video_time = time_meta['duration']
                     num_frames_to_sample = time_meta['n_frames']
                     # add log 
-
+                
+                elif 'EKframes' in video_folder:
+                    start_frame = int(self.list_data_dict[i]['start_frame'])
+                    end_frame = int(self.list_data_dict[i]['end_frame'])
+                    start_second = float(self.list_data_dict[i]['start_timestamp'])
+                    end_second = float(self.list_data_dict[i]['end_timestamp'])  
+                    video, time_meta = EK100_frame_loader(video_file, start_frame, end_frame, start_second, end_second, clip_length = self.eval_args.clip_length, jitter = self.data_args.train_jitter)
+                    frame_time = time_meta['frame_time']
+                    video_time = time_meta['duration']
+                    num_frames_to_sample = time_meta['n_frames']
                 else:
                     video, video_time, frame_time, num_frames_to_sample = process_video_with_decord(video_file, self.data_args)
 
                 processor = self.data_args.image_processor
                 image = processor.preprocess(video, return_tensors="pt")["pixel_values"]
-                if 'EK100' not in video_file:
+                if 'EK100' not in video_file and 'EKframes' not in video_folder:
                     if self.data_args.add_time_instruction:
                         time_instruciton = f"The video lasts for {video_time:.2f} seconds, and {num_frames_to_sample} frames are uniformly sampled from it. Please answer the following questions related to this video."
                         sources[0]["conversations"][0]["value"] = f'{DEFAULT_IMAGE_TOKEN}\n{time_instruciton}\n{sources[0]["conversations"][0]["value"].replace(DEFAULT_IMAGE_TOKEN, "")}'

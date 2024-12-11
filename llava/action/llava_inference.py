@@ -177,18 +177,18 @@ def llava_inference(
     model.eval()    
        
 
-    if 'ov' in pretrained_name:
-        return llava_ov_process(video_frames,
-                         tokenizer,
-                         model,
-                         image_processor,
-                         mc_data,
-                         clip_length,
-                         num_frames,
-                         temperature,
-                         )
-    elif 'Video' in pretrained_name:
-        return llava_video_process(
+    # if 'ov' in pretrained_name:
+    #     return llava_ov_process(video_frames,
+    #                      tokenizer,
+    #                      model,
+    #                      image_processor,
+    #                      mc_data,
+    #                      clip_length,
+    #                      num_frames,
+    #                      temperature,
+    #                      )
+    # elif 'Video' in pretrained_name:
+    return llava_video_process(
             video_frames, 
             tokenizer, 
             model, 
