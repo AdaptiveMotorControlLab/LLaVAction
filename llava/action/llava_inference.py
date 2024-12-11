@@ -120,7 +120,7 @@ def llava_video_process(
                                     include_time_instruction= True)
 
         question = f"You observed the video before and wrote down the notes: {caption_answer}. Now you watch the same video again and you can do better. " +  question
-        print (question)
+        
     
     else:
         question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
@@ -132,7 +132,7 @@ def llava_video_process(
                                     include_time_instruction= True)
 
 
-    rank0_print (question)
+    #rank0_print ("debugging", question)
 
     conv = copy.deepcopy(conv_templates[conv_template])
     conv.append_message(conv.roles[0], question)
