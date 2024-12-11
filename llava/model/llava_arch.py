@@ -331,27 +331,36 @@ class LlavaMetaForCausalLM(ABC):
                                 image_feature = torch.cat(concat_slow_fater_token)
 
                                 # print("!!!!!!!!!!!!")
+                            if "token" in vision_supervision:
+                                image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
                         
                             new_image_features.append(image_feature)
                         elif mm_newline_position == "frame":
                             # Frame-wise
-                            image_feature = self.add_token_per_frame(image_feature)
+                            image_feature = self.add_token_per_frame(image_feature).flatten(0, 1)
+                            if "token" in vision_supervision:
+                                image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
 
-                            new_image_features.append(image_feature.flatten(0, 1))
+                            new_image_features.append(image_feature)
                             
                         elif mm_newline_position == "one_token":
                             # one-token
                             image_feature = image_feature.flatten(0, 1)
-                            if "token" in vision_supervision:
-                                image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
+            
                             if 'unpad' in mm_patch_merge_type:
                                 image_feature = torch.cat((
                                     image_feature,
                                     self.model.image_newline[None].to(image_feature.device)
                                 ), dim=0)
+                            
+                            if "token" in vision_supervision:
+                                image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
                             new_image_features.append(image_feature)      
                         elif mm_newline_position == "no_token":
-                            new_image_features.append(image_feature.flatten(0, 1))
+                            image_feature = image_feature.flatten(0, 1)
+                            if "token" in vision_supervision:
+                                image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
+                            new_image_features.append()
                         else:
                             raise ValueError(f"Unexpected mm_newline_position: {mm_newline_position}")
                     elif image_feature.shape[0] > 1:  # multi patches and multi images operations
@@ -497,11 +506,11 @@ class LlavaMetaForCausalLM(ABC):
                 if "newline" in vision_supervision:
                     new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])
                 elif "one_token" in vision_supervision:
-                    new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 2])
+                    new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])
                 elif "three_token" in vision_supervision:
-                    new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 4, 
-                                        len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 3,
-                                        len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 2])
+                    new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 3, 
+                                        len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 2,
+                                        len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])
 
             # import pdb; pdb.set_trace()
             cur_new_input_embeds = torch.cat(cur_new_input_embeds)

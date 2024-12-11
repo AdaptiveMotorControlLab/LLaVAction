@@ -7,7 +7,7 @@
             "request": "launch",
             "module": "torch.distributed.run",
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "CUDA_VISIBLE_DEVICES": "0,2,3",
                 "OMP_NUM_THREADS": "8",
                 "NCCL_IB_DISABLE": "0",
                 "NCCL_IB_GID_INDEX": "3",
@@ -19,7 +19,7 @@
                 "CUDA_LAUNCH_BLOCKING": "1",
             },
             "args": [
-                "--nproc_per_node=4",
+                "--nproc_per_node=3",
                 "--nnodes=1",
                 "--node_rank=0",
                 "--master_addr=127.0.0.1",
@@ -79,7 +79,7 @@
                 "--action_representation", "GT_random_narration",
                 "--topk_predictions", "5",
                 "--dataset", "ek100_cls",
-                "--vision_supervision", "newline",
+                "--vision_supervision", "three_tokens",
                 "--action_types", "97,300,3806"
             ],
             "console": "integratedTerminal",
