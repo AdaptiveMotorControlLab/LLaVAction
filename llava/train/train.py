@@ -121,6 +121,9 @@ class ModelArguments:
     add_faster_video: Optional[bool] = field(default=False)
     faster_token_stride: Optional[int] = field(default=10)
 
+    vision_supervision: Optional[str] = field(default=None) # could be "one_token", "three_token", "newline"
+    action_types: Optional[str] = field(default=None)
+
 
 
 @dataclass
@@ -1172,6 +1175,8 @@ class LazySupervisedDataset(Dataset):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
 
+        action_dict = {}
+
         if "image" in sources[0]:
             image_file = self.list_data_dict[i]["image"]
             if type(image_file) is list:
@@ -1235,6 +1240,8 @@ class LazySupervisedDataset(Dataset):
                     end_second = float(self.list_data_dict[i]['end_timestamp'])            
                     pid = sources[0]['video'].split('-')[0]
                     vid = sources[0]['video'].split('-')[1]
+
+                    
             
                     video, time_meta = avion_video_loader(os.path.join(video_folder, pid),
                                                           vid, 
@@ -1295,8 +1302,9 @@ class LazySupervisedDataset(Dataset):
                                                  include_time_instruction= self.data_args.add_time_instruction,
                                                  include_frame_time = False)
                     sources[0]["conversations"][0]["value"] = llava_prompt
-                    rank0_print (sources[0])
-                image = [(image, video[0].size, "video")]
+                    # rank0_print (sources[0])
+                action = torch.tensor([sources[0]['verb_id'], sources[0]['noun_id'], sources[0]['action_id']] if 'verb_id' in sources[0] else [-1, -1, -1]).long()
+                image = [(image, video[0].size, "video", action)]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
                 # print(sources)
             except Exception as e:
@@ -1308,7 +1316,7 @@ class LazySupervisedDataset(Dataset):
         else:
             sources = copy.deepcopy([e["conversations"] for e in sources])
 
-        rank0_print (sources[0])
+        # rank0_print (sources[0])
         
         has_image = ("image" in self.list_data_dict[i]) or ("video" in self.list_data_dict[i])
         data_dict = preprocess(sources, self.tokenizer, has_image=has_image)
@@ -1373,6 +1381,7 @@ class DataCollatorForSupervisedDataset(object):
 
             batch["image_sizes"] = [im[1] for im_list in images for im in im_list]
             batch["modalities"] = [im[2] for im_list in images for im in im_list]
+            batch["actions"] = torch.stack([im[3] for im_list in images for im in im_list])
             images = [im[0] for im_list in images for im in im_list]
 
             # if all(x is not None and x.shape == images[0].shape for x in images):
@@ -1447,6 +1456,10 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
 
     if model_args.mm_spatial_pool_mode is not None:
         overwrite_config["mm_spatial_pool_mode"] = model_args.mm_spatial_pool_mode
+
+    if model_args.vision_supervision is not None:
+        overwrite_config["vision_supervision"] = model_args.vision_supervision
+        overwrite_config["action_types"] = model_args.action_types
 
     if overwrite_config:
         assert cfg_pretrained is not None, "cfg_pretrained is None"
