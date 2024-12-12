@@ -6,7 +6,6 @@ import argparse
 import sys
 import numpy as np
 sys.path[0] = os.path.dirname(os.path.dirname(sys.path[0]))
-import llava
 from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator, format_llava_prompt, remove_sub_nouns
 from llava.action.dataset import datetime2sec
 from pathlib import Path
@@ -92,6 +91,58 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
                 'action_id': mapping_vn2act[vn_str]}
         ret.append(data)
     return ret
+
+def append_action_idx_to_existing_ann(instruct_ann_file, ek100_ann_file,  mapping_vn2act):
+                       
+    csv_reader = csv.reader(open(ek100_ann_file))
+    _ = next(csv_reader)
+    
+    map_video_2_action = {}
+
+    for idx, row in enumerate(csv_reader):
+        start_timestamp, end_timestamp = datetime2sec(row[4]), datetime2sec(row[5])
+        
+        pid, vid = row[1:3]
+        vid_path = '{}-{}'.format(pid, vid)  
+        vn_str = f'{row[10]}:{row[12]}'
+
+        verb_id = int(row[10])
+        noun_id = int(row[12])
+        action_id = mapping_vn2act[vn_str]
+
+        _key= f'{vid_path}-{start_timestamp}-{end_timestamp}'
+        map_video_2_action[_key] = (verb_id, noun_id, action_id)
+
+    ret = []
+    instruct_ann_root = Path(instruct_ann_file).parent
+    # instruction file is jsonl
+    with open(instruct_ann_file, 'r') as f:
+        instructions = f.readlines()
+
+        for instruct in instructions:
+            instruct_dict = json.loads(instruct)
+            vid_path = instruct_dict['video']
+            start_timestamp = instruct_dict['start_timestamp']
+            end_timestamp = instruct_dict['end_timestamp']
+            _key = f'{vid_path}-{start_timestamp}-{end_timestamp}'
+            verb_id, noun_id, action_id = map_video_2_action[_key]
+            instruct_dict['verb_id'] = verb_id
+            instruct_dict['noun_id'] = noun_id
+            instruct_dict['action_id'] = action_id
+            ret.append(instruct_dict)
+    
+    # write a new instruct ann file in the same folder but with a fixed suffix
+    # use the same filename of the original instruct ann
+    out_path = os.path.join(instruct_ann_root, f'{Path(instruct_ann_file).stem}_action_idx.jsonl')
+    with open(out_path, 'w') as f:
+        for instruct in ret:
+            f.write(json.dumps(instruct) + '\n')
+    
+
+
+
+
+
 
 def generate_naive_conversation(vn_str:str):
     # DEPRECATED. As this is hard-coding the prompt into the data
@@ -232,9 +283,26 @@ def main():
         for conv in conv_lst:
             f.write(json.dumps(conv) + '\n')
 
+def fix_annotations():
+
+    instruct_files = [
+        '/data/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl',
+        '/data/shaokai/EK100_inst_train/avion_mc_top5_official_key/train_convs_narration.jsonl',
+        '/data/shaokai/EK100_inst_train/tim_mc_top5_GT_random_narration/train_convs_narration.jsonl',
+        '/data/shaokai/EK100_inst_train/tim_mc_top5_official_key/train_convs_narration.jsonl',
+        '/data/shaokai/first_person_annos/train_anno_gpt-gt-reason_4_first_person_all.jsonl',
+        '/data/shaokai/first_person_annos/train_anno_gpt-gt-instruct-reason_4_first_person_all.jsonl'
+    ]
+    for instruct_ann_file in instruct_files:
+        _, _, mapping_vn2act, _, _ = generate_label_map('/data/shaokai/epic-kitchens-100-annotations/', 'official_key')
+        append_action_idx_to_existing_ann(instruct_ann_file, '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv', mapping_vn2act)
    
+
 if __name__ == "__main__":
-    main()
+
+    #main()
+
+    fix_annotations()
     
     # reason_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/train_anno_gpt-gt-reason_4_all.jsonl"
     # mc_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl"
