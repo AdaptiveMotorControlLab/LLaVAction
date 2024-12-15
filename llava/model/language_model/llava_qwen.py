@@ -156,6 +156,12 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     verb_logits = self.verb_head(action_states[:, 0])
                     noun_logits = self.noun_head(action_states[:, 0])
                     action_logits = self.action_head(action_states[:, 0])
+                elif vision_supervision == "all_newlines":
+                    # note get logits for all new lines
+                    verb_logits = self.verb_head(action_states)
+                    noun_logits = self.noun_head(action_states) 
+                    action_logits = self.action_head(action_states) 
+
                 elif vision_supervision == "three_tokens":
                     verb_logits = self.verb_head(action_states[:, 0])
                     noun_logits = self.noun_head(action_states[:, 1])
@@ -177,15 +183,27 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                 # 这部分张量移动的代码不知道可不可以优化
                 if getattr(self.config, "vision_supervision", None) is not None and actions is not None:
                     device = shift_logits.device
+                 
                     verb_logits = verb_logits.to(device)
                     noun_logits = noun_logits.to(device)
                     action_logits = action_logits.to(device)
                     actions = actions.to(device)
 
-                    verb_loss = loss_fct(verb_logits, actions[:, 0])
-                    noun_loss = loss_fct(noun_logits, actions[:, 1])
-                    action_loss = loss_fct(action_logits, actions[:, 2])
-                    loss += 0.5 * verb_loss + 0.5 * noun_loss + 0.1 * action_loss
+                    # verb_loss = loss_fct(verb_logits, actions[:, 0])
+                    # noun_loss = loss_fct(noun_logits, actions[:, 1])
+                    # action_loss = loss_fct(action_logits, actions[:, 2])
+                    # loss += 0.5 * verb_loss + 0.5 * noun_loss + 0.1 * action_loss
+                    vision_supervision_loss = 0.0
+                    
+                    # verb_loss = loss_fct(verb_logits, actions[:, 0]).mean()
+                    # noun_loss = loss_fct(noun_logits, actions[:, 1]).mean()
+                    # action_loss = loss_fct(action_logits, actions[:, 2]).mean()
+                    verb_loss = loss_fct(verb_logits, actions[:, 0].expand(224)).mean()
+                    noun_loss = loss_fct(noun_logits, actions[:, 1].expand(224)).mean()
+                    action_loss = loss_fct(action_logits, actions[:, 2].expand(224)).mean()
+                    
+                    vision_supervision_loss += 0.5 * verb_loss + 0.5 * noun_loss + 0.1 * action_loss
+                    loss += vision_supervision_loss 
 
             if not return_dict:
                 output = (logits,) + outputs[1:]

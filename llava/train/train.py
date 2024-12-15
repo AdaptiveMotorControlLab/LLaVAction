@@ -120,7 +120,7 @@ class ModelArguments:
     add_faster_video: Optional[bool] = field(default=False)
     faster_token_stride: Optional[int] = field(default=10)
 
-    vision_supervision: Optional[str] = field(default=None) # could be "one_token", "three_token", "newline"
+    vision_supervision: Optional[str] = field(default=None) # could be "one_token", "three_token", "newline", "all_newlines"
     action_types: Optional[str] = field(default=None)
 
 

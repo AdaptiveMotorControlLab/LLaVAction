@@ -331,7 +331,7 @@ class LlavaMetaForCausalLM(ABC):
                                 image_feature = torch.cat(concat_slow_fater_token)
 
                                 # print("!!!!!!!!!!!!")
-                            if "token" in vision_supervision:
+                            if vision_supervision and "token" in vision_supervision:
                                 image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
                         
                             new_image_features.append(image_feature)
@@ -503,11 +503,14 @@ class LlavaMetaForCausalLM(ABC):
             cur_new_input_embeds = [x.to(self.device) for x in cur_new_input_embeds]
 
             if vision_supervision is not None:
-                if "newline" in vision_supervision:
+                if "newline" == vision_supervision:
                     new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])
-                elif "one_token" in vision_supervision:
+                elif "all_newlines" == vision_supervision:
+                    for i in range(1, 225):
+                        new_action_idx.append(len(cur_new_input_embeds[0]) + 15 * i  -1)
+                elif "one_token" == vision_supervision:
                     new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])
-                elif "three_token" in vision_supervision:
+                elif "three_token" == vision_supervision:                    
                     new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 3, 
                                         len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 2,
                                         len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])
