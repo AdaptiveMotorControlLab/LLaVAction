@@ -203,7 +203,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     action_loss = loss_fct(action_logits, actions[:, 2].expand(224)).mean()
                     
                     vision_supervision_loss += 0.5 * verb_loss + 0.5 * noun_loss + 0.1 * action_loss
-                    loss += vision_supervision_loss 
+                    loss += vision_supervision_loss * 0.1
 
             if not return_dict:
                 output = (logits,) + outputs[1:]
