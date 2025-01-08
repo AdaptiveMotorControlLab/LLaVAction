@@ -193,7 +193,7 @@ def format_task_related_prompt(question, question_type, perspective = "first_per
         ret = ret + suffix       
 
     elif question_type == "dpo":
-        ret = "The video is taken from egocentric view. What action is the person performing?"
+        ret = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with obects. Describe in details what you see and what you are doing."
 
     elif question_type == "gpt-gt-instruct-reason":
         ret = question
