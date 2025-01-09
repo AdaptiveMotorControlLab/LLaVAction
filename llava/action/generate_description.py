@@ -26,7 +26,7 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
         mc_generator = AvionMultiChoiceGenerator(ann_root)
         with open(prediction_path, 'r') as f:
             train_predictions = json.load(f)         
-
+    print ('train_predictions', train_predictions)
     import spacy
     nlp = spacy.load('en_core_web_sm')
 
@@ -300,9 +300,9 @@ def fix_annotations():
 
 if __name__ == "__main__":
 
-    #main()
+    main()
 
-    fix_annotations()
+    #fix_annotations()
     
     # reason_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/train_anno_gpt-gt-reason_4_all.jsonl"
     # mc_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl"
