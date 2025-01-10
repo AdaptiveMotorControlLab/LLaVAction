@@ -96,7 +96,7 @@ def remove_option_letter(answer):
     else:
         return answer
 
-def generate_label_map(anno_root, action_representation, cache_file = None):
+def generate_label_map(anno_root, action_representation, cache_file = 'cache_file.pkl'):
     print("Preprocess ek100 action label space")
     vn_list = []
     mapping_vn2narration = {}
@@ -140,7 +140,7 @@ def generate_label_map(anno_root, action_representation, cache_file = None):
             narration = row[8]
             if 'cut' in action_representation:
                 import spacy
-                nlp = spacy.load('en_core_web_sm')
+                nlp = spacy.load('en_core_web_sm', disable=['ner', 'textcat'])
                 narration = remove_sub_nouns(nlp, narration, row[9], row[13], cache_file = cache_file)
                 
             if vn not in mapping_vn2narration:
