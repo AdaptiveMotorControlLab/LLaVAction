@@ -19,10 +19,10 @@ torchrun --nproc_per_node=4 \
          --master_port=29500 \
          llava/train/train_mem.py \
             --deepspeed scripts/zero3.json \
-            --model_name_or_path pretrained_models/LLaVA-Video-7B-Qwen2 \
+            --model_name_or_path pretrained_models/llava-onevision-qwen2-0.5b-ov \
             --version qwen_1_5 \
             --data_path scripts/train/EK100_avion_mc_top10.yaml \
-            --video_folder /capstor/scratch/cscs/hqi/llava/onevision/llava_video \
+            --video_folder /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video \
             --mm_tunable_parts mm_vision_tower,mm_mlp_adapter,mm_language_model \
             --mm_vision_tower_lr 2e-6 \
             --vision_tower pretrained_models/siglip-so400m-patch14-384 \
@@ -60,9 +60,9 @@ torchrun --nproc_per_node=4 \
             --torch_compile_backend inductor \
             --dataloader_drop_last True \
             --frames_upbound 32 \
-            --root /capstor/scratch/cscs/hqi/llava/onevision/llava_video/EK100 \
-            --action_predictions /capstor/scratch/cscs/hqi/llava/EK100/avion_predictions_test.json \
-            --val_metadata /capstor/scratch/cscs/hqi/llava/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \
+            --root /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video/EK100 \
+            --action_predictions /iopsstor/scratch/cscs/hqi/VFM/EK100/avion_predictions_test.json \
+            --val_metadata /iopsstor/scratch/cscs/hqi/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \
             --llava_num_frames 32 \
             --clip_length 32 \
             --topk_predictions 10
