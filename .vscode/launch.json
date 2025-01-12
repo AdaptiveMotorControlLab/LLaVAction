@@ -297,7 +297,7 @@
                 "--action_representation", "official_key",
                 "--topk_predictions", "10",
                 "--eval_steps", "1",
-                "--vision_supervision", "all_newlines",
+                "--vision_supervision", "three_tokens",
                 "--action_types", "97,300,3806",
                 "--n_narration", "5"
             ],

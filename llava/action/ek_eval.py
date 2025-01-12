@@ -30,19 +30,19 @@ def process_raw_pred(raw_pred):
         return raw_pred
 
 def setup(rank, world_size):
-    # Check if the process group is already initialized
     if not dist.is_initialized():
-        # Initialize the process group if it hasn't been initialized yet
-        os.environ['MASTER_ADDR'] = '127.0.0.1'  # Replace with master node IP
-        os.environ['MASTER_PORT'] = '29500'      # Set a port for communication
+        os.environ['MASTER_ADDR'] = '127.0.0.1'
+        os.environ['MASTER_PORT'] = '29500'
         
         dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
         print(f"Process group initialized for rank {rank}")
         
-        # Set the GPU device based on rank
         local_rank = rank % torch.cuda.device_count()
         torch.cuda.set_device(local_rank)
         print(f"Using GPU {local_rank} for rank {rank}")
+    
+    # Return the device
+    return torch.device(f'cuda:{rank % torch.cuda.device_count()}')
 
 
 def datetime2sec(str):
@@ -187,7 +187,7 @@ def evaluate_on_EK100(eval_args,
 
     world_size = int(os.environ['WORLD_SIZE'])
     rank = int(os.environ['RANK'])
-    setup(rank, world_size)
+    device = setup(rank, world_size)
 
 
     if model is not None:
@@ -248,6 +248,7 @@ def evaluate_on_EK100(eval_args,
                                 collate_fn=collate_fn,
                                 sampler = sampler, 
                                 batch_size=1, 
+                                pin_memory = False,
                                 shuffle=False)    
         
     # Set up logging
@@ -275,7 +276,6 @@ def evaluate_on_EK100(eval_args,
             pretrained = eval_args.llava_checkpoint
         tokenizer, model, image_processor, _ = prepare_llava(pretrained)   
        
-    device = torch.device(f'cuda:{rank}') 
 
     global_avion_correct = torch.tensor(0.0, device=device)
     global_running_corrects = torch.tensor(0.0, device=device)
