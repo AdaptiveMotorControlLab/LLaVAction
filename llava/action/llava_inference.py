@@ -5,7 +5,8 @@ from llava.conversation import conv_templates, SeparatorStyle
 import torch
 import numpy as np
 import copy
-
+from llava.action.utils import format_llava_prompt
+from llava.utils import rank0_print
 
 def llava_ov_process(video_frames, 
     tokenizer, 
@@ -15,7 +16,7 @@ def llava_ov_process(video_frames,
     clip_length = 16,
     num_frames = 16,
     temperature = 0,
-    is_test = False):
+    ):
 
     device = "cuda" 
     video_frames = video_frames[0]
@@ -31,7 +32,7 @@ def llava_ov_process(video_frames,
 
     question = mc_data['question'][0]
     options = mc_data['options'][0]
-
+    
     question = f"{DEFAULT_IMAGE_TOKEN}\n{question}:{options}"     
     
     conv = copy.deepcopy(conv_templates[conv_template])
@@ -64,14 +65,15 @@ def llava_video_process(
     model, 
     image_processor, 
     mc_data,
+    test_type = 'base',
     clip_length = 16,
     num_frames = 16,
     temperature = 0,
-    time_meta = {},
-    is_test = False):
+    time_meta = {}):
 
     device = "cuda"
 
+    # this [0] is only for batch size 1.
     video_frames = video_frames[0]
 
     temporal_stride = clip_length // num_frames
@@ -80,11 +82,8 @@ def llava_video_process(
 
     image_tensors = []
 
-    video_duration = time_meta['duration'].item()
-    n_frames = time_meta['n_frames'].item()
-    frame_time = time_meta['frame_time']
-    frame_time = [e[0] for e in frame_time]
-    time_instruciton = f"The video lasts for {video_duration:.2f} seconds, and {n_frames} frames are uniformly sampled from it. These frames are located at {frame_time}.Please answer the following questions related to this video."    
+    video_duration = time_meta['duration']
+    n_frames = time_meta['n_frames']
     
     frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].cuda().to(torch.bfloat16)
 
@@ -92,16 +91,54 @@ def llava_video_process(
 
     conv_template = "qwen_1_5"
 
-    question = mc_data['question'][0]
     options = mc_data['options'][0]
     
-    question = DEFAULT_IMAGE_TOKEN + f"{time_instruciton}\n:{options}"
+    if test_type == 'base':
+        question_type = "mc_top5_official_key"
+    elif test_type == 'caption' or test_type == 'debug':
+        question_type = "gpt-gt-reason"
 
+    if  test_type == 'caption_then_answer':
+        
+        caption_answer = llava_video_process([video_frames], 
+        tokenizer, 
+        model,  
+        image_processor, 
+        mc_data,
+        test_type = 'caption',
+        clip_length = 16,
+        num_frames = 16,
+        temperature = 0,
+        time_meta = time_meta)
+
+        question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
+                                    options,
+                                    video_duration,                                  
+                                    n_frames,
+                                    "mc_top5_official_key",
+                                    include_frame_time = False,
+                                    include_time_instruction= True)
+
+        question = f"You observed the video before and wrote down the notes: {caption_answer}. Now you watch the same video again and you can do better. " +  question
+        
+    
+    else:
+        question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
+                                    options,
+                                    video_duration,                                  
+                                    n_frames,
+                                    question_type,
+                                    include_frame_time = False,
+                                    include_time_instruction= True)
+
+
+    #rank0_print ("debugging", question)
 
     conv = copy.deepcopy(conv_templates[conv_template])
     conv.append_message(conv.roles[0], question)
     conv.append_message(conv.roles[1], None)
     prompt_question = conv.get_prompt()
+
 
     input_ids = tokenizer_image_token(prompt_question, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(device)
     image_sizes = [frame.size for frame in video_frames]
@@ -117,7 +154,8 @@ def llava_video_process(
         modalities=["video"],
     )
 
-    text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)
+    text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)    
+
     return text_outputs[0]
 
 
@@ -132,33 +170,33 @@ def llava_inference(
     clip_length = 16,
     num_frames = 16,
     temperature = 0,
-    is_test = False,
+    test_type = 'base',
     time_meta = None
     ):
 
     model.eval()    
        
 
-    if 'ov' in pretrained_name:
-        return llava_ov_process(video_frames,
-                         tokenizer,
-                         model,
-                         image_processor,
-                         mc_data,
-                         clip_length,
-                         num_frames,
-                         temperature,
-                         is_test)
-    elif 'Video' in pretrained_name:
-        return llava_video_process(
+    # if 'ov' in pretrained_name:
+    #     return llava_ov_process(video_frames,
+    #                      tokenizer,
+    #                      model,
+    #                      image_processor,
+    #                      mc_data,
+    #                      clip_length,
+    #                      num_frames,
+    #                      temperature,
+    #                      )
+    # elif 'Video' in pretrained_name:
+    return llava_video_process(
             video_frames, 
             tokenizer, 
             model, 
             image_processor, 
             mc_data,
+            test_type = test_type,
             clip_length = clip_length,
             num_frames = num_frames,
             temperature = temperature,
             time_meta = time_meta,
-            is_test = is_test            
         )

@@ -17,6 +17,8 @@ from transformers.trainer_pt_utils import get_length_grouped_indices as get_leng
 from transformers.trainer_pt_utils import AcceleratorConfig
 from typing import List, Optional
 from datetime import timedelta
+import llava
+from llava.action.ek_eval import evaluate_on_EK100
 
 if is_accelerate_available():
     from accelerate import Accelerator, skip_first_batches, InitProcessGroupKwargs
@@ -40,7 +42,6 @@ def maybe_zero_3(param, ignore_status=False, name=None):
     else:
         param = param.detach().cpu().clone()
     return param
-
 
 def get_mm_adapter_state_maybe_zero_3(named_params, keys_to_match):
     to_return = {k: t for k, t in named_params if any(key_match in k for key_match in keys_to_match)}
@@ -245,16 +246,9 @@ class LLaVATrainer(Trainer):
         self.eval_args = eval_args
         self.model_max_length = model_max_length
 
-
-
-
-    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
-        from action.ek_eval import evaluate_on_EK100        
-
-        accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer)
-
+    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval", eval_result_folder = None):                
+        accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer, eval_result_folder = eval_result_folder)
         metrics = {f"{metric_key_prefix}_EK100_accuracy": accuracy}
-
         self.log(metrics)
 
         return metrics
@@ -491,6 +485,22 @@ class LLaVATrainer(Trainer):
 
 
 class LLaVADPOTrainer(DPOTrainer):
+    def __init__(self, 
+                 *args, 
+                 eval_args = None, 
+                 model_max_length = 0,  
+                 **kwargs):
+        super().__init__(*args, **kwargs)
+        self.eval_args = eval_args
+        self.model_max_length = model_max_length
+
+    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval", eval_result_folder = None):                
+        accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer, eval_result_folder = eval_result_folder)
+        metrics = {f"{metric_key_prefix}_EK100_accuracy": accuracy}
+        self.log(metrics)
+
+        return metrics  
+
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
         if self.train_dataset is None or not has_length(self.train_dataset):
             return None

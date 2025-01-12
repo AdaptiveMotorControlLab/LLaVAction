@@ -1,7 +1,5 @@
-#!/bin/bash
-
 # Export environment variables
-export CUDA_VISIBLE_DEVICES="0,1,2,3"
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 export OMP_NUM_THREADS="8"
 export NCCL_IB_DISABLE="0"
 export NCCL_IB_GID_INDEX="3"
@@ -9,21 +7,18 @@ export NCCL_SOCKET_IFNAME="eth0"
 export NCCL_DEBUG="INFO"
 export ACCELERATE_CPU_AFFINITY="1"
 export WANDB_API_KEY="4474ec79de023b0c3ffb43588ab6163264f875db"
-export HF_HOME=/data/shaokai
-
+export HF_HOME=/media/data/haozhe/VFM/huggingface
+export PYTHONPATH=/media/data/haozhe/VFM/LLaVA-NeXT:$PYTHONPATH
 
 # Run the command using torchrun
-torchrun --nproc_per_node=4 \
+torchrun --nproc_per_node=8 \
          --nnodes=1 \
-         --node_rank=0 \
-         --master_addr=127.0.0.1 \
-         --master_port=29500 \
          llava/train/train_mem.py \
          --deepspeed scripts/zero3.json \
-         --model_name_or_path lmms-lab/llava-onevision-qwen2-0.5b-ov \
+         --model_name_or_path  lmms-lab/LLaVA-Video-7B-Qwen2 \
          --version qwen_1_5 \
-         --data_path scripts/train/EK100_avion_mc.yaml \
-         --video_folder /data/shaokai/\
+         --data_path scripts/train/EK100_random_mc.yaml \
+         --video_folder /media/data/haozhe/VFM/onevision/llava_video \
          --mm_tunable_parts mm_vision_tower,mm_mlp_adapter,mm_language_model \
          --mm_vision_tower_lr 2e-6 \
          --vision_tower google/siglip-so400m-patch14-384 \
@@ -36,16 +31,16 @@ torchrun --nproc_per_node=4 \
          --image_grid_pinpoints "(1x1),...,(6x6)" \
          --mm_patch_merge_type spatial_unpad \
          --bf16 True \
-         --run_name shaokai_llava_ov_0.5b_avion_mc \
-         --output_dir experiments/shaokai_llava_ov_0.5b_avion_mc \
+         --run_name EK100_random_mc_vistoken \
+         --output_dir experiments/EK100_random_mc_vistoken \
          --num_train_epochs 1 \
          --per_device_train_batch_size 1 \
          --per_device_eval_batch_size 4 \
          --gradient_accumulation_steps 2 \
          --evaluation_strategy steps \
-         --eval_steps 500\
+         --eval_steps 2000\
          --save_strategy steps \
-         --save_steps 1000 \
+         --save_steps 2000 \
          --learning_rate 1e-5 \
          --weight_decay 0. \
          --warmup_ratio 0.03 \
@@ -60,9 +55,14 @@ torchrun --nproc_per_node=4 \
          --torch_compile True \
          --torch_compile_backend inductor \
          --dataloader_drop_last True \
-         --frames_upbound 32 \
-         --root /data/shaokai/EK100 \
-         --action_predictions /data/shaokai/avion_predictions_test.json \
-         --val_metadata /data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv \
+         --frames_upbound 16 \
+         --root /media/data/haozhe/VFM/onevision/llava_video/EK100 \
+         --action_predictions /media/data/haozhe/VFM/EK100/EK100_in_LLAVA/avion_pred_ids_val.json \
+         --val_metadata /media/data/haozhe/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \
          --llava_num_frames 16 \
-         --topk_predictions 5 > train_kitchen_0.5b_avion_mc.out 2>&1
+         --clip_length 16 \
+         --action_representation GT_random_narration \
+         --topk_predictions 5 \
+         --dataset ek100_cls \
+         --vision_supervision newline \
+         --action_types "97,300,3806" > train_EK100_random_mc_vistoken.out 2>&1
