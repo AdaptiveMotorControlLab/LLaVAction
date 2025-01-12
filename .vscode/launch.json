@@ -341,7 +341,7 @@
                 "--beta=0.1",
                 "--gamma", "0",
                 "--version", "qwen_1_5",
-                "--data_path", "scripts/train/temporal_cot_dpo.yaml",
+                "--data_path", "scripts/train/simple_tim_top5_cut.yaml",
                 "--video_folder", "/data/shaokai/",
                 "--mm_tunable_parts", "mm_vision_tower,mm_mlp_adapter,mm_language_model",
                 "--mm_vision_tower_lr", "2e-6",
@@ -385,9 +385,18 @@
                 "--val_metadata", "/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv",
                 "--llava_num_frames", "16",
                 "--clip_length", "16",
+<<<<<<< HEAD
                 "--action_representation", "GT_random_narration",
                 "--topk_predictions", "5",
                 "--eval_steps", "10",
+=======
+                "--action_representation", "official_key",
+                "--topk_predictions", "10",
+                "--eval_steps", "1",
+                "--vision_supervision", "three_tokens",
+                "--action_types", "97,300,3806",
+                "--n_narration", "5"
+>>>>>>> shaokai/dev
             ],
             "console": "integratedTerminal",
             "justMyCode": false,
