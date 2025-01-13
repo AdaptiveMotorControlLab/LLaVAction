@@ -248,6 +248,7 @@ def evaluate_on_EK100(eval_args,
                                 collate_fn=collate_fn,
                                 sampler = sampler, 
                                 batch_size=1, 
+                                pin_memory = False,
                                 shuffle=False)    
         
     # Set up logging
