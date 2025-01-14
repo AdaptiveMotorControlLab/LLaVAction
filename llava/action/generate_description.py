@@ -25,8 +25,7 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
     elif gen_type == 'avion_mc' or gen_type == 'tim_mc':
         mc_generator = AvionMultiChoiceGenerator(ann_root)
         with open(prediction_path, 'r') as f:
-            train_predictions = json.load(f)         
-    print ('train_predictions', train_predictions)
+            train_predictions = json.load(f)
     import spacy
     nlp = spacy.load('en_core_web_sm')
 
