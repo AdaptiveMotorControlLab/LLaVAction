@@ -1240,8 +1240,7 @@ class LazySupervisedDataset(Dataset):
                     pid = sources[0]['video'].split('-')[0]
                     vid = sources[0]['video'].split('-')[1]
 
-                    
-            
+                                
                     video, time_meta = avion_video_loader(os.path.join(video_folder, pid),
                                                           vid, 
                                                           'MP4', 
@@ -1292,6 +1291,9 @@ class LazySupervisedDataset(Dataset):
                     except:
                         pass
                     
+                    meta_data = None
+                    if "triple_meta" in sources[0]:
+                        meta_data = sources[0]["triple_meta"]
                     # We only store the option list in the annotation file to make it easier to use consistent prompting
                     llava_prompt = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
                                                  question,
@@ -1299,9 +1301,11 @@ class LazySupervisedDataset(Dataset):
                                                  num_frames_to_sample,
                                                  question_type,
                                                  include_time_instruction= self.data_args.add_time_instruction,
+                                                 meta_data = meta_data,
                                                  include_frame_time = False)
                     sources[0]["conversations"][0]["value"] = llava_prompt
                     # rank0_print (sources[0])
+                #print ('sources[0]', sources[0])
                 action = torch.tensor([sources[0]['verb_id'], sources[0]['noun_id'], sources[0]['action_id']] if 'verb_id' in sources[0] else [-1, -1, -1]).long()
                 image = [(image, video[0].size, "video", action)]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
@@ -1414,8 +1418,8 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
 
     overwrite_config = {}
 
-    # if 'video' in model_args.model_name_or_path or 'Video' in model_args.model_name_or_path:
-    #     overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
+    if 'video' in model_args.model_name_or_path or 'Video' in model_args.model_name_or_path:
+        overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
 
     if any(
         [
@@ -1815,9 +1819,9 @@ def train(attn_implementation=None):
     eval_args.pretrained_name = model_args.model_name_or_path.split('/')[1]
 
 
-    if 'experiments/' in model_args.model_name_or_path:
-        from llava.action.ek_eval import prepare_llava
-        _, model, _, _ = prepare_llava(model_args.model_name_or_path)
+    # if 'experiments/' in model_args.model_name_or_path:
+    #     from llava.action.ek_eval import prepare_llava
+    #     _, model, _, _ = prepare_llava(model_args.model_name_or_path)
 
     trainer = LLaVATrainer(model=model, 
                            tokenizer = tokenizer, 

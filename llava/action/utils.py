@@ -208,7 +208,7 @@ def remove_sub_nouns_with_doc(doc, verb: str, noun: str) -> str:
     return processed_text
 
 
-def format_task_related_prompt(question, question_type, perspective = "first_person"):
+def format_task_related_prompt(question, question_type, meta_data = None, perspective = "first_person"):
     """
     Task related prompt is impacted by the question_type.
     We currently support mc_{action_representation} and gpt-gt-reason
@@ -227,6 +227,14 @@ def format_task_related_prompt(question, question_type, perspective = "first_per
         ret = prefix + suffix
     elif question_type == "gpt-gt-reason":
         ret = f"{perspective_prefix}Describe in details what you see from the video frames."
+    
+    elif question_type == "triple_direct_answer":
+        assert meta_data
+        duration1 = meta_data[0]['duration']
+        duration2 = meta_data[1]['duration']
+        duration3 = meta_data[2]['duration']
+        prompt = f"The video consists of 3 sequential actions. They last  {duration1:.3f}, {duration2:.3f}, and {duration3:.3f} seconds respectively. What are the actions? Format your answer as action1, action2, action3."        
+        ret = f"{perspective_prefix}{prompt}"
     
     elif question_type == "validation":
         ret = f"Ask yourself questions to validate your notes."
@@ -280,7 +288,8 @@ def format_llava_prompt(image_token,
                         n_frames,
                         question_type,
                         include_time_instruction = False,
-                        include_frame_time = False
+                        include_frame_time = False,
+                        meta_data = None
                         ):
     """
     baseline llava prompt: {image_token}\n{task_related_prompt}
@@ -288,7 +297,7 @@ def format_llava_prompt(image_token,
 
     """
 
-    task_related_prompt = format_task_related_prompt(question, question_type)
+    task_related_prompt = format_task_related_prompt(question, question_type, meta_data = meta_data)
 
     time_instruction =  format_time_instruction(video_duration, n_frames, include_frame_time)
 
