@@ -189,20 +189,10 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     action_logits = action_logits.to(device)
                     actions = actions.to(device)
 
-                    # verb_loss = loss_fct(verb_logits, actions[:, 0])
-                    # noun_loss = loss_fct(noun_logits, actions[:, 1])
-                    # action_loss = loss_fct(action_logits, actions[:, 2])
-                    # loss += 0.5 * verb_loss + 0.5 * noun_loss + 0.1 * action_loss
-                    vision_supervision_loss = 0.0
-                    
-                    # verb_loss = loss_fct(verb_logits, actions[:, 0]).mean()
-                    # noun_loss = loss_fct(noun_logits, actions[:, 1]).mean()
-                    # action_loss = loss_fct(action_logits, actions[:, 2]).mean()
-                    verb_loss = loss_fct(verb_logits, actions[:, 0].expand(224)).mean()
-                    noun_loss = loss_fct(noun_logits, actions[:, 1].expand(224)).mean()
-                    action_loss = loss_fct(action_logits, actions[:, 2].expand(224)).mean()
-                    
-                    vision_supervision_loss += 0.5 * verb_loss + 0.5 * noun_loss + 0.1 * action_loss
+                    verb_loss = loss_fct(verb_logits, actions[:, 0])
+                    noun_loss = loss_fct(noun_logits, actions[:, 1])
+                    action_loss = loss_fct(action_logits, actions[:, 2])
+                    vision_supervision_loss = 0.5 * verb_loss + 0.5 * noun_loss + 0.1 * action_loss
                     loss += vision_supervision_loss * 0.1
 
             if not return_dict:
