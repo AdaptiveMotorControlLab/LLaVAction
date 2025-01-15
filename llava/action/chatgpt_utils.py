@@ -17,17 +17,19 @@ import io
 import numpy as np 
 import base64
 from pathlib import Path
+import traceback
 
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-GPT_MODEL = "gpt-4o-2024-08-06"
+GPT_MODEL = "o1"
 
 prices = {
-    "gpt-4o-2024-08-06": {"input": 2.5 / 10**6, "output": 10 / 10**6},
+    "gpt-4o": {"input": 2.5 / 10**6, "output": 10 / 10**6},
+    "o1": {"input": 15 / 10**6, "output": 60 / 10**6},
+    "o1-mini": {"input": 3 / 10**6, "output": 12 / 10**6},
+    "gpt-4o-mini": {"input": 0.15 / 10**6, "output": 0.6 / 10**6},
 }
-
-
 
 class ExpandReasonMCPrompt:
     """
@@ -92,6 +94,27 @@ Make sure you use the first-person perspective in your reasoning.
         return prompt
 
 
+class InferenceAnswer:
+    json_errors = 0
+    def __init__(self, answer):
+        
+        if 'o1' not in GPT_MODEL:
+            self.answer = answer.answer
+            self.caption = answer.caption
+        else:
+            content = answer.content
+            temp = content.replace('```json', '').replace('```', '').strip()            
+            try:
+                answer = json.loads(temp)
+            except json.JSONDecodeError as e:
+                print(f"Failed to decode JSON response: {response_content}")
+                self.answer = 'N/A'
+                self.caption = 'N/A'
+                json_errors += 1
+            self.answer = answer['answer']
+            self.caption = answer['caption']
+            
+
 
 class GPTStrongReasoningWithGTPrompt:
     @classmethod
@@ -133,6 +156,7 @@ class GT_Agnostic_Response(BaseModel):
     The GT was known. The response is to add more information to the GT
     """
     answer: str
+    caption: str
 
 
 class GPTHandObjectResponse(BaseModel):
@@ -329,8 +353,8 @@ class GPTInferenceAnnotator(ChatGPT):
         self.annotation_root = Path(annotation_file).parent
         self.action_representation = action_representation
         self.labels, self.mapping_vn2narration, self.mapping_vn2act, self.verb_maps, self.noun_maps = generate_label_map(self.annotation_root,                                                                                           
-                                                                                            action_representation,
-                                                                                            cache_file =  os.path.join(self.annotation_root, 'nlp_cache.pkl'))
+                                                                                            action_representation)
+                                                                                            
 
       
         self.mc_generator = AvionMultiChoiceGenerator(self.annotation_root)
@@ -422,9 +446,14 @@ class GPTInferenceAnnotator(ChatGPT):
             try:
                 parsed_answer = self.predict_images(frames, v)
             except Exception as e:
+                # get full stack trace
+                traceback.print_exc()
+                
                 print ("An exception occurred: ", e)
+            
             predicted_answer = parsed_answer.answer
-            print (predicted_answer)
+            caption = parsed_answer.caption
+            print ('caption:', caption)
             gt_name = v['gt_answer']
             ret[k] = {
                 'gt_name': gt_name,
@@ -458,28 +487,64 @@ class GPTInferenceAnnotator(ChatGPT):
         time_instruction = f"The provided video lasts for {video_duration:.3f} seconds, and {n_frames} frames are uniformly sampled from it. "
 
         system_prompt = time_instruction + task_related_prompt
+        
+        format_prompt = """
+**Return only a JSON object** with the following two properties:
+
+- `"answer"`: the answer to the question.
+- `"caption"`: A detailed caption of the video. Used to support the answer.
+"""
+     
+        if 'o1' in GPT_MODEL:
+            system_prompt += format_prompt
      
         print (system_prompt)
 
         if self.handobj_root is not None:
             system_prompt += f"""To further assist you, we mark hands and object when they are visible. The left hand is marked with a bounding box that contains letter L and the right hand's bounding box contains letter R. The object is marked as 'O'."""
         
-
-        system_message =  [{"role": "system", "content": system_prompt}]
+        if 'o1-mini' == GPT_MODEL:
+            system_role = "user"
+            temperature = 1
+        elif 'o1' == GPT_MODEL:
+            system_role = "developer"
+        else:
+            system_role = "system"
+        
+        system_message =  [{"role": system_role, "content": system_prompt}]
 
         multi_image_content = self.prepare_multiple_images(images)
         multi_modal_content = [{"type": "text", "text": ""}] + multi_image_content
         user_message = [{"role": "user", "content": multi_modal_content}]               
 
-        response = client.beta.chat.completions.parse(
-            model=GPT_MODEL,
-            messages=system_message + user_message, 
-            response_format = GT_Agnostic_Response,
-            temperature = temperature
-        )
+        kwargs = {'model': GPT_MODEL,
+                    'messages': system_message + user_message,
+                    'response_format': GT_Agnostic_Response,
+                    'temperature': temperature}
+        
+        if 'o1' in GPT_MODEL:
+            kwargs.pop('response_format')
+        if 'o1' == GPT_MODEL:
+            kwargs.pop('temperature')
+            pass
+            #kwargs['reasoning_effort'] = 'high'
+        if 'o1' not in GPT_MODEL:
+            # structural output
+            response = client.beta.chat.completions.parse(
+                **kwargs
+            )
+        else:
+            response = client.chat.completions.create(
+                **kwargs
+            )
+            
         total_cost = self.calculate_cost(response)
+        
+        ret = response.choices[0].message.parsed if 'o1' not in GPT_MODEL else response.choices[0].message
 
-        return response.choices[0].message.parsed
+        return InferenceAnswer(ret)
+
+
 
 class GPTHandObjectAnnotator(ChatGPT):
     """
@@ -526,7 +591,6 @@ class GPTHandObjectAnnotator(ChatGPT):
             item['conversations'][1]['value'] = gpt_answer
             item['question_type'] = self.anno_type
             ret[index] = item
-            print (item)          
             if self.debug:                
                 break
 
@@ -622,7 +686,6 @@ class GPTAugmentationAnnotator(ChatGPT):
         option_text = ', '.join(eval(human_dict['value']))        
         gpt_dict = conversations[1]
         gt_answer = gpt_dict['value']
-        print ('gt_answer', gt_answer)
         assert human_dict['from'] == 'human' and gpt_dict['from'] =='gpt'
 
         ret = {'options': option_text,
@@ -683,7 +746,6 @@ class GPTAugmentationAnnotator(ChatGPT):
             item['conversations'][1]['value'] = gpt_answer
             item['question_type'] = self.anno_type
             ret[index] = item
-            print (item)
             if self.debug:
                 
                 break
@@ -895,26 +957,27 @@ if __name__ == '__main__':
     #                 debug = False, 
     #                 clip_length = 4,
     #                 n_samples = -1, 
-    #                 anno_type = 'gpt-gt-strong-reason')
+    #                 anno_type = 'gpt-gt-reason')
 
-    # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-    # val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-    # avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'    
-
-
-    # annotator = GPTInferenceAnnotator(root, 
-    # val_file,
-    # avion_prediction_file,
-    # clip_length = 8,
-    # debug = False,
-    # action_representation = "GT_random_narration",
-    # question_type = 'mc_GT_random_narration',
-    # topk = 5)  
-
-    # annotator.multi_process_run(n_samples = 100)
+    root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+    val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'    
 
 
-    convert_json_to_jsonl('train_anno_gpt-gt-strong-reason_4_all.json')
+    annotator = GPTInferenceAnnotator(root, 
+    val_file,
+    avion_prediction_file,
+    clip_length = 8,
+    debug = False,
+    action_representation = "GT_random_narration",
+    question_type = 'mc_GT_random_narration',
+    topk = 5)  
+
+    annotator.multi_process_run(n_samples = 100)
+    print ('# json errors', InferenceAnswer.json_errors)
+
+
+    #convert_json_to_jsonl('train_anno_gpt-gt-strong-reason_4_all.json')
 
     #convert_instruct_json_to_jsonl('train_anno_gpt-gt-instruct-reason_4_all.json')
 
