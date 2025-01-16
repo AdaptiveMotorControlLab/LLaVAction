@@ -69,6 +69,7 @@ def llava_video_process(
     clip_length = 16,
     num_frames = 16,
     temperature = 0,
+    learn_neighbor_actions = False,
     time_meta = {}):
 
     device = "cuda"
@@ -117,6 +118,7 @@ def llava_video_process(
                                     n_frames,
                                     "mc_top5_official_key",
                                     include_frame_time = False,
+                                    learn_neighbor_actions = learn_neighbor_actions,
                                     include_time_instruction= True)
 
         question = f"You observed the video before and wrote down the notes: {caption_answer}. Now you watch the same video again and you can do better. " +  question
@@ -129,6 +131,7 @@ def llava_video_process(
                                     n_frames,
                                     question_type,
                                     include_frame_time = False,
+                                    learn_neighbor_actions = learn_neighbor_actions,
                                     include_time_instruction= True)
 
 
@@ -171,23 +174,13 @@ def llava_inference(
     num_frames = 16,
     temperature = 0,
     test_type = 'base',
-    time_meta = None
+    time_meta = None,
+    learn_neighbor_actions = False
     ):
 
     model.eval()    
        
-
-    # if 'ov' in pretrained_name:
-    #     return llava_ov_process(video_frames,
-    #                      tokenizer,
-    #                      model,
-    #                      image_processor,
-    #                      mc_data,
-    #                      clip_length,
-    #                      num_frames,
-    #                      temperature,
-    #                      )
-    # elif 'Video' in pretrained_name:
+   
     return llava_video_process(
             video_frames, 
             tokenizer, 
@@ -199,4 +192,5 @@ def llava_inference(
             num_frames = num_frames,
             temperature = temperature,
             time_meta = time_meta,
+            learn_neighbor_actions = learn_neighbor_actions
         )

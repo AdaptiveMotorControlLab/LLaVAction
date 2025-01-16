@@ -133,7 +133,7 @@ def get_annotated_intervals(file_path):
     _ = next(csv_reader)
     vid_to_intervals = defaultdict(list)
     vid_to_gt_narration = defaultdict(list)
-    uid_to_action_ids = defaultdict(list)
+    vid_to_action_ids = defaultdict(list)
     
     labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps = generate_label_map(Path(file_path).parent, 'GT_random_narration')
     for row in csv_reader:       
@@ -154,10 +154,53 @@ def get_annotated_intervals(file_path):
         vid_to_gt_narration[vid].append(narration)
 
 
-        uid_to_action_ids[vid].append((verb_id, noun_id, action_id))
+        vid_to_action_ids[vid].append((verb_id, noun_id, action_id))
     
-    return vid_to_intervals, vid_to_gt_narration, uid_to_action_ids
+    return vid_to_intervals, vid_to_gt_narration, vid_to_action_ids
 
+
+def build_uid_pad_dict(ann_file,
+                       delta = 3):
+    """
+    every uid corresponds to two neighboring actions    
+    """
+    
+    uid_to_neighbors = {}
+    
+    vid_to_intervals, vid_to_gt_narration, vid_to_action_ids = get_annotated_intervals(ann_file)
+    ret = []    
+    
+    
+    for vid, intervals in vid_to_intervals.items():
+        # Sort intervals by end time
+        sorted_intervals = sorted(intervals, key=lambda x: x[1])
+        
+        end_times = [end for _, end in sorted_intervals]
+        start_times = [start for start, _ in sorted_intervals]
+        
+        # Look for consecutive triples
+        for i in range(len(sorted_intervals)-2):  # -2 because we need 3 consecutive intervals
+            id = vid.split('_')[0] + '-' + vid
+            
+            # Get time differences between consecutive intervals
+            time_diff1 = start_times[i+1] - end_times[i]
+            time_diff2 = start_times[i+2] - end_times[i+1]
+            
+            # Check if both time differences are less than 3 seconds
+            if time_diff1 <= delta and time_diff2 <= delta: 
+                
+                narration_prev = vid_to_gt_narration[vid][i]
+                narration_after = vid_to_gt_narration[vid][i+2]
+                uid = f"{id}_{round(start_times[i+1],2)}_{round(end_times[i+1],2)}"
+                uid_to_neighbors[uid] = {
+                    'narration_prev': narration_prev,
+                    'narration_after': narration_after,
+                    'padded_start_time': start_times[i],
+                    'padded_end_time': end_times[i+2]
+                }
+    return uid_to_neighbors
+                
+    
 
 def sample_uid_triples(anno_file, 
                        delta = 3, 
@@ -260,9 +303,11 @@ def create_merged_intervals(train_ann_file):
     pass
 
 
-res = sample_uid_triples('/mnt/upmwmathis/scratch/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv')
+if __name__ == '__main__':
 
-# save to jsonl
-with open('ek100_triples.jsonl', 'w') as f:
-    for item in res:
-        f.write(json.dumps(item) + '\n')
+    res = sample_uid_triples('/mnt/upmwmathis/scratch/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv')
+
+    # save to jsonl
+    with open('ek100_triples.jsonl', 'w') as f:
+        for item in res:
+            f.write(json.dumps(item) + '\n')
