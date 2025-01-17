@@ -47,6 +47,14 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
             # here we directly use the model to predict gt narration
             narration = row[8]
             conversation = generate_direct_conversation(narration)
+        
+        elif gen_type == "temporal_detection":
+            """
+            The action is X and it lasts for XX seconds, what is the start and end time
+            """
+            narration = row[8]
+            
+        
         elif gen_type == "random_mc":
             # DEPRECATED
             vn_str = f'{row[10]}:{row[12]}'
@@ -156,10 +164,6 @@ def append_action_idx_to_existing_ann(instruct_ann_file, ek100_ann_file,  mappin
         for instruct in ret:
             f.write(json.dumps(instruct) + '\n')
     
-
-
-
-
 
 
 def generate_naive_conversation(vn_str:str):

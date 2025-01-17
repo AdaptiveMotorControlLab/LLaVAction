@@ -1298,9 +1298,9 @@ class LazySupervisedDataset(Dataset):
                     if "triple_meta" in sources[0]:
                         meta_data = sources[0]["triple_meta"]
                         
-                    if self.eval_args.learn_neighbor_actions and 'narration_prev' in sources[0]:
+                    if self.eval_args.learn_neighbor_actions and 'narration_prev_1' in sources[0]:
                         original_target = sources[0]["conversations"][1]["value"]
-                        sources[0]["conversations"][1]["value"] = f'{sources[0]["narration_prev"]}, {original_target}, {sources[0]["narration_after"]}'
+                        sources[0]["conversations"][1]["value"] = f'{sources[0]["narration_prev_2"]}, {sources[0]["narration_prev_1"]}, {original_target}'
                     else:
                         a = []
                         
@@ -1313,7 +1313,7 @@ class LazySupervisedDataset(Dataset):
                                                  include_time_instruction= self.data_args.add_time_instruction,
                                                  meta_data = meta_data,                                                 
                                                  include_frame_time = False,
-                                                 learn_neighbor_actions = self.eval_args.learn_neighbor_actions and 'narration_prev' in sources[0])
+                                                 learn_neighbor_actions = self.eval_args.learn_neighbor_actions and 'narration_prev_1' in sources[0])
                     sources[0]["conversations"][0]["value"] = llava_prompt
                     # rank0_print (sources[0])
                 #print ('sources[0]', sources[0])

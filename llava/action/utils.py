@@ -221,11 +221,11 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
     if question_type.startswith("mc_"):
         
         if learn_neighbor_actions:
-            action_rep_suffix = "There are 3 sequential actions in the video. Format your answer as action1, B. action2, action3. You will be given multiple choices for action2. Try to use action1 and action3 to infer action2. " 
+            action_rep_suffix = "There are 3 sequential actions in the video. Format your answer as action1, action2, option letter. action3. You will be given multiple choices for action3. Try to use action1 and action2 to infer action3. " 
             prefix = f"{perspective_prefix}{action_rep_suffix}\n"
             assert isinstance(question, list)
             suffix = ", ".join(question)
-            suffix = "For action2, here are the options of actions you are selecting:\n" + suffix 
+            suffix = "For action3, here are the options of actions you are selecting:\n" + suffix 
             ret = prefix + suffix
         else:
             action_rep_suffix = "Given multiple choices, format your answer briefly such as 'A. move knife'. "              
@@ -234,6 +234,9 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
             suffix = ", ".join(question)
             suffix = "Here are the options of actions you are selecting:\n" + suffix 
             ret = prefix + suffix
+            
+    elif question_type == "temporal_detection":
+        ret = question
     elif question_type == "gpt-gt-reason":
         ret = f"{perspective_prefix}Describe in details what you see from the video frames."
     

@@ -10,119 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 from tqdm import tqdm
 from collections import Counter
-
-
-def generate_label_map(anno_root, action_representation):
-    print("Preprocess ek100 action label space")
-    vn_list = []
-    mapping_vn2narration = {}
-    
-    # Load CSVs
-    noun_classes_pd = pd.read_csv(os.path.join(anno_root, 'EPIC_100_noun_classes_v2.csv'))
-    verb_classes_pd = pd.read_csv(os.path.join(anno_root, 'EPIC_100_verb_classes.csv'))
-    
-    # Initialize maps
-    verb_maps = {} if 'key' in action_representation or action_representation == 'first_sample' else None
-    noun_maps = {} if 'key' in action_representation or action_representation == 'first_sample' else None
-    
-    # Process verb and noun maps
-    if 'key' in action_representation:
-        for _, row in verb_classes_pd.iterrows():
-            verb_maps[str(row['id'])] = row['key']
-        for _, row in noun_classes_pd.iterrows():
-            elements = row['key'].split(':')
-            noun_maps[str(row['id'])] = ' '.join(elements[1:] + [elements[0]]) if len(elements) > 1 else row['key']
-
-    # Batch processing setup
-    if 'cut' in action_representation:
-        import spacy
-        nlp = spacy.load('en_core_web_sm', disable=['ner', 'textcat'])
-        
-        def process_batch_of_rows(rows_batch):
-            # Prepare data for batch processing
-            narrations = []
-            verbs = []
-            nouns = []
-            vns = []
-            
-            for row in rows_batch:
-                narrations.append(row[8])
-                verbs.append(row[9])
-                nouns.append(row[13])
-                vn = '{}:{}'.format(int(row[10]), int(row[12]))
-                vns.append(vn)
-            
-            # Process all narrations in batch
-            processed_narrations = []
-            for doc, verb, noun in zip(nlp.pipe(narrations, batch_size=1000), verbs, nouns):
-                processed_narration = remove_sub_nouns_with_doc(doc, verb, noun)
-                processed_narrations.append(processed_narration)
-            
-            return zip(vns, processed_narrations)
-
-    # Process files
-    batch_size = 1000
-    current_batch = []
-    
-    for f in [
-        os.path.join(anno_root, 'EPIC_100_train.csv'),
-        os.path.join(anno_root, 'EPIC_100_validation.csv'),
-    ]:
-        csv_reader = csv.reader(open(f))
-        next(csv_reader)  # skip header
-        
-        for row in tqdm(csv_reader):
-            vn = '{}:{}'.format(int(row[10]), int(row[12]))
-            if vn not in vn_list:
-                vn_list.append(vn)
-                
-            if action_representation == 'first_sample':
-                if row[10] not in verb_maps:
-                    verb_maps[row[10]] = row[9]
-                if row[12] not in noun_maps:
-                    noun_maps[row[12]] = row[11]
-            
-            if 'cut' in action_representation:
-                current_batch.append(row)
-                
-                if len(current_batch) >= batch_size:
-                    # Process batch
-                    for batch_vn, processed_narration in process_batch_of_rows(current_batch):
-                        if batch_vn not in mapping_vn2narration:
-                            mapping_vn2narration[batch_vn] = [processed_narration]
-                        else:
-                            mapping_vn2narration[batch_vn].append(processed_narration)
-                    current_batch = []
-            else:
-                narration = row[8]
-                if vn not in mapping_vn2narration:
-                    mapping_vn2narration[vn] = [narration]
-                else:
-                    mapping_vn2narration[vn].append(narration)
-        
-        # Process remaining batch
-        if current_batch and 'cut' in action_representation:
-            for batch_vn, processed_narration in process_batch_of_rows(current_batch):
-                if batch_vn not in mapping_vn2narration:
-                    mapping_vn2narration[batch_vn] = [processed_narration]
-                else:
-                    mapping_vn2narration[batch_vn].append(processed_narration)
-    
-    # Finalize results
-    vn_list = sorted(vn_list)
-    print('# of action= {}'.format(len(vn_list)))
-    mapping_vn2act = {vn: i for i, vn in enumerate(vn_list)}
-    
-    # Create labels with frequency sorting
-    labels = {}
-    for vn, narrations in mapping_vn2narration.items():
-        frequency_count = Counter(narrations)
-        sorted_unique_list = [item for item, count in frequency_count.most_common()]
-        labels[vn] = sorted_unique_list
-    
-    return labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps
-
-
+from llava.action.utils import generate_label_map
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
@@ -189,12 +77,12 @@ def build_uid_pad_dict(ann_file,
             # Check if both time differences are less than 3 seconds
             if time_diff1 <= delta and time_diff2 <= delta: 
                 
-                narration_prev = vid_to_gt_narration[vid][i]
-                narration_after = vid_to_gt_narration[vid][i+2]
-                uid = f"{id}_{round(start_times[i+1],2)}_{round(end_times[i+1],2)}"
+                narration_prev_2 = vid_to_gt_narration[vid][i]
+                narration_prev_1 = vid_to_gt_narration[vid][i+1]
+                uid = f"{id}_{round(start_times[i+2],2)}_{round(end_times[i+2],2)}"
                 uid_to_neighbors[uid] = {
-                    'narration_prev': narration_prev,
-                    'narration_after': narration_after,
+                    'narration_prev_2': narration_prev_2,
+                    'narration_prev_1': narration_prev_1,
                     'padded_start_time': start_times[i],
                     'padded_end_time': end_times[i+2]
                 }
@@ -303,11 +191,23 @@ def create_merged_intervals(train_ann_file):
     pass
 
 
+def create_merged_captions(triple_file, caption_file):
+    # both files are jsonl
+    with open(caption_file, 'r') as f:
+        caption_lines = f.readlines()
+    # get uid from each caption dict
+    
+
+
 if __name__ == '__main__':
 
-    res = sample_uid_triples('/mnt/upmwmathis/scratch/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv')
+    # res = sample_uid_triples('/mnt/upmwmathis/scratch/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv')
 
-    # save to jsonl
-    with open('ek100_triples.jsonl', 'w') as f:
-        for item in res:
-            f.write(json.dumps(item) + '\n')
+    # # save to jsonl
+    # with open('ek100_triples.jsonl', 'w') as f:
+    #     for item in res:
+    #         f.write(json.dumps(item) + '\n')
+    triple_file_path = 'ek100_triples.jsonl'
+    caption_file_path = '/data/shaokai/first_person_annos/train_anno_gpt-gt-reason_4_first_person_all_action_idx.jsonl'
+    create_merged_captions(triple_file_path, caption_file_path)
+    
