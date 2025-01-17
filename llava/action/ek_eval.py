@@ -293,12 +293,8 @@ def evaluate_on_EK100(eval_args,
         from llava.action.generate_interval_pred import build_uid_pad_dict
         uid_pad_dict = build_uid_pad_dict(eval_args.val_metadata)
 
-    for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):        
-                  
-
-
+    for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):                  
         with torch.no_grad():
-
 
             global_index = global_index[0]
             mc_data = mc_data[0]

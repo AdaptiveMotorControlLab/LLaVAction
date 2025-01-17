@@ -221,11 +221,13 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
     if question_type.startswith("mc_"):
         
         if learn_neighbor_actions:
-            action_rep_suffix = "There are 3 sequential actions in the video. Format your answer as action1, action2, option letter. action3. You will be given multiple choices for action3. Try to use action1 and action2 to infer action3. " 
+            action_rep_suffix = "There are 3 sequential actions in the video such as action1, action2, action3. You will be given multiple choices for action3 and select the right answer. Try to use action1 and action2 to infer action3. " 
             prefix = f"{perspective_prefix}{action_rep_suffix}\n"
             assert isinstance(question, list)
             suffix = ", ".join(question)
-            suffix = "For action3, here are the options of actions you are selecting:\n" + suffix 
+            prev2 = meta_data[0]
+            prev1 = meta_data[1]
+            suffix = f"Sequentially, action1 is '{prev2}' and action 2 is '{prev1}'. Here are the options of actions you are selecting the answer for action3:\n" + suffix 
             ret = prefix + suffix
         else:
             action_rep_suffix = "Given multiple choices, format your answer briefly such as 'A. move knife'. "              
@@ -308,9 +310,7 @@ def format_llava_prompt(image_token,
     """
     baseline llava prompt: {image_token}\n{task_related_prompt}
     with time instruction: {image_token}\n{time_instruction}\n{task_related_prompt}
-
     """
-
     task_related_prompt = format_task_related_prompt(question, question_type, meta_data = meta_data, learn_neighbor_actions = learn_neighbor_actions)
 
     time_instruction =  format_time_instruction(video_duration, n_frames, include_frame_time)

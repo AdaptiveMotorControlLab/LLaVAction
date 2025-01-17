@@ -1299,8 +1299,11 @@ class LazySupervisedDataset(Dataset):
                         meta_data = sources[0]["triple_meta"]
                         
                     if self.eval_args.learn_neighbor_actions and 'narration_prev_1' in sources[0]:
-                        original_target = sources[0]["conversations"][1]["value"]
-                        sources[0]["conversations"][1]["value"] = f'{sources[0]["narration_prev_2"]}, {sources[0]["narration_prev_1"]}, {original_target}'
+                        meta_data = [sources[0]['narration_prev_2'], sources[0]['narration_prev_1']]
+                        #question = [sources[0]["narration_prev_2"], sources[0]["narration_prev_1"]]
+                        #original_target = sources[0]["conversations"][1]["value"]
+                        #sources[0]["conversations"][1]["value"] = f'{sources[0]["narration_prev_2"]}, {sources[0]["narration_prev_1"]}, {original_target}'
+                        #sources[0]["conversations"][1]["value"] = f'{original_target}'
                     else:
                         a = []
                         

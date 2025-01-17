@@ -229,7 +229,7 @@
             "request": "launch",
             "module": "torch.distributed.run",
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "CUDA_VISIBLE_DEVICES": "0",
                 "OMP_NUM_THREADS": "8",
                 "NCCL_IB_DISABLE": "0",
                 "NCCL_IB_GID_INDEX": "3",
@@ -241,7 +241,7 @@
                 "PYTHONPATH": "/data/shaokai/LLaVA-NeXT:/usr/local/lib/python3.10/site-packages/decord-0.6.0-py3.10-linux-x86_64.egg/"
             },
             "args": [
-                "--nproc_per_node=4",
+                "--nproc_per_node=1",
                 "--nnodes=1",
                 "--node_rank=0",
                 "--master_addr=127.0.0.1",
@@ -250,7 +250,7 @@
                 "--deepspeed", "scripts/zero3.json",
                 "--model_name_or_path", "lmms-lab/llava-onevision-qwen2-0.5b-ov",
                 "--version", "qwen_1_5",
-                "--data_path", "scripts/train/simple_avion_top5_temporal_detection.yaml",
+                "--data_path", "scripts/train/simple_avion_top5_pad.yaml",
                 "--video_folder", "/data/shaokai/",
                 "--mm_tunable_parts", "mm_vision_tower,mm_mlp_adapter,mm_language_model",
                 "--mm_vision_tower_lr", "2e-6",
@@ -345,7 +345,6 @@
 //                     "--llava_checkpoint", "/data/shaokai/LLaVA-NeXT/experiments/dev_0.5b_12f_avion_top5_pad_with_neighbors",
 //                     "--topk_predictions", "5",
 //                     "--learn_neighbor_actions"
-
 //                 ],
 //                 "console": "integratedTerminal",
 //                 "justMyCode": false,
