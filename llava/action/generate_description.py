@@ -170,7 +170,7 @@ def generate_naive_conversation(vn_str:str):
     # DEPRECATED. As this is hard-coding the prompt into the data
     # in this version, we do not care about diversifying the questions
     return [
-        {"from": "human", "value": "<image>\n the video is taken from egocentric view. What action is the person performing? Hint: provide your answer in verb-noun pair. "},
+        {"from": "human", "value": "The video is taken from egocentric view. What action is the person performing? Hint: provide your answer in verb-noun pair. "},
         {"from": "gpt", "value": f"{vn_str}"}    
     ]
 
@@ -178,7 +178,7 @@ def generate_direct_conversation(vn_str:str):
     # DEPRECATED. As this is hard-coding the prompt into the data
     # in this version, we do not care about diversifying the questions
     return [
-        {"from": "human", "value": "<image>\n the video is taken from egocentric view. What action is the person performing? "},
+        {"from": "human", "value": "The video is taken from egocentric view. What action is the person performing? "},
         {"from": "gpt", "value": f"{vn_str}"}    
     ]
 

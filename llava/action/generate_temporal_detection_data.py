@@ -40,7 +40,7 @@ def get_temporal_detection(train_ann, delta = 5):
             
         
         conversation = [
-            {"from": "human", "value": f"<image>\n The provided video contains an action '{action_gt_narration}' that lasts {action_duration} seconds. What is the start and end time of the action in seconds? Format it as 'start_timestamp: end_timestamp' and round to 2 decimal places."},
+            {"from": "human", "value": f"The provided video contains an action '{action_gt_narration}' that lasts {action_duration} seconds. What is the start and end time of the action in seconds? Format it as 'start_timestamp: end_timestamp' and round to 2 decimal places."},
             {"from": "gpt", "value": f"{action_start_timestamp}: {action_end_timestamp}"}
         ]
 

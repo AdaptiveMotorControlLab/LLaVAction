@@ -1299,8 +1299,11 @@ class LazySupervisedDataset(Dataset):
                         meta_data = sources[0]["triple_meta"]
                         
                     if self.eval_args.learn_neighbor_actions and 'narration_prev_1' in sources[0]:
-                        original_target = sources[0]["conversations"][1]["value"]
-                        sources[0]["conversations"][1]["value"] = f'{sources[0]["narration_prev_2"]}, {sources[0]["narration_prev_1"]}, {original_target}'
+                        meta_data = [sources[0]['narration_prev_2'], sources[0]['narration_prev_1']]
+                        #question = [sources[0]["narration_prev_2"], sources[0]["narration_prev_1"]]
+                        #original_target = sources[0]["conversations"][1]["value"]
+                        #sources[0]["conversations"][1]["value"] = f'{sources[0]["narration_prev_2"]}, {sources[0]["narration_prev_1"]}, {original_target}'
+                        #sources[0]["conversations"][1]["value"] = f'{original_target}'
                     else:
                         a = []
                         
@@ -1320,6 +1323,8 @@ class LazySupervisedDataset(Dataset):
                 action = torch.tensor([sources[0]['verb_id'], sources[0]['noun_id'], sources[0]['action_id']] if 'verb_id' in sources[0] else [-1, -1, -1]).long()
                 image = [(image, video[0].size, "video", action)]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
+                print (sources[0])
+
                 # print(sources)
             except Exception as e:
                 import traceback

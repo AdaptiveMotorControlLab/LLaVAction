@@ -157,6 +157,7 @@ def ensemble_llava_evaluation(
                               test_type = 'base',
                               learn_neighbor_actions = False,                             
                               time_meta = None,
+                              uid_pad_dict = None
                               ):
     """
     This function tests how consistent the model is if we shuffle the position of the answers
@@ -314,9 +315,13 @@ def evaluate_on_EK100(eval_args,
         os.makedirs('debug_and_vis', exist_ok = True)
 
 
+    uid_pad_dict = None
+    if eval_args.learn_neighbor_actions:
+        from llava.action.generate_interval_pred import build_uid_pad_dict
+        uid_pad_dict = build_uid_pad_dict(eval_args.val_metadata)
+
     for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):                  
         with torch.no_grad():
-
 
             global_index = global_index[0]
             mc_data = mc_data[0]
@@ -354,7 +359,9 @@ def evaluate_on_EK100(eval_args,
                                                         eval_args.llava_num_frames,
                                                         test_type = eval_args.test_type,  
                                                         learn_neighbor_actions = eval_args.learn_neighbor_actions,                                                    
-                                                        time_meta = time_meta)
+                                                        time_meta = time_meta,
+                                                        uid_pad_dict = uid_pad_dict)
+                                                        
 
 
             if eval_args.test_type == 'debug':
