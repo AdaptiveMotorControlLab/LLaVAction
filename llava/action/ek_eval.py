@@ -19,12 +19,12 @@ import torchvision.io as io
 import re
 
 def process_raw_pred(raw_pred):
-    matches = re.findall(r"[A-Z]\.\s(.+)", raw_pred)
+    matches = re.findall(r"[A-Z]\.\s(.+?)(?:,|$)", raw_pred)
     if matches:
         # Get the last match
         last_match = matches[-1]
-        # Remove a trailing period and anything after it
-        last_match = re.sub(r"\.\s*.*$", "", last_match)
+        # Remove any trailing period or comma
+        last_match = re.sub(r"[.,]\s*$", "", last_match)
         return last_match
     else:
         return raw_pred
@@ -114,7 +114,7 @@ def get_args_parser():
                                    'GT_key', 'GT_random_narration', 'GT_random_narration_cut'])
     parser.add_argument('--n_narrations', default = -1, type = int)
     parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'caption_then_answer'])
-
+    parser.add_argument('--learn_neighbor_actions', action='store_true', default = False)
     
     return parser
 
@@ -128,7 +128,7 @@ def prepare_llava(pretrained):
     device_map = "auto"
 
     overwrite_config = None
-    if 'video' in pretrained or 'Video' in pretrained:
+    if 'video' in pretrained or 'Video' in pretrained or '7b' in pretrained:
         overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
 
 
@@ -154,7 +154,8 @@ def ensemble_llava_evaluation(
                               mc_data,
                               clip_length,  
                               num_frames,
-                              test_type = 'base',                             
+                              test_type = 'base',
+                              learn_neighbor_actions = False,                             
                               time_meta = None,
                               ):
     """
@@ -193,7 +194,8 @@ def ensemble_llava_evaluation(
                             clip_length = clip_length, 
                             num_frames=num_frames, 
                             temperature = temperature,
-                            time_meta = time_meta
+                            time_meta = time_meta,
+                            learn_neighbor_actions = learn_neighbor_actions,
                                )
         rank0_print('raw output', pred)
         pred = process_raw_pred(pred)
@@ -350,7 +352,8 @@ def evaluate_on_EK100(eval_args,
                                                         mc_data,
                                                         eval_args.clip_length,
                                                         eval_args.llava_num_frames,
-                                                        test_type = eval_args.test_type,                                                      
+                                                        test_type = eval_args.test_type,  
+                                                        learn_neighbor_actions = eval_args.learn_neighbor_actions,                                                    
                                                         time_meta = time_meta)
 
 

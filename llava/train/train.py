@@ -144,6 +144,8 @@ class DataArguments:
     force_sample: Optional[bool] = field(default=False)
     train_fused_decode_crop: bool = False
     train_jitter: bool = False
+    
+
 
 
 @dataclass
@@ -178,7 +180,7 @@ class TrainingArguments(transformers.TrainingArguments):
     # attn_implementation: str = field(default='sdpa', metadata={"help": "Use transformers attention implementation."})
     attn_implementation: str = field(default='flash_attention_2', metadata={"help": "Use transformers attention implementation."})
     overwrite_output_dir: bool =True
-
+    
 # @dataclass
 # class EvaluationArguments:
 #     eval_num_processes: int = field(default=1)
@@ -216,6 +218,7 @@ class EK100EvalArguments:
     action_representation: str = "GT_random_narration_cut"
     n_narrations: int = -1
     test_type: str = 'base'
+    learn_neighbor_actions: bool = False
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero
@@ -1240,8 +1243,7 @@ class LazySupervisedDataset(Dataset):
                     pid = sources[0]['video'].split('-')[0]
                     vid = sources[0]['video'].split('-')[1]
 
-                    
-            
+                                
                     video, time_meta = avion_video_loader(os.path.join(video_folder, pid),
                                                           vid, 
                                                           'MP4', 
@@ -1292,6 +1294,16 @@ class LazySupervisedDataset(Dataset):
                     except:
                         pass
                     
+                    meta_data = None
+                    if "triple_meta" in sources[0]:
+                        meta_data = sources[0]["triple_meta"]
+                        
+                    if self.eval_args.learn_neighbor_actions and 'narration_prev_1' in sources[0]:
+                        original_target = sources[0]["conversations"][1]["value"]
+                        sources[0]["conversations"][1]["value"] = f'{sources[0]["narration_prev_2"]}, {sources[0]["narration_prev_1"]}, {original_target}'
+                    else:
+                        a = []
+                        
                     # We only store the option list in the annotation file to make it easier to use consistent prompting
                     llava_prompt = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
                                                  question,
@@ -1299,9 +1311,12 @@ class LazySupervisedDataset(Dataset):
                                                  num_frames_to_sample,
                                                  question_type,
                                                  include_time_instruction= self.data_args.add_time_instruction,
-                                                 include_frame_time = False)
+                                                 meta_data = meta_data,                                                 
+                                                 include_frame_time = False,
+                                                 learn_neighbor_actions = self.eval_args.learn_neighbor_actions and 'narration_prev_1' in sources[0])
                     sources[0]["conversations"][0]["value"] = llava_prompt
                     # rank0_print (sources[0])
+                #print ('sources[0]', sources[0])
                 action = torch.tensor([sources[0]['verb_id'], sources[0]['noun_id'], sources[0]['action_id']] if 'verb_id' in sources[0] else [-1, -1, -1]).long()
                 image = [(image, video[0].size, "video", action)]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
@@ -1414,8 +1429,8 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
 
     overwrite_config = {}
 
-    # if 'video' in model_args.model_name_or_path or 'Video' in model_args.model_name_or_path:
-    #     overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
+    if 'video' in model_args.model_name_or_path or 'Video' in model_args.model_name_or_path:
+        overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
 
     if any(
         [
@@ -1815,9 +1830,9 @@ def train(attn_implementation=None):
     eval_args.pretrained_name = model_args.model_name_or_path.split('/')[1]
 
 
-    if 'experiments/' in model_args.model_name_or_path:
-        from llava.action.ek_eval import prepare_llava
-        _, model, _, _ = prepare_llava(model_args.model_name_or_path)
+    # if 'experiments/' in model_args.model_name_or_path:
+    #     from llava.action.ek_eval import prepare_llava
+    #     _, model, _, _ = prepare_llava(model_args.model_name_or_path)
 
     trainer = LLaVATrainer(model=model, 
                            tokenizer = tokenizer, 

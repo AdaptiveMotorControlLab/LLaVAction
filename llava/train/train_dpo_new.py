@@ -1206,6 +1206,7 @@ class NewDPODataset(Dataset):
 
         elif "video" in sources[0]:
             video_info = self.list_data_dict[i]["video"]
+
             video_folder = os.path.join(self.data_args.video_folder, sources[0]['dataset_name'])
             if 'EK100' in video_folder:
                 video_file = os.path.join(video_folder, video_info.split("-")[0], video_info.split("-")[1]+".MP4")
@@ -1295,7 +1296,7 @@ class NewDPODataset(Dataset):
                                                  video_time,
                                                  num_frames_to_sample,
                                                  question_type,
-                                                 include_time_instruction= self.data_args.add_time_instruction,
+                                                 include_time_instruction= False,
                                                  include_frame_time = False)
                     sources[0]["prompt"] = llava_prompt
 

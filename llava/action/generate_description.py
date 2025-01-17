@@ -10,10 +10,11 @@ from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMu
 from llava.action.dataset import datetime2sec
 from pathlib import Path
 from llava.action.utils import hand_obj_ann_loader
+from llava.action.generate_interval_pred import build_uid_pad_dict
 import ast
 
 def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps, gen_type = 'naive', prediction_path = '', n_options = 5,
-                       action_representation = 'official_key', n_narrations=-1):
+                       action_representation = 'official_key', with_neighbors = False, n_narrations=-1):
     # epic kitchen uses csv
     csv_reader = csv.reader(open(ann_file))
     _ = next(csv_reader)
@@ -25,10 +26,12 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
     elif gen_type == 'avion_mc' or gen_type == 'tim_mc':
         mc_generator = AvionMultiChoiceGenerator(ann_root)
         with open(prediction_path, 'r') as f:
-            train_predictions = json.load(f)         
-    print ('train_predictions', train_predictions)
+            train_predictions = json.load(f)
     import spacy
     nlp = spacy.load('en_core_web_sm')
+
+    if with_neighbors:
+        uid_pad_dict = build_uid_pad_dict(ann_file)
 
     for idx, row in enumerate(csv_reader):
         start_timestamp, end_timestamp = datetime2sec(row[4]), datetime2sec(row[5])
@@ -44,6 +47,14 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
             # here we directly use the model to predict gt narration
             narration = row[8]
             conversation = generate_direct_conversation(narration)
+        
+        elif gen_type == "temporal_detection":
+            """
+            The action is X and it lasts for XX seconds, what is the start and end time
+            """
+            narration = row[8]
+            
+        
         elif gen_type == "random_mc":
             # DEPRECATED
             vn_str = f'{row[10]}:{row[12]}'
@@ -76,6 +87,18 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
             gt_answer_name = mc_data['gt_answer_name'][0]
             conversation = generate_random_mc_conversation(options, gt_answer_letter, gt_answer_name )
 
+        pad = {}
+        if with_neighbors:
+            _id = vid.split('_')[0]
+            uid = f'{_id}-{vid}_{round(start_timestamp,2)}_{round(end_timestamp,2)}'
+            # print ('uid', uid)
+            # print ('key', list(uid_pad_dict.keys())[0])        
+            pad = uid_pad_dict.get(uid, {})
+            if len(pad) != 0:               
+                pad['start_timestamp'] = pad['padded_start_time']
+                pad['end_timestamp'] = pad['padded_end_time']
+
+
         data = {'video': vid_path,
                 'conversations': conversation,
                 'id': vid_path,
@@ -89,6 +112,9 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
                 'verb_id': int(row[10]),
                 'noun_id': int(row[12]),
                 'action_id': mapping_vn2act[vn_str]}
+        if with_neighbors:
+            data.update(pad)
+            
         ret.append(data)
     return ret
 
@@ -138,10 +164,6 @@ def append_action_idx_to_existing_ann(instruct_ann_file, ek100_ann_file,  mappin
         for instruct in ret:
             f.write(json.dumps(instruct) + '\n')
     
-
-
-
-
 
 
 def generate_naive_conversation(vn_str:str):
@@ -249,6 +271,7 @@ def get_args():
                                                        'random_narration_cut', 'top1_narration', 'top1_narration_cut', 'topk_narration_cut_key',
                                                        'GT_key', 'GT_random_narration', 'GT_random_narration_cut'])
     parser.add_argument('--n_narrations', default = -1, type = int)
+    parser.add_argument('--with_neighbors', action = 'store_true', default = False)
     return parser.parse_args()
 
 def main(): 
@@ -261,6 +284,7 @@ def main():
     print ('loading predictions from ', args.train_predictions)
     print ('gen_type is ', args.gen_type)
     print ('n_options', args.n_options)
+    print ('with_neighbors', args.with_neighbors)
 
     os.makedirs(inst_train_folder, exist_ok=True)    
 
@@ -275,11 +299,19 @@ def main():
                                   gen_type = args.gen_type, 
                                   prediction_path = args.train_predictions,
                                   n_options = args.n_options,
+                                  with_neighbors = args.with_neighbors,
                                   action_representation = args.action_representation,
                                   n_narrations = args.n_narrations)
         
     # save it to a jsonl
-    with open(os.path.join(inst_train_folder,'train_convs_narration_actionids.jsonl'), 'w') as f:
+    
+    if args.with_neighbors:
+        filename = os.path.join(inst_train_folder,'train_convs_narration_actionids_padded.jsonl')
+    else:
+        filename = os.path.join(inst_train_folder,'train_convs_narration_actionids.jsonl')
+
+    
+    with open(filename, 'w') as f:
         for conv in conv_lst:
             f.write(json.dumps(conv) + '\n')
 

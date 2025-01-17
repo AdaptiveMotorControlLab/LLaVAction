@@ -168,7 +168,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     action_logits = self.action_head(action_states[:, 2])
                 
             loss = None
-            if labels is not None:
+            if labels is not None:          
                 # Shift so that tokens < n predict n
                 shift_logits = logits[..., :-1, :].contiguous()
                 shift_labels = labels[..., 1:].contiguous()
