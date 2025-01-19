@@ -4,8 +4,9 @@
 #SBATCH --reservation=sai-a03
 #SBATCH --hint nomultithread    
 #SBATCH --cpus-per-task 288
+#SBATCH --mem=460000
 #SBATCH --no-requeue
-#SBATCH --nodes 8                   # number of Nodes
+#SBATCH --nodes 16                   # number of Nodes
 #SBATCH --ntasks-per-node 1         # number of MP tasks. IMPORTANT: torchrun represents just 1 Slurm task
 #SBATCH --gres gpu:4                # Number of GPUs
 #SBATCH --time 05:00:00             # maximum execution time (DD-HH:MM:SS). Mandatory field in MN5
@@ -79,7 +80,7 @@ PYTHON_ARGS=" \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 2 \
     --evaluation_strategy steps \
-    --eval_steps 2000\
+    --eval_steps 200000\
     --save_strategy steps \
     --save_steps 1000 \
     --learning_rate 1e-5 \
@@ -130,7 +131,7 @@ SRUN_ARGS=" \
 #     "  
 
 # bash -c is needed for the delayed interpolation of env vars to work
-srun $SRUN_ARGS bash -c "
+srun $SRUN_ARGS numactl --membind=0-3 bash -c "
     source /capstor/scratch/cscs/hqi/llava/llava_dependency/llava-venv/bin/activate
     $CMD"
 

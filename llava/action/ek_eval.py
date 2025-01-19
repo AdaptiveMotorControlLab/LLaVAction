@@ -29,21 +29,51 @@ def process_raw_pred(raw_pred):
     else:
         return raw_pred
 
-def setup(rank, world_size):
+def safe_all_reduce(tensor):
+    """Safely perform all_reduce operation with error handling"""
+    try:
+        # Ensure tensor is on the correct device
+        current_device = torch.cuda.current_device()
+        if tensor.device != torch.device(f'cuda:{current_device}'):
+            tensor = tensor.to(f'cuda:{current_device}')
+        
+        # Make sure tensor is contiguous
+        if not tensor.is_contiguous():
+            tensor = tensor.contiguous()
+        
+        # Create a new process group specifically for this operation
+        pg = dist.new_group(ranks=list(range(dist.get_world_size())))
+        dist.all_reduce(tensor, op=dist.ReduceOp.SUM, group=pg)
+        dist.destroy_process_group(pg)
+        
+    except Exception as e:
+        print(f"Error in all_reduce: {str(e)}")
+        # If all_reduce fails, at least return the local tensor
+        return tensor
+    
+    return tensor
+
+
+def setup():
     if not dist.is_initialized():
+        world_size = int(os.environ['WORLD_SIZE'])
+        rank = int(os.environ['RANK'])
         os.environ['MASTER_ADDR'] = '127.0.0.1'
         os.environ['MASTER_PORT'] = '29500'
         
+        # Initialize the process group
         dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
         print(f"Process group initialized for rank {rank}")
         
+        # Set the local GPU based on the rank
         local_rank = rank % torch.cuda.device_count()
         torch.cuda.set_device(local_rank)
         print(f"Using GPU {local_rank} for rank {rank}")
     
-    # Return the device
-    return torch.device(f'cuda:{rank % torch.cuda.device_count()}')
-
+    # Return the appropriate device
+    rank = int(os.environ['RANK'])
+    device = torch.device(f'cuda:{rank % torch.cuda.device_count()}')
+    return device
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')
@@ -188,9 +218,7 @@ def evaluate_on_EK100(eval_args,
                       eval_result_folder = None
                       ):
 
-    world_size = int(os.environ['WORLD_SIZE'])
-    rank = int(os.environ['RANK'])
-    device = setup(rank, world_size)
+    device = setup()
 
 
     if model is not None:
@@ -279,7 +307,6 @@ def evaluate_on_EK100(eval_args,
             pretrained = eval_args.llava_checkpoint
         tokenizer, model, image_processor, _ = prepare_llava(pretrained)   
        
-
     global_avion_correct = torch.tensor(0.0, device=device)
     global_running_corrects = torch.tensor(0.0, device=device)
     global_total_samples = torch.tensor(0.0, device=device)
@@ -316,7 +343,7 @@ def evaluate_on_EK100(eval_args,
 
             # we don't want to evaluate the whole thing
             # let's evaluate 1000 samples to get the complete picture       
-            if finish_early and idx> (1000 / dist.get_world_size()):
+            if finish_early and idx> (10 / dist.get_world_size()):
                 break                     
         
                     
@@ -371,9 +398,12 @@ def evaluate_on_EK100(eval_args,
             
 
     dist.all_reduce(global_running_corrects, op=dist.ReduceOp.SUM)
+    #global_running_corrects = safe_all_reduce(global_running_corrects)
     dist.all_reduce(global_total_samples, op=dist.ReduceOp.SUM)
+    #global_total_samples = safe_all_reduce(global_total_samples)
     if eval_args.action_predictions:
         dist.all_reduce(global_avion_correct, op=dist.ReduceOp.SUM)
+        #global_avion_correct = safe_all_reduce(global_avion_correct)
 
     # Calculate global accuracy after reduction
     global_accuracy = global_running_corrects.item() / global_total_samples.item()

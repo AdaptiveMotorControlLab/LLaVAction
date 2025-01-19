@@ -192,7 +192,6 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     verb_loss = loss_fct(verb_logits, actions[:, 0])
                     noun_loss = loss_fct(noun_logits, actions[:, 1])
                     action_loss = loss_fct(action_logits, actions[:, 2])
-                                                         
                     vision_supervision_loss = 0.5 * verb_loss + 0.5 * noun_loss + 0.1 * action_loss
                     loss += vision_supervision_loss * 0.1
 
