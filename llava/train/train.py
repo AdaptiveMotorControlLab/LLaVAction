@@ -1434,7 +1434,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
 
     overwrite_config = {}
 
-    if 'video' in model_args.model_name_or_path or 'Video' in model_args.model_name_or_path:
+    if 'video' in model_args.model_name_or_path or 'Video' in model_args.model_name_or_path or 'experiments/' in model_args.model_name_or_path:
         overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
 
     if any(
@@ -1539,7 +1539,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
                 low_cpu_mem_usage=False,
                 **customized_kwargs,
             )
-        elif "qwen" in model_args.model_name_or_path.lower():
+        elif "qwen" in model_args.model_name_or_path.lower() or 'experiments/' in model_args.model_name_or_path.lower():
             if "moe" in model_args.model_name_or_path.lower() or "A14B" in model_args.model_name_or_path:
                 model = LlavaQwenMoeForCausalLM.from_pretrained(
                     model_args.model_name_or_path,
@@ -1671,7 +1671,7 @@ def train(attn_implementation=None):
 
     if "mistral" in model_args.model_name_or_path.lower() or "mixtral" in model_args.model_name_or_path.lower() or "zephyr" in model_args.model_name_or_path.lower():
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="left")
-    elif "qwen" in model_args.model_name_or_path.lower():
+    elif "qwen" in model_args.model_name_or_path.lower() or 'experiments/' in model_args.model_name_or_path.lower():
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="right")
     elif (
         "wizardlm-2" in model_args.model_name_or_path.lower()
