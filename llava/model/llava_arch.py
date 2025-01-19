@@ -353,7 +353,7 @@ class LlavaMetaForCausalLM(ABC):
                                     self.model.image_newline[None].to(image_feature.device)
                                 ), dim=0)
                             
-                            if "token" in vision_supervision:
+                            if vision_supervision and "token" in vision_supervision:
                                 image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
                             new_image_features.append(image_feature)      
                         elif mm_newline_position == "no_token":
