@@ -27,22 +27,30 @@ def get_temporal_detection(train_ann, delta = 5):
         action_duration = process(end_timestamp - start_timestamp)
         
         action_start_timestamp = process(start_timestamp)
-        action_end_timestamp = process(end_timestamp)
-        
-        action_gt_narration = row[8]
-        
-        start_padding = random.uniform(0, delta)
-        
-        end_padding = delta - start_padding
-        
+        action_end_timestamp = process(end_timestamp)        
+        action_gt_narration = row[8]        
+        start_padding = random.uniform(0, delta)        
+        end_padding = delta - start_padding        
         start_timestamp = process(max(0, start_timestamp - start_padding))
         end_timestamp = process(end_timestamp + end_padding)
             
+        relative_start_time = process(float(action_start_timestamp) - float(start_timestamp))
+        relative_end_time = process(float(action_end_timestamp) - float(start_timestamp))
+        # print ('action_star_timestamp', action_start_timestamp)
+        # print ('video start_timestamp', start_timestamp)
+        # print ('relative_start_time', relative_start_time)
+        
+        # print ('action_end_timestamp', action_end_timestamp)
+        # print ('video end_timestamp', end_timestamp)
+        # print ('relative_end_time', relative_end_time)
+        
+        
         
         conversation = [
-            {"from": "human", "value": f"The provided video contains an action '{action_gt_narration}' that lasts {action_duration} seconds. What is the start and end time of the action in seconds? Format it as 'start_timestamp: end_timestamp' and round to 2 decimal places."},
-            {"from": "gpt", "value": f"{action_start_timestamp}: {action_end_timestamp}"}
+            {"from": "human", "value": f"The provided video contains an action '{action_gt_narration}' that lasts {action_duration} seconds. What is the relative start and end time of the action in seconds? Format it as 'start_timestamp: end_timestamp' and round to 2 decimal places."},
+            {"from": "gpt", "value": f"{relative_start_time}, {relative_end_time}"}
         ]
+                
 
         data = {'video': vid_path,
             'conversations': conversation,
