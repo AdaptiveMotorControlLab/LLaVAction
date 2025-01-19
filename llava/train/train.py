@@ -1867,6 +1867,12 @@ def train(attn_implementation=None):
     else:
         safe_save_model_for_hf_trainer(trainer, training_args.output_dir)
 
+
+    rank0_print("num_train_epochs?", training_args.num_train_epochs)
+    if training_args.num_train_epochs == 0:
+        rank0_print("Got here?")
+        trainer.evaluate(eval_result_folder = training_args.output_dir)
+
     rank0_print(f"Model saved to {training_args.output_dir}")
 
 

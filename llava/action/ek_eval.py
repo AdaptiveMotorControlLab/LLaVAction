@@ -58,17 +58,25 @@ def setup():
     if not dist.is_initialized():
         world_size = int(os.environ['WORLD_SIZE'])
         rank = int(os.environ['RANK'])
-        os.environ['MASTER_ADDR'] = '127.0.0.1'
-        os.environ['MASTER_PORT'] = '29500'
+        # os.environ['MASTER_ADDR'] = '127.0.0.1'
+        # os.environ['MASTER_PORT'] = '29500'
         
         # Initialize the process group
-        dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+        dist.init_process_group(backend="nccl", rank=rank, world_size=world_size, init_method="env://")
         print(f"Process group initialized for rank {rank}")
         
+        print ('check master addr', os.environ['MASTER_ADDR'])
+        print ('check master port', os.environ['MASTER_PORT'])
+               
+        
         # Set the local GPU based on the rank
+        #local_rank = rank % torch.cuda.device_count()
+        #local_rank = int(os.environ["LOCAL_RANK"])
         local_rank = rank % torch.cuda.device_count()
         torch.cuda.set_device(local_rank)
         print(f"Using GPU {local_rank} for rank {rank}")
+        device = torch.device(f"cuda:{local_rank}")
+        return device
     
     # Return the appropriate device
     rank = int(os.environ['RANK'])

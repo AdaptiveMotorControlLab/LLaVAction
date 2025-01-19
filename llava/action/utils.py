@@ -220,7 +220,7 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
         perspective_prefix = "The video is taken from egocentric view. What action is the person performing? "
     if question_type.startswith("mc_"):
         
-        if learn_neighbor_actions:
+        if learn_neighbor_actions and meta_data:
             action_rep_suffix = "There are 3 sequential actions in the video such as action1, action2, action3. You will be given multiple choices for action3 and select the right answer. Try to use action1 and action2 to infer action3. " 
             prefix = f"{perspective_prefix}{action_rep_suffix}\n"
             assert isinstance(question, list)
