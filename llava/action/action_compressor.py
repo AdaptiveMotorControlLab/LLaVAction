@@ -3,10 +3,14 @@ import json
 import openai
 import os
 from concurrent.futures import ProcessPoolExecutor
+from pydantic import BaseModel
+
 
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+class CompressedNarration(BaseModel):  
+    compressed_narration: str
 
 class ActionCompressor(ChatGPT):
     def __init__(self, vnstr2narration_path, debug=False):
@@ -23,6 +27,9 @@ class ActionCompressor(ChatGPT):
 You are given a list of descriptions of actions. Please compress the list into a short sentence.
 TIPS: ALl these descriptions involve nouns and verbs. In your compressed version, try to use nouns and verbs that can cover all the descriptions.
 If you can't use one single noun or verbs to cover all the descriptions, you can use multiple nouns or verbs. But be sure to be precise. Don't be too general. It's better to be verbose than being vague.
+Note your answer should only include a short sentence without an ending period.
+
+Example compressed_narration: "cutting or slicing the vegetables"
 """   
         system_role = "system"
         system_message =  [{"role": system_role, "content": instruction}]
@@ -31,14 +38,14 @@ If you can't use one single noun or verbs to cover all the descriptions, you can
         user_message = [{"role": "user", "content": [{"type": "text", "text": f"narration_list: {narration_list}"}]}] 
         
         kwargs = {'model': 'gpt-4o',
+                  'response_format': CompressedNarration,
                   'messages': system_message + user_message}                     
-        print ("official key", vn_str)
-        print (kwargs)
-        response = client.chat.completions.create(
+
+        response = client.beta.chat.completions.parse(
                 **kwargs
             )
-        result = response.choices[0].message.content
-        print (result)
+        result = response.choices[0].message.parsed.compressed_narration
+
         return result
     def run(self, indices):
 
@@ -70,7 +77,7 @@ If you can't use one single noun or verbs to cover all the descriptions, you can
                 combined_results.update(result_dict)
         
         print ('combined results')
-        print (combined_results)
+        print (len(combined_results))
         with open('mapping_vnstr2narration_gpt.json', 'w') as f:
             json.dump(combined_results, f, indent=4)
         
