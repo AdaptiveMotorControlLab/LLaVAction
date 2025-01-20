@@ -111,7 +111,7 @@ def get_args_parser():
     parser.add_argument('--action_representation', default = 'GT_random_narration_cut', type = str, 
                         choices = ['first_sample', 'official_key', 
                                    'random_narration_cut', 'top1_narration_cut', 'topk_narration_cut_key',
-                                   'GT_key', 'GT_random_narration', 'GT_random_narration_cut'])
+                                   'GT_key', 'GT_random_narration', 'GT_random_narration_cut', 'gpt_narration'])
     parser.add_argument('--n_narrations', default = -1, type = int)
     parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'caption_then_answer'])
     parser.add_argument('--learn_neighbor_actions', action='store_true', default = False)

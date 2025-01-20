@@ -102,11 +102,11 @@ def generate_label_map(anno_root, action_representation):
     verb_classes_pd = pd.read_csv(os.path.join(anno_root, 'EPIC_100_verb_classes.csv'))
     
     # Initialize maps
-    verb_maps = {} if 'key' in action_representation or action_representation == 'first_sample' else None
-    noun_maps = {} if 'key' in action_representation or action_representation == 'first_sample' else None
+    verb_maps = {} if 'key' in action_representation or 'gpt_narration' in action_representation or action_representation == 'first_sample' else None
+    noun_maps = {} if 'key' in action_representation or 'gpt_narration' in action_representation or action_representation == 'first_sample' else None
     
     # Process verb and noun maps
-    if 'key' in action_representation:
+    if 'key' in action_representation or 'gpt_narration' in action_representation:
         for _, row in verb_classes_pd.iterrows():
             verb_maps[str(row['id'])] = row['key']
         for _, row in noun_classes_pd.iterrows():
@@ -360,7 +360,7 @@ def parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narration
         v_name, n_name = verb_maps[v_id], noun_maps[n_id]
         vn_str = f'{v_name} {n_name}'
         gpt_narration = get_gpt_narration_from_vn_str(vn_str)
-        answer_items.append(gpt_narration)        
+        answer_items.append(gpt_narration['new_gt'])        
     if 'random_narration' in action_representation:
         # randomly select a narration from mapping_vn2narration
         answer_items.append(random.choice(mapping_vn2narration[answer_id]))
@@ -376,6 +376,60 @@ def parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narration
         answer_items = [narration] 
 
     return ', '.join(answer_items)
+
+
+class MultiChoiceGenerator:
+    """
+    Generating multi choice
+    """
+    def __init__(self, ann_root):
+        self.ann_root = ann_root
+    
+
+    def generate_multi_choice(self, gt_vn, k, verb_maps, noun_maps):
+
+        raise NotImplementedError("This is an abstract class")
+
+        """
+        Generate k multiple choices from gt_vn pairs
+
+        randomly pick 1 letter for gt_vn
+        randomly pick k-1 letters from vn_list
+
+        """        
+
+        # let v_id and n_id be string type
+        gt_v_id, gt_n_id = gt_vn.split(':')    
+        assert isinstance(gt_v_id, str) and isinstance(gt_n_id, str)
+        gt_v_name, gt_n_name = verb_maps[gt_v_id], noun_maps[gt_n_id]
+
+        # letters as A, B, C, D, .. Note we maximally support 26 letters
+        letters = [chr(65+i) for i in range(26)][:k]
+        options = list(range(26))[:k]
+        vn_list = list(self.mapping_vn2act.keys())
+        action_list = [f"{verb_maps[e.split(':')[0]]} {noun_maps[e.split(':')[1]]}" for e in vn_list]
+        wrong_answers = np.random.choice(action_list, size = k-1, replace = False)
+        gt_answer = f'{gt_v_name} {gt_n_name}'
+
+        answers = [gt_answer] + list(wrong_answers)
+        random.shuffle(answers)
+
+        options = []
+        for answer, letter in zip(answers, letters):
+            options.append(f'{letter}. {answer}')
+
+        gt_letter = letters[answers.index(gt_answer)]
+        data = {
+                'options': {0: options},
+                # the correct letter in mc
+                # for inspecting
+                'gt_answer_letter': {0: gt_letter},
+                'gt_answer_name': {0: gt_answer},
+                'valid_letters': letters,
+            }
+        
+        return data
+
 
 class AvionMultiChoiceGenerator(MultiChoiceGenerator):
     """

@@ -341,7 +341,7 @@
                     "--llava_num_frames", "12",
                     "--clip-length", "12",
                     "--action_predictions","/data/shaokai/TIM_PREDS/tim_pred_ids_val.json",
-                    "--action_representation", "GT_random_narration_cut",
+                    "--action_representation", "gpt_narration",
                     //"--llava_checkpoint", "/data/shaokai/LLaVA-NeXT/experiments/dev_0.5b_12f_avion_top5_pad_with_neighbors",
                     "--topk_predictions", "5",
                     //"--learn_neighbor_actions"
