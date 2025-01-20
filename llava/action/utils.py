@@ -377,7 +377,6 @@ def parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narration
 
     return ', '.join(answer_items)
 
-
 class MultiChoiceGenerator:
     """
     Generating multi choice

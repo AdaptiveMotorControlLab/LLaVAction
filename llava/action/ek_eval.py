@@ -19,12 +19,16 @@ import torchvision.io as io
 import re
 
 def process_raw_pred(raw_pred):
-    matches = re.findall(r"[A-Z]\.\s(.+?)(?:,|$)", raw_pred)
+    matches = re.findall(r"[A-Z]\.\s(.+)", raw_pred)
+    
+    if 'None' in raw_pred:
+        return raw_pred.replace('None. ', '')
+    
     if matches:
         # Get the last match
         last_match = matches[-1]
-        # Remove any trailing period or comma
-        last_match = re.sub(r"[.,]\s*$", "", last_match)
+        # Remove a trailing period and anything after it
+        last_match = re.sub(r"\.\s*.*$", "", last_match)
         return last_match
     else:
         return raw_pred
