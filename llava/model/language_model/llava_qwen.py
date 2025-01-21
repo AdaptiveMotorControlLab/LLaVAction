@@ -144,6 +144,10 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             )
 
             hidden_states = outputs[0]
+            all_states = None
+            # if len(outputs) > 1:
+            #     all_states = outputs[1]
+            
             logits = self.lm_head(hidden_states)
             logits = logits.float()
             

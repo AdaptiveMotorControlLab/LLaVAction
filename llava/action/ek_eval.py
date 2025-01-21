@@ -202,6 +202,8 @@ def ensemble_llava_evaluation(
                             time_meta = time_meta,
                             learn_neighbor_actions = learn_neighbor_actions,
                                )
+        # remove the trailing comma if there is one
+        pred = pred.rstrip(',')
         rank0_print('raw output', pred)
         pred = process_raw_pred(pred)
         rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name) 
@@ -210,6 +212,12 @@ def ensemble_llava_evaluation(
     counter = Counter(preds)
     rank0_print ('inspecting the counter', counter)
     rank0_print ('most common', counter.most_common(1)[0][0])
+
+    if counter.most_common(1)[0][0] != gt_name and counter.most_common(1)[0][0][-1] == ",":
+        print ('wrong prediction')
+        print ('pred', counter.most_common(1)[0][0])
+        print ('gt', gt_name)
+        print ('---')
 
     return counter.most_common(1)[0][0] == gt_name, counter.most_common(1)[0][0]
 

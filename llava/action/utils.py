@@ -360,7 +360,8 @@ def parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narration
         v_name, n_name = verb_maps[v_id], noun_maps[n_id]
         vn_str = f'{v_name} {n_name}'
         gpt_narration = get_gpt_narration_from_vn_str(vn_str)
-        answer_items.append(gpt_narration['new_gt'])        
+        answer_items.append(gpt_narration['new_gt'])         
+             
     if 'random_narration' in action_representation:
         # randomly select a narration from mapping_vn2narration
         answer_items.append(random.choice(mapping_vn2narration[answer_id]))
