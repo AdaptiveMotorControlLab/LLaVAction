@@ -121,7 +121,7 @@ class ModelArguments:
     faster_token_stride: Optional[int] = field(default=10)
 
     vision_supervision: Optional[str] = field(default=None) # could be "one_token", "three_token", "newline", "all_newlines"
-    vision_token_training:  Optional[str] = field(default=None) # could be "first_layer", "last_layer", "normal_distillation", "reverse_distillation"
+    vision_token_training:  Optional[str] = "last_layer" # could be "first_layer", "last_layer", "normal_distillation", "reverse_distillation"
     action_types: Optional[str] = field(default=None)
 
 
