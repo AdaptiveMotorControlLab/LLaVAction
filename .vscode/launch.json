@@ -297,6 +297,7 @@
                 "--topk_predictions", "5",
                 "--eval_steps", "1000000",
                 "--vision_supervision", "one_token",
+                "--vision_token_training", "all_layers",
                 "--action_types",  "97,300,3806"
             ],
             "console": "integratedTerminal",
