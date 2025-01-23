@@ -1323,7 +1323,6 @@ class LazySupervisedDataset(Dataset):
                 action = torch.tensor([sources[0]['verb_id'], sources[0]['noun_id'], sources[0]['action_id']] if 'verb_id' in sources[0] else [-1, -1, -1]).long()
                 image = [(image, video[0].size, "video", action)]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
-                print (sources[0])
 
                 # print(sources)
             except Exception as e:
