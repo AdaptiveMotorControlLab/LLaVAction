@@ -193,6 +193,23 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     verb_logits = self.verb_head(action_states[:, 0])
                     noun_logits = self.noun_head(action_states[:, 1])
                     action_logits = self.action_head(action_states[:, 2])
+                    
+                    get_visual_tokens = lambda x: x[torch.arange(hidden_states.size(0)), action_idx]
+                    device = action_states.device
+                    
+                    other_layers = [get_visual_tokens(layer.to(device)) for layer in all_states]  # Move all layers at once
+                    
+                    other_verb_logits_list = []
+                    other_noun_logits_list = []
+                    other_action_logits_list = []
+                    
+                    for other_layer in other_layers:
+                        other_verb_logits = self.verb_head(other_layer[:,0])
+                        other_noun_logits = self.noun_head(other_layer[:,1])
+                        other_action_logits = self.action_head(other_layer[:,2])
+                        other_verb_logits_list.append(other_verb_logits)
+                        other_noun_logits_list.append(other_noun_logits)
+                        other_action_logits_list.append(other_action_logits)                    
                 
             loss = None
             if labels is not None:          
