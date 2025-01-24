@@ -226,11 +226,11 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     
                     triples = list(zip(other_verb_logits_list, other_noun_logits_list, other_action_logits_list))
                                       
-                    if getattr(self.config, 'vision_token_training') and self.config.vision_token_training == 'last_layer':
+                    if getattr(self.config, 'vision_token_training', None) and self.config.vision_token_training == 'last_layer':
                         triples = triples[-1:]
-                    elif getattr(self.config, 'vision_token_training') and self.config.vision_token_training == 'first_layer':
+                    elif getattr(self.config, 'vision_token_training', None) and self.config.vision_token_training == 'first_layer':
                         triples = triples[:1]
-                    elif getattr(self.config, 'vision_token_training') and self.config.vision_token_training == 'all_layers':
+                    elif getattr(self.config, 'vision_token_training', None) and self.config.vision_token_training == 'all_layers':
                         pass
                     # by default, distilaltion uses all layers
                                                           
@@ -244,7 +244,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     
                     loss += vision_supervision_loss * 0.1
 
-                if getattr(self.config, 'vision_token_training') and 'distillation' in self.config.vision_token_training:
+                if getattr(self.config, 'vision_token_training', None) and  'distillation' in self.config.vision_token_training:
                     
 
                     distillation_loss = 0.0
