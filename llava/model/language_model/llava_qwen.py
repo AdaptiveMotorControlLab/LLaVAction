@@ -158,7 +158,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                 # move the action_idx to the device of the hidden_states
                 vision_supervision = self.config.vision_supervision
                 action_idx = action_idx.to(hidden_states.device)
-                action_states = hidden_states[torch.arange(hidden_states.size(0)), action_idx]
+                action_states = hidden_states[torch.arange(hidden_states.size(0)).unsqueeze(1), action_idx, :]
                 if vision_supervision in ["newline", "one_token"]:
                     verb_logits = self.verb_head(action_states[:, 0])
                     noun_logits = self.noun_head(action_states[:, 0])
