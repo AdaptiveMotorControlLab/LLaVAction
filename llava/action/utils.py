@@ -184,9 +184,10 @@ def generate_label_map(anno_root, action_representation):
                     mapping_vn2narration[vn] = [narration]
                 else:
                     mapping_vn2narration[vn].append(narration)
-            temp_v, temp_n = vn.split(':')
-            temp_v, temp_n = verb_maps[temp_v], noun_maps[temp_n]
-            mapping_vnstr2narration[f'{temp_v} {temp_n}'].append(narration)
+            if verb_maps and noun_maps:
+                temp_v, temp_n = vn.split(':')
+                temp_v, temp_n = verb_maps[temp_v], noun_maps[temp_n]
+                mapping_vnstr2narration[f'{temp_v} {temp_n}'].append(narration)
         # Process remaining batch
         if current_batch and 'cut' in action_representation:
             for batch_vn, processed_narration in process_batch_of_rows(current_batch):
@@ -384,11 +385,23 @@ class MultiChoiceGenerator:
     """
     def __init__(self, ann_root):
         self.ann_root = ann_root
+        
+class RandomMultiChoiceGenerator(MultiChoiceGenerator):
+    def __init__(self, ann_root):
+        super().__init__(ann_root)
     
-
-    def generate_multi_choice(self, gt_vn, k, verb_maps, noun_maps):
-
-        raise NotImplementedError("This is an abstract class")
+    def generate_multi_choice(self, 
+                              gt_vn, 
+                              narration, 
+                              k, 
+                              action_representation, 
+                              n_narrations, 
+                              labels, 
+                              mapping_vn2narration, 
+                              verb_maps, 
+                              noun_maps,
+                              is_train = True
+                              ):
 
         """
         Generate k multiple choices from gt_vn pairs
@@ -397,39 +410,52 @@ class MultiChoiceGenerator:
         randomly pick k-1 letters from vn_list
 
         """        
-
-        # let v_id and n_id be string type
-        gt_v_id, gt_n_id = gt_vn.split(':')    
-        assert isinstance(gt_v_id, str) and isinstance(gt_n_id, str)
-        gt_v_name, gt_n_name = verb_maps[gt_v_id], noun_maps[gt_n_id]
-
+        
+        if is_train:
+            return self.train_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+        else:
+            return self.test_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+    
+    def train_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
         # letters as A, B, C, D, .. Note we maximally support 26 letters
+        letters = [chr(65+i) for i in range(26)][:k]                
+        answer_list = [vn for vn in mapping_vn2narration.keys()]                
+        wrong_answers = np.random.choice(answer_list, size = k-1, replace = False)        
+        answer_ids = [gt_vn] + list(wrong_answers)
+        random.shuffle(answer_ids)
+        
+        answers = []               
+        
+        for answer_id in answer_ids:
+
+            answer = parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+            answers.append(answer)
+        
         letters = [chr(65+i) for i in range(26)][:k]
         options = list(range(26))[:k]
-        vn_list = list(self.mapping_vn2act.keys())
-        action_list = [f"{verb_maps[e.split(':')[0]]} {noun_maps[e.split(':')[1]]}" for e in vn_list]
-        wrong_answers = np.random.choice(action_list, size = k-1, replace = False)
-        gt_answer = f'{gt_v_name} {gt_n_name}'
-
-        answers = [gt_answer] + list(wrong_answers)
-        random.shuffle(answers)
 
         options = []
         for answer, letter in zip(answers, letters):
             options.append(f'{letter}. {answer}')
 
-        gt_letter = letters[answers.index(gt_answer)]
-        data = {
+        gt_letter = letters[answer_ids.index(gt_vn)]
+        gt_answer = answers[answer_ids.index(gt_vn)]
+
+        mc_data = {
                 'options': {0: options},
                 # the correct letter in mc
                 # for inspecting
                 'gt_answer_letter': {0: gt_letter},
                 'gt_answer_name': {0: gt_answer},
-                'valid_letters': letters,
-            }
-        
-        return data
-
+                'valid_letters': letters
+            }  
+        return mc_data 
+    
+    def test_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
+        """
+        There is no difference between train and test for random generation
+        """        
+        return self.train_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)        
 
 class AvionMultiChoiceGenerator(MultiChoiceGenerator):
     """
