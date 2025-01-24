@@ -165,7 +165,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     action_logits = self.action_head(action_states[:, 0])
                     
                     # get those logits also for other layers
-                    get_visual_tokens = lambda x: x[torch.arange(hidden_states.size(0)), action_idx]
+                    get_visual_tokens = lambda x: x[torch.arange(hidden_states.size(0)).unsqueeze(1), action_idx, :]
                     device = action_states.device
                     
                     other_layers = [get_visual_tokens(layer.to(device)) for layer in all_states]  # Move all layers at once
@@ -194,7 +194,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     noun_logits = self.noun_head(action_states[:, 1])
                     action_logits = self.action_head(action_states[:, 2])
                     
-                    get_visual_tokens = lambda x: x[torch.arange(hidden_states.size(0)), action_idx]
+                    get_visual_tokens = lambda x: x[torch.arange(hidden_states.size(0)).unsqueeze(1), action_idx,:]
                     device = action_states.device
                     
                     other_layers = [get_visual_tokens(layer.to(device)) for layer in all_states]  # Move all layers at once
