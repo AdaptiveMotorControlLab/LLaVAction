@@ -510,7 +510,7 @@ class LlavaMetaForCausalLM(ABC):
                         new_action_idx.append(len(cur_new_input_embeds[0]) + 15 * i  -1)
                 elif "one_token" == vision_supervision:
                     new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])
-                elif "three_token" == vision_supervision:                    
+                elif "three_tokens" == vision_supervision:                    
                     new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 3, 
                                         len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 2,
                                         len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])

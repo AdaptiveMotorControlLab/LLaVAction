@@ -6,7 +6,7 @@ import argparse
 import sys
 import numpy as np
 sys.path[0] = os.path.dirname(os.path.dirname(sys.path[0]))
-from llava.action.utils import generate_label_map, MultiChoiceGenerator, AvionMultiChoiceGenerator, format_llava_prompt, remove_sub_nouns
+from llava.action.utils import generate_label_map, RandomMultiChoiceGenerator, AvionMultiChoiceGenerator, format_llava_prompt, remove_sub_nouns
 from llava.action.dataset import datetime2sec
 from pathlib import Path
 from llava.action.utils import hand_obj_ann_loader
@@ -22,7 +22,7 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
     ann_root = Path(ann_file).parent
     if gen_type == "random_mc":
         # DEPRECATED
-        mc_generator = MultiChoiceGenerator(ann_root)
+        mc_generator = RandomMultiChoiceGenerator(ann_root)
     elif gen_type == 'avion_mc' or gen_type == 'tim_mc':
         mc_generator = AvionMultiChoiceGenerator(ann_root)
         with open(prediction_path, 'r') as f:
@@ -58,11 +58,24 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
         elif gen_type == "random_mc":
             # DEPRECATED
             vn_str = f'{row[10]}:{row[12]}'
-            mc_data = mc_generator.generate_multi_choice(vn_str, n_options, verb_maps, noun_maps)
+            narration = row[8]
+            if 'cut' in action_representation:
+                narration = remove_sub_nouns(nlp, narration, row[9], row[13])            
+            mc_data = mc_generator.generate_multi_choice(vn_str,
+                                    narration, 
+                                    n_options, 
+                                    action_representation, 
+                                    n_narrations, 
+                                    labels, 
+                                    mapping_vn2narration, 
+                                    verb_maps, 
+                                    noun_maps,
+                                    is_train = True)
             options = mc_data['options'][0]
             gt_answer_letter = mc_data['gt_answer_letter'][0]
             gt_answer_name = mc_data['gt_answer_name'][0]
             conversation = generate_random_mc_conversation(options, gt_answer_letter, gt_answer_name )
+            
         elif gen_type == "avion_mc" or gen_type == "tim_mc":
             vn_str = f'{row[10]}:{row[12]}'
             action_preds = train_predictions[str(idx)]['predictions']
