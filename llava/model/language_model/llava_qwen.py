@@ -32,6 +32,8 @@ from transformers import Qwen2Config, Qwen2Model, Qwen2ForCausalLM
 # from .qwen.configuration_qwen import QWenConfig
 
 
+
+
 class LlavaQwenConfig(Qwen2Config):
     model_type = "llava_qwen"
 
@@ -54,6 +56,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         config.rope_scaling = None
 
         self.model = LlavaQwenModel(config)
+
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         # Initialize weights and apply final processing
 
@@ -80,7 +83,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         labels: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = True,
         images: Optional[torch.FloatTensor] = None,
         image_sizes: Optional[List[List[int]]] = None,
         return_dict: Optional[bool] = None,
@@ -144,6 +147,10 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             )
 
             hidden_states = outputs[0]
+            all_states = None
+            if len(outputs) > 1:
+                all_states = outputs[1]
+            
             logits = self.lm_head(hidden_states)
             logits = logits.float()
             
@@ -156,6 +163,26 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     verb_logits = self.verb_head(action_states[:, 0])
                     noun_logits = self.noun_head(action_states[:, 0])
                     action_logits = self.action_head(action_states[:, 0])
+                    
+                    # get those logits also for other layers
+                    get_visual_tokens = lambda x: x[torch.arange(hidden_states.size(0)), action_idx]
+                    device = action_states.device
+                    
+                    other_layers = [get_visual_tokens(layer.to(device)) for layer in all_states]  # Move all layers at once
+                    
+                    other_verb_logits_list = []
+                    other_noun_logits_list = []
+                    other_action_logits_list = []
+                    
+                    for other_layer in other_layers:
+                        other_verb_logits = self.verb_head(other_layer[:,0])
+                        other_noun_logits = self.noun_head(other_layer[:,0])
+                        other_action_logits = self.action_head(other_layer[:,0])
+                        other_verb_logits_list.append(other_verb_logits)
+                        other_noun_logits_list.append(other_noun_logits)
+                        other_action_logits_list.append(other_action_logits)
+                                         
+                    
                 elif vision_supervision == "all_newlines":
                     # note get logits for all new lines
                     verb_logits = self.verb_head(action_states)
@@ -189,11 +216,60 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     action_logits = action_logits.to(device)
                     actions = actions.to(device)
 
-                    verb_loss = loss_fct(verb_logits, actions[:, 0])
-                    noun_loss = loss_fct(noun_logits, actions[:, 1])
-                    action_loss = loss_fct(action_logits, actions[:, 2])
-                    vision_supervision_loss = 0.5 * verb_loss + 0.5 * noun_loss + 0.1 * action_loss
+                    # verb_loss = loss_fct(verb_logits, actions[:, 0])
+                    # noun_loss = loss_fct(noun_logits, actions[:, 1])
+                    # action_loss = loss_fct(action_logits, actions[:, 2])
+                    # vision_supervision_loss = 0.5 * verb_loss + 0.5 * noun_loss + 0.1 * action_loss
+                    
+                    vision_supervision_loss = 0.0
+                    
+                    
+                    triples = list(zip(other_verb_logits_list, other_noun_logits_list, other_action_logits_list))
+                                      
+                    if getattr(self.config, 'vision_token_training', None) and self.config.vision_token_training == 'last_layer':
+                        triples = triples[-1:]
+                    elif getattr(self.config, 'vision_token_training', None) and self.config.vision_token_training == 'first_layer':
+                        triples = triples[:1]
+                    elif getattr(self.config, 'vision_token_training', None) and self.config.vision_token_training == 'all_layers':
+                        pass
+                    # by default, distilaltion uses all layers
+                                                          
+                    for other_verb_logits, other_noun_logits, other_action_logits in triples:
+                        other_verb_loss = loss_fct(other_verb_logits, actions[:, 0])
+                        other_noun_loss = loss_fct(other_noun_logits, actions[:, 1])
+                        other_action_loss = loss_fct(other_action_logits, actions[:, 2])
+                        vision_supervision_loss += 0.5 * other_verb_loss + 0.5 * other_noun_loss + 0.1 * other_action_loss
+
+                    vision_supervision_loss /= (len(triples) + 1)
+                    
                     loss += vision_supervision_loss * 0.1
+
+                if getattr(self.config, 'vision_token_training', None) and  'distillation' in self.config.vision_token_training:
+                    
+
+                    distillation_loss = 0.0
+                    if self.config.vision_token_training == 'normal_distillation':                    
+                        teacher_layer_logits = get_visual_tokens(all_states[-1].to(device))
+                    elif self.config.vision_token_training == 'reverse_distillation':
+                        teacher_layer_logits = get_visual_tokens(all_states[0].to(device))
+                        
+                    teacher_layer_logits = teacher_layer_logits.contiguous().float().detach()
+                    
+                    if self.config.vision_token_training == 'normal_distillation':
+                        student_layers = other_layers[:-1]
+                    elif self.config.vision_token_training == 'reverse_distillation':
+                        student_layers = other_layers[1:]
+                    
+                    for student_layer in student_layers:
+                        teacher_layer_logits = teacher_layer_logits.contiguous().float().detach()
+                        student_layer = student_layer.contiguous().float()
+                        teacher_layer_probs = torch.nn.functional.softmax(teacher_layer_logits, dim=-1)
+                        student_layer_log_probs = torch.nn.functional.log_softmax(student_layer, dim=-1)
+                        # Compute KL divergence
+                        distillation_loss += torch.nn.functional.kl_div(student_layer_log_probs, teacher_layer_probs, reduction="batchmean")
+                        
+                    distillation_loss /= len(other_layers)
+                    loss += distillation_loss * 0.1
 
             if not return_dict:
                 output = (logits,) + outputs[1:]

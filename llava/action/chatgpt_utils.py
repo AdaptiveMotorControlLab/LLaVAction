@@ -22,7 +22,7 @@ import traceback
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-GPT_MODEL = "o1"
+GPT_MODEL = "gpt-4o"
 
 prices = {
     "gpt-4o": {"input": 2.5 / 10**6, "output": 10 / 10**6},

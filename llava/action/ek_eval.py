@@ -19,12 +19,16 @@ import torchvision.io as io
 import re
 
 def process_raw_pred(raw_pred):
-    matches = re.findall(r"[A-Z]\.\s(.+?)(?:,|$)", raw_pred)
+    matches = re.findall(r"[A-Z]\.\s(.+)", raw_pred)
+    
+    if 'None' in raw_pred:
+        return raw_pred.replace('None. ', '')
+    
     if matches:
         # Get the last match
         last_match = matches[-1]
-        # Remove any trailing period or comma
-        last_match = re.sub(r"[.,]\s*$", "", last_match)
+        # Remove a trailing period and anything after it
+        last_match = re.sub(r"\.\s*.*$", "", last_match)
         return last_match
     else:
         return raw_pred
@@ -119,7 +123,7 @@ def get_args_parser():
     parser.add_argument('--action_representation', default = 'GT_random_narration_cut', type = str, 
                         choices = ['first_sample', 'official_key', 
                                    'random_narration_cut', 'top1_narration_cut', 'topk_narration_cut_key',
-                                   'GT_key', 'GT_random_narration', 'GT_random_narration_cut'])
+                                   'GT_key', 'GT_random_narration', 'GT_random_narration_cut', 'gpt_narration'])
     parser.add_argument('--n_narrations', default = -1, type = int)
     parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'caption_then_answer'])
     parser.add_argument('--learn_neighbor_actions', action='store_true', default = False)
@@ -206,6 +210,8 @@ def ensemble_llava_evaluation(
                             time_meta = time_meta,
                             learn_neighbor_actions = learn_neighbor_actions,
                                )
+        # remove the trailing comma if there is one
+        pred = pred.rstrip(',')
         rank0_print('raw output', pred)
         pred = process_raw_pred(pred)
         rank0_print ('llava pred', pred, 'avion_pred', avion_pred, 'gt_name', gt_name) 
@@ -214,6 +220,12 @@ def ensemble_llava_evaluation(
     counter = Counter(preds)
     rank0_print ('inspecting the counter', counter)
     rank0_print ('most common', counter.most_common(1)[0][0])
+
+    if counter.most_common(1)[0][0] != gt_name and counter.most_common(1)[0][0][-1] == ",":
+        print ('wrong prediction')
+        print ('pred', counter.most_common(1)[0][0])
+        print ('gt', gt_name)
+        print ('---')
 
     return counter.most_common(1)[0][0] == gt_name, counter.most_common(1)[0][0]
 

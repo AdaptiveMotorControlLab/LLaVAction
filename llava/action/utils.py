@@ -15,7 +15,8 @@ import pickle
 from PIL import Image, ImageFile
 import cv2
 from llava.action.render_utils import render_frame
-
+from collections import defaultdict
+import json
 
 def remove_sub_nouns(nlp, narration, verb, nouns):
     narration = copy.deepcopy(narration)
@@ -94,23 +95,29 @@ def generate_label_map(anno_root, action_representation):
     print("Preprocess ek100 action label space")
     vn_list = []
     mapping_vn2narration = {}
+    mapping_vnstr2narration = defaultdict(list)
     
     # Load CSVs
     noun_classes_pd = pd.read_csv(os.path.join(anno_root, 'EPIC_100_noun_classes_v2.csv'))
     verb_classes_pd = pd.read_csv(os.path.join(anno_root, 'EPIC_100_verb_classes.csv'))
     
     # Initialize maps
-    verb_maps = {} if 'key' in action_representation or action_representation == 'first_sample' else None
-    noun_maps = {} if 'key' in action_representation or action_representation == 'first_sample' else None
+    verb_maps = {} if 'key' in action_representation or 'gpt_narration' in action_representation or action_representation == 'first_sample' else None
+    noun_maps = {} if 'key' in action_representation or 'gpt_narration' in action_representation or action_representation == 'first_sample' else None
     
     # Process verb and noun maps
-    if 'key' in action_representation:
+    if 'key' in action_representation or 'gpt_narration' in action_representation:
         for _, row in verb_classes_pd.iterrows():
             verb_maps[str(row['id'])] = row['key']
         for _, row in noun_classes_pd.iterrows():
             elements = row['key'].split(':')
             noun_maps[str(row['id'])] = ' '.join(elements[1:] + [elements[0]]) if len(elements) > 1 else row['key']
-
+    # print ('verb_maps')
+    # print (verb_maps)
+    # print ('noun_maps')
+    # print (noun_maps)
+    # import sys
+    # sys.exit()
     # Batch processing setup
     if 'cut' in action_representation:
         import spacy
@@ -177,7 +184,9 @@ def generate_label_map(anno_root, action_representation):
                     mapping_vn2narration[vn] = [narration]
                 else:
                     mapping_vn2narration[vn].append(narration)
-        
+            temp_v, temp_n = vn.split(':')
+            temp_v, temp_n = verb_maps[temp_v], noun_maps[temp_n]
+            mapping_vnstr2narration[f'{temp_v} {temp_n}'].append(narration)
         # Process remaining batch
         if current_batch and 'cut' in action_representation:
             for batch_vn, processed_narration in process_batch_of_rows(current_batch):
@@ -197,7 +206,13 @@ def generate_label_map(anno_root, action_representation):
         frequency_count = Counter(narrations)
         sorted_unique_list = [item for item, count in frequency_count.most_common()]
         labels[vn] = sorted_unique_list
-    
+        
+    # debug section
+    # print (mapping_vnstr2narration)
+    # with open('mapping_vnstr2narration.json', 'w') as f:
+    #     json.dump(mapping_vnstr2narration, f)
+
+    #
     return labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps
 
 def remove_sub_nouns_with_doc(doc, verb: str, noun: str) -> str:
@@ -328,7 +343,41 @@ def match_answer(pred, gt):
 def parse_avion_predictions(predictions):
     return [pred.replace(':', ' ', 1) for pred in predictions]   
 
-# DEPRECATED
+
+def get_gpt_narration_from_vn_str(vn_str):
+    with open('mapping_vnstr2narration_gpt.json') as f:
+        data_dict = json.load(f)        
+    return data_dict[vn_str]
+
+def parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
+    answer_items = []
+    if 'key' in action_representation or action_representation == 'first_sample':
+        v_id, n_id = answer_id.split(':')
+        v_name, n_name = verb_maps[v_id], noun_maps[n_id]
+        answer_items.append(f'{v_name} {n_name}')
+    if 'gpt_narration' in action_representation:        
+        v_id, n_id = answer_id.split(':')
+        v_name, n_name = verb_maps[v_id], noun_maps[n_id]
+        vn_str = f'{v_name} {n_name}'
+        gpt_narration = get_gpt_narration_from_vn_str(vn_str)
+        answer_items.append(gpt_narration['new_gt'])         
+             
+    if 'random_narration' in action_representation:
+        # randomly select a narration from mapping_vn2narration
+        answer_items.append(random.choice(mapping_vn2narration[answer_id]))
+    elif 'top1_narration' in action_representation:
+        # select the top1 narration from labels
+        answer_items.append(labels[answer_id][0])
+    elif 'topk_narration' in action_representation:
+        assert n_narrations > 0
+        # select the topk narrations from labels
+        answer_items.extend(['example usages could be']+ labels[answer_id][:n_narrations])
+
+    if 'GT' in action_representation and answer_id == gt_vn:
+        answer_items = [narration] 
+
+    return ', '.join(answer_items)
+
 class MultiChoiceGenerator:
     """
     Generating multi choice
@@ -381,27 +430,6 @@ class MultiChoiceGenerator:
         
         return data
 
-def parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
-    answer_items = []
-    if 'key' in action_representation or action_representation == 'first_sample':
-        v_id, n_id = answer_id.split(':')
-        v_name, n_name = verb_maps[v_id], noun_maps[n_id]
-        answer_items.append(f'{v_name} {n_name}')
-    if 'random_narration' in action_representation:
-        # randomly select a narration from mapping_vn2narration
-        answer_items.append(random.choice(mapping_vn2narration[answer_id]))
-    elif 'top1_narration' in action_representation:
-        # select the top1 narration from labels
-        answer_items.append(labels[answer_id][0])
-    elif 'topk_narration' in action_representation:
-        assert n_narrations > 0
-        # select the topk narrations from labels
-        answer_items.extend(['example usages could be']+ labels[answer_id][:n_narrations])
-
-    if 'GT' in action_representation and answer_id == gt_vn:
-        answer_items = [narration] 
-
-    return ', '.join(answer_items)
 
 class AvionMultiChoiceGenerator(MultiChoiceGenerator):
     """
@@ -800,17 +828,12 @@ def render_frames(frames, hand_dets_list, obj_dets_list, thresh_hand=0.5, thresh
 
 if __name__ == '__main__':
 
-    anno_root = "/storage-rcp-pure/upmwmathis_scratch/shaokai/epic-kitchens-100-annotations/"
-    #generator = MultiChoiceGenerator(anno_root)
-    generator = AvionMultiChoiceGenerator(anno_root)
-    import json
-
-    with open('/storage-rcp-pure/upmwmathis_scratch/shaokai/avion_predictions_train.json') as f:
-        predictions = json.load(f)
-
-    print (len(predictions))
-    print (predictions['0'])
-    print (len(predictions['0']['predictions']))
+    ann_root = '/data/EK100/epic-kitchens-100-annotations'
+    #    action_representation = 'official_key' # gpt_narration
+    action_representation = 'gpt_narration'
     
-
-    pass
+    mc = AvionMultiChoiceGenerator(ann_root)
+    
+    #generate_label_map(ann_root, action_representation)
+    
+    mc.test_generate()

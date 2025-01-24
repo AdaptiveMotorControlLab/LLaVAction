@@ -121,6 +121,7 @@ class ModelArguments:
     faster_token_stride: Optional[int] = field(default=10)
 
     vision_supervision: Optional[str] = field(default=None) # could be "one_token", "three_token", "newline", "all_newlines"
+    vision_token_training:  Optional[str] = "last_layer" # could be "first_layer", "last_layer", "normal_distillation", "reverse_distillation"
     action_types: Optional[str] = field(default=None)
 
 
@@ -1323,7 +1324,6 @@ class LazySupervisedDataset(Dataset):
                 action = torch.tensor([sources[0]['verb_id'], sources[0]['noun_id'], sources[0]['action_id']] if 'verb_id' in sources[0] else [-1, -1, -1]).long()
                 image = [(image, video[0].size, "video", action)]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
-                print (sources[0])
 
                 # print(sources)
             except Exception as e:
@@ -1479,6 +1479,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
     if model_args.vision_supervision is not None:
         overwrite_config["vision_supervision"] = model_args.vision_supervision
         overwrite_config["action_types"] = model_args.action_types
+        overwrite_config["vision_token_training"] = model_args.vision_token_training
 
     if overwrite_config:
         assert cfg_pretrained is not None, "cfg_pretrained is None"
