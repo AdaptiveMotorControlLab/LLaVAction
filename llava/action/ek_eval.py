@@ -312,7 +312,7 @@ def evaluate_on_EK100(eval_args,
     print ('pretrained', pretrained)
 
     # so we know it's evaluation during training
-    finish_early = False #model is not None
+    finish_early = True #model is not None
 
     if model is None:
         if args.llava_checkpoint is not None:
@@ -355,7 +355,7 @@ def evaluate_on_EK100(eval_args,
 
             # we don't want to evaluate the whole thing
             # let's evaluate 1000 samples to get the complete picture       
-            if finish_early and idx> (10 / dist.get_world_size()):
+            if finish_early and idx> (1 / dist.get_world_size()):
                 break                     
         
                     

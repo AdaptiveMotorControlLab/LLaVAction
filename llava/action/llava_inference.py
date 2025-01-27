@@ -99,16 +99,15 @@ def llava_video_process(
     elif test_type == 'caption' or test_type == 'debug':
         question_type = "gpt-gt-reason"
 
-    if  test_type == 'caption_then_answer':
-        
+    if  test_type == 'caption_then_answer':        
         caption_answer = llava_video_process([video_frames], 
         tokenizer, 
         model,  
         image_processor, 
         mc_data,
         test_type = 'caption',
-        clip_length = 16,
-        num_frames = 16,
+        clip_length = clip_length,
+        num_frames = num_frames,
         temperature = 0,
         time_meta = time_meta)
 
