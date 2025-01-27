@@ -125,7 +125,7 @@ def get_args_parser():
                                    'random_narration_cut', 'top1_narration_cut', 'topk_narration_cut_key',
                                    'GT_key', 'GT_random_narration', 'GT_random_narration_cut', 'gpt_narration'])
     parser.add_argument('--n_narrations', default = -1, type = int)
-    parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'caption_then_answer'])
+    parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'caption_then_answer', 'direct_narration'])
     parser.add_argument('--learn_neighbor_actions', action='store_true', default = False)
     
     return parser
@@ -316,7 +316,7 @@ def evaluate_on_EK100(eval_args,
     
     logger = logging.getLogger(__name__)
 
-    pretrained = f"lmms-lab/{eval_args.pretrained_name}".strip()
+    pretrained = f"{eval_args.pretrained_name}".strip()
     print ('pretrained', pretrained)
 
     # so we know it's evaluation during training
@@ -363,7 +363,7 @@ def evaluate_on_EK100(eval_args,
 
             # we don't want to evaluate the whole thing
             # let's evaluate 1000 samples to get the complete picture       
-            if finish_early and idx> (10 / dist.get_world_size()):
+            if finish_early and idx> (1 / dist.get_world_size()):
                 break                     
         
                     

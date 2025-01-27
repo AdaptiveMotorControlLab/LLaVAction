@@ -252,6 +252,9 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
             suffix = ", ".join(question)
             suffix = "Here are the options of actions you are selecting:\n" + suffix 
             ret = prefix + suffix
+    
+    elif question_type == "direct_narration":
+        ret = f"{perspective_prefix} What action are you performing? Give a short sentence such as 'move knife'."
             
     elif question_type == "temporal_detection":
         ret = question

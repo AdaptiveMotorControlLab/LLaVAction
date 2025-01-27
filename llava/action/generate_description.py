@@ -44,6 +44,7 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
             verb_noun = f'{verb_maps[row[10]]} {noun_maps[row[12]]}'
             conversation = generate_naive_conversation(verb_noun)
         elif gen_type == 'direct_narration':
+            vn_str = f'{row[10]}:{row[12]}'
             # here we directly use the model to predict gt narration
             narration = row[8]
             conversation = generate_direct_conversation(narration)
@@ -111,14 +112,18 @@ def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, v
                 pad['start_timestamp'] = pad['padded_start_time']
                 pad['end_timestamp'] = pad['padded_end_time']
 
-
+        if 'direct_narration' not in gen_type:
+            question_type = f'mc_{action_representation}'
+        else:
+            question_type = 'direct_narration'
+        
         data = {'video': vid_path,
                 'conversations': conversation,
                 'id': vid_path,
                 'split': 'train',
                 'task_instruction': '',
                 'num_samples': 1,
-                'question_type': f'mc_{action_representation}',
+                'question_type': question_type,
                 'dataset_name': 'EK100',
                 'start_timestamp': start_timestamp,
                 'end_timestamp': end_timestamp,
@@ -187,12 +192,10 @@ def generate_naive_conversation(vn_str:str):
         {"from": "gpt", "value": f"{vn_str}"}    
     ]
 
-def generate_direct_conversation(vn_str:str):
-    # DEPRECATED. As this is hard-coding the prompt into the data
-    # in this version, we do not care about diversifying the questions
+def generate_direct_conversation(narration:str):
     return [
-        {"from": "human", "value": "The video is taken from egocentric view. What action is the person performing? "},
-        {"from": "gpt", "value": f"{vn_str}"}    
+        {"from": "human", "value": ""},
+        {"from": "gpt", "value": f"{narration}"}    
     ]
 
 def generate_random_mc_conversation(options:list[str], gt_answer_letter, gt_answer_name):
@@ -290,7 +293,11 @@ def get_args():
 def main(): 
     args = get_args()    
     ann_file = args.train_metadata
-    inst_train_folder = os.path.join(args.out_folder, f'{args.gen_type}_top{args.n_options}_{args.action_representation}')
+    
+    if 'direct_narration' in args.gen_type:
+        inst_train_folder = os.path.join(args.out_folder, f'{args.gen_type}_{args.action_representation}')
+    else:
+        inst_train_folder = os.path.join(args.out_folder, f'{args.gen_type}_top{args.n_options}_{args.action_representation}')
 
     print ('train_metadata', args.train_metadata)
     print ('out_folder', args.out_folder)

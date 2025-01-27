@@ -96,19 +96,19 @@ def llava_video_process(
     
     if test_type == 'base':
         question_type = "mc_top5_official_key"
+    elif test_type == "direct_narration":
+        question_type = "direct_narration"
     elif test_type == 'caption' or test_type == 'debug':
         question_type = "gpt-gt-reason"
-
-    if  test_type == 'caption_then_answer':
-        
+    if  test_type == 'caption_then_answer':        
         caption_answer = llava_video_process([video_frames], 
         tokenizer, 
         model,  
         image_processor, 
         mc_data,
         test_type = 'caption',
-        clip_length = 16,
-        num_frames = 16,
+        clip_length = clip_length,
+        num_frames = num_frames,
         temperature = 0,
         time_meta = time_meta)
 
@@ -160,7 +160,6 @@ def llava_video_process(
     text_outputs = tokenizer.batch_decode(cont, skip_special_tokens=True)    
 
     return text_outputs[0]
-
 
 
 def llava_inference(

@@ -249,7 +249,7 @@
                 "--deepspeed", "scripts/zero3.json",
                 "--model_name_or_path", "lmms-lab/llava-onevision-qwen2-0.5b-ov",
                 "--version", "qwen_1_5",
-                "--data_path", "scripts/train/simple_avion_top5.yaml",
+                "--data_path", "scripts/train/direct_narration.yaml",
                 "--video_folder", "/data/shaokai/",
                 "--mm_tunable_parts", "mm_vision_tower,mm_mlp_adapter,mm_language_model",
                 "--mm_vision_tower_lr", "2e-6",
@@ -335,7 +335,7 @@
 //                     "--master_addr=127.0.0.1",
 //                     "--master_port=29500",
 //                     "llava/action/ek_eval.py",                
-//                     "--pretrained_name", "llava-onevision-qwen2-0.5b-ov",
+//                     "--pretrained_name", "experiments/shaokai_llava_video_7b_tim_avion_mc_top5_16f_simple_cap_ego4d_2x",
 //                     "--root", "/data/shaokai/EK100",
 //                     "--train-metadata", "/data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv",
 //                     "--val-metadata", "/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv",
@@ -345,6 +345,7 @@
 //                     "--action_representation", "gpt_narration",
 //                     //"--llava_checkpoint", "/data/shaokai/LLaVA-NeXT/experiments/dev_0.5b_12f_avion_top5_pad_with_neighbors",
 //                     "--topk_predictions", "5",
+//                     "--test_type", "direct_answer"
 //                     //"--learn_neighbor_actions"
 //                 ],
 //                 "console": "integratedTerminal",
