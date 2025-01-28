@@ -3,6 +3,7 @@ import glob
 import os
 import numpy as np
 from llava.action.utils import generate_label_map
+from tqdm import tqdm
 class PredictionAnalysis:
     """
     We save data that can be used for ad-hoc analysis
@@ -85,6 +86,41 @@ class PredictionAnalysis:
 
         return wrong_examples
 
+    def retrieval_accuracy(self, search_type = 'official'):
+        # get a list of all llava prediction
+        # getthe top1, top5 predictions from retrieval for all llava predictions
+        # calculate the top1 and top5 retrieval accuracy
+        self.load()
+        llava_preds = [v['llava_pred'] for k, v in self.data.items()]
+        gts = [v['gt_name'] for k, v in self.data.items()]
+        from llava.action.retrieval import SemanticRetriever
+        retrieval = SemanticRetriever()
+        retrieval.load_from_file('embeddings')
+        
+        queries = [query for query in llava_preds]
+        results = retrieval.find_similar(queries, top_k = 5, search_type = search_type, batch_size = 512)
+               
+        top1_results = [r[0][0] for r in results]
+        top5_results = []
+        for r in results:
+            temp = []
+            for e in r[:5]:
+                temp.append(e[0])
+            top5_results.append(temp)
+            
+        # get the official key correspondance for each llava prediction
+        # top1 accuracy
+        top1_accuracy = np.sum([gt == pred for gt, pred in zip(gts, top1_results)]) / len(gts)
+        print ('top1 accuracy', top1_accuracy)
+        # top5 accuracy
+        top_correct = 0
+        for idx, top5_preds in enumerate(top5_results):
+            if gts[idx] in top5_preds:
+                top_correct += 1
+        top5_accuracy = top_correct / len(gts)
+            
+        print ('top5 accuracy', top5_accuracy)
+
 
     def analysis(self):
         self.load()
@@ -112,16 +148,17 @@ class PredictionAnalysis:
             # avion_preds = items['avion_preds']['predictions'][:5]
             # avion_preds = [e.replace(':', ' ', 1) for e  in avion_preds]
 
-            avion_pred = items['avion_preds']['predictions'][0]
+            avion_pred = items['avion_preds'][0]
 
             try:
                 llava_verb, llava_noun = llava_pred.split(' ')
             except:
                 lst =  llava_pred.split(' ')
                 llava_verb, llava_noun = lst[0], lst[1]
-            avion_verb, avion_noun = avion_pred.split(' ')
-            gt_verb, gt_noun = gt_name.split(' ')
-
+            avion_verb, *avion_noun = avion_pred.split(' ')
+            avion_noun = ' '.join(avion_noun)
+            gt_verb, *gt_noun = gt_name.split(' ')
+            gt_noun = ' '.join(gt_noun)
             if llava_pred == gt_name:     
                 llava_pred_mask[idx] = 1
            
@@ -178,7 +215,7 @@ class PredictionAnalysis:
 if __name__ == '__main__':
 
     # at rcp server
-    save_folder = '/storage-rcp-pure/upmwmathis_scratch/shaokai/LLaVA-NeXT/llavavideo_avion_mc_top5_preds_gt_narration_random'
+    save_folder = 'test_0.5b_direct'
     # at amg0 
     #save_folder = '/data/epic_kitchen/llavavideo_avion_mc_top10_5epoch_preds'
 
@@ -186,4 +223,8 @@ if __name__ == '__main__':
     prediction_analysis = PredictionAnalysis(save_folder = save_folder,
                                              prefix = 'prediction_analysis_buf')
     
-    prediction_analysis.analysis()
+    #prediction_analysis.analysis()
+    print ('search type official')
+    prediction_analysis.retrieval_accuracy(search_type = 'official')
+    print ('search type narration')
+    prediction_analysis.retrieval_accuracy(search_type = 'narration')
