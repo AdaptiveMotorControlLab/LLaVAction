@@ -127,7 +127,7 @@ def get_args_parser():
     parser.add_argument('--n_narrations', default = -1, type = int)
     parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'caption_then_answer', 'direct_narration'])
     parser.add_argument('--learn_neighbor_actions', action='store_true', default = False)
-    
+    parser.add_argument('--output_dir', default = None, type = str)
     return parser
 
 def prepare_llava(pretrained):
@@ -445,6 +445,6 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser('LAVILA training and evaluation', parents=[get_args_parser()])
     args = parser.parse_args()
-    
-    evaluate_on_EK100(args)
+    output_dir = args.output_dir
+    evaluate_on_EK100(args, eval_result_folder=output_dir if output_dir is not None else None)
    
