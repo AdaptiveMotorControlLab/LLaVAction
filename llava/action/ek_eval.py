@@ -100,7 +100,6 @@ def get_args_parser():
                         default='/data/EK100/epic-kitchens-100-annotations/EPIC_100_train.csv')
     parser.add_argument('--val-metadata', type=str,
                         default='/data/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv')
-    parser.add_argument('--output-dir', default='./', type=str, help='output dir')
     parser.add_argument('--num-crops', default=1, type=int, help='number of crops in transforms for testing')
     parser.add_argument('--num-clips', default=1, type=int, help='number of clips for testing')
     parser.add_argument('--video-chunk-length', default=15, type=int)

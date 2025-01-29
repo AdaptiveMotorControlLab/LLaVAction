@@ -58,6 +58,7 @@ class PredictionAnalysis:
         # print (self.data[global_index])
 
     def save(self):
+        os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
         with open(self.save_path, 'w') as f:
             json.dump(self.data, f, indent = 4)
 

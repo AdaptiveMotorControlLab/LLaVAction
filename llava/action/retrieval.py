@@ -229,10 +229,10 @@ def get_narrations_and_keys(anno_root):
 if __name__ == '__main__':
     # Load state
     retriever = SemanticRetriever()
-    anno_root = '/data/shaokai/epic-kitchens-100-annotations/'
+    anno_root = '/iopsstor/scratch/cscs/hqi/VFM/EK100/epic-kitchens-100-annotations/'
     gt_narrations,official_keys = get_narrations_and_keys(anno_root)
-    #retriever.get_embeds(gt_narrations, official_keys)
-    #retriever.save_to_file('embeddings')
-    retriever.load_from_file('embeddings')
+    retriever.get_embeds(gt_narrations, official_keys)
+    retriever.save_to_file('embeddings')
+    # retriever.load_from_file('embeddings')
     
-    print (retriever.find_similar('take spoon', search_type = 'official'))
+    # print (retriever.find_similar('take spoon', search_type = 'official'))
