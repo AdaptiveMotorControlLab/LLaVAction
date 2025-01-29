@@ -232,12 +232,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     noun_logits = noun_logits.to(device)
                     action_logits = action_logits.to(device)
                     actions = actions.to(device)
-
-                    # verb_loss = loss_fct(verb_logits, actions[:, 0])
-                    # noun_loss = loss_fct(noun_logits, actions[:, 1])
-                    # action_loss = loss_fct(action_logits, actions[:, 2])
-                    # vision_supervision_loss = 0.5 * verb_loss + 0.5 * noun_loss + 0.1 * action_loss
-                    
+                                      
                     vision_supervision_loss = 0.0
                     
                     
@@ -252,10 +247,12 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     # by default, distilaltion uses all layers
                                                           
                     for other_verb_logits, other_noun_logits, other_action_logits in triples:
-                        other_verb_loss = loss_fct(other_verb_logits, actions[:, 0])
-                        other_noun_loss = loss_fct(other_noun_logits, actions[:, 1])
-                        other_action_loss = loss_fct(other_action_logits, actions[:, 2])
-                        vision_supervision_loss += 0.5 * other_verb_loss + 0.5 * other_noun_loss + 0.1 * other_action_loss
+                        print ('debug', actions[:,0]), 
+                        if actions[:,0] > 0:
+                            other_verb_loss = loss_fct(other_verb_logits, actions[:, 0])
+                            other_noun_loss = loss_fct(other_noun_logits, actions[:, 1])
+                            other_action_loss = loss_fct(other_action_logits, actions[:, 2])
+                            vision_supervision_loss += 0.5 * other_verb_loss + 0.5 * other_noun_loss + 0.1 * other_action_loss
 
                     vision_supervision_loss /= (len(triples) + 1)
                     

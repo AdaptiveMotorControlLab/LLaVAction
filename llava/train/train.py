@@ -1195,7 +1195,11 @@ class LazySupervisedDataset(Dataset):
 
         elif "video" in sources[0]:
             video_info = self.list_data_dict[i]["video"]
-            video_folder = os.path.join(self.data_args.video_folder, sources[0]['dataset_name'])
+            if 'dataset_name' in sources[0]:
+                video_folder = os.path.join(self.data_args.video_folder, sources[0]['dataset_name'])
+            else:
+                # designed for LLaVA-Video-178K
+                video_folder = os.path.join(self.data_args.video_folder, 'LLaVA-Video-178K', sources[0]['data_source'])
             if 'EK100' in video_folder:
                 video_file = os.path.join(video_folder, video_info.split("-")[0], video_info.split("-")[1]+".MP4")
             elif 'EKframes' in video_folder:
@@ -1238,7 +1242,7 @@ class LazySupervisedDataset(Dataset):
                                 video.append(frame)
                         except IOError:
                             print(f"Failed to read frame at path: {frame_path}")
-                elif 'EK100' in video_folder:
+                elif 'EK100' in video_folder:               
                     start_second = float(self.list_data_dict[i]['start_timestamp'])
                     end_second = float(self.list_data_dict[i]['end_timestamp'])            
                     pid = sources[0]['video'].split('-')[0]
@@ -1321,7 +1325,9 @@ class LazySupervisedDataset(Dataset):
                     sources[0]["conversations"][0]["value"] = llava_prompt
                     # rank0_print (sources[0])
                 #print ('sources[0]', sources[0])
+
                 action = torch.tensor([sources[0]['verb_id'], sources[0]['noun_id'], sources[0]['action_id']] if 'verb_id' in sources[0] else [-1, -1, -1]).long()
+               
                 image = [(image, video[0].size, "video", action)]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
 
@@ -1400,6 +1406,7 @@ class DataCollatorForSupervisedDataset(object):
 
             batch["image_sizes"] = [im[1] for im_list in images for im in im_list]
             batch["modalities"] = [im[2] for im_list in images for im in im_list]
+            
             batch["actions"] = torch.stack([im[3] for im_list in images for im in im_list])
             images = [im[0] for im_list in images for im in im_list]
 
@@ -1871,7 +1878,6 @@ def train(attn_implementation=None):
 
     rank0_print("num_train_epochs?", training_args.num_train_epochs)
     if training_args.num_train_epochs == 0:
-        rank0_print("Got here?")
         trainer.evaluate(eval_result_folder = training_args.output_dir)
 
     rank0_print(f"Model saved to {training_args.output_dir}")
