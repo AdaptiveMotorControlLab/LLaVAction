@@ -216,7 +216,7 @@ class PredictionAnalysis:
 if __name__ == '__main__':
 
     # at rcp server
-    save_folder = 'test_0.5b_direct'
+    save_folder = 'best_top20_direct'
     # at amg0 
     #save_folder = '/data/epic_kitchen/llavavideo_avion_mc_top10_5epoch_preds'
 

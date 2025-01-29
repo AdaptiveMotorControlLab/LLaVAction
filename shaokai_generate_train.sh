@@ -131,8 +131,14 @@ export PYTHONPATH=/usr/local/lib/python3.10/site-packages/decord-0.6.0-py3.10-li
 #     --n_options 5    
 
 
+# python3 llava/action/generate_description.py \
+#     --train_metadata /data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv \
+#     --out_folder /data/shaokai/EK100_inst_train/\
+#     --gen_type direct_narration \
+#     --action_representation GT_random_narration \
+
 python3 llava/action/generate_description.py \
     --train_metadata /data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv \
     --out_folder /data/shaokai/EK100_inst_train/\
     --gen_type direct_narration \
-    --action_representation GT_random_narration \
+    --action_representation official_key \
