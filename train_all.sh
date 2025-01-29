@@ -10,8 +10,8 @@ export WANDB_API_KEY="4474ec79de023b0c3ffb43588ab6163264f875db"
 export HF_HOME=/media/data/haozhe/VFM/huggingface
 export PYTHONPATH=/media/data/haozhe/VFM/LLaVA-NeXT:$PYTHONPATH
 
-pip install moviepy spacy==3.7.5 numpy==1.26.1
-python -m spacy download en_core_web_sm
+# pip install moviepy spacy==3.7.5 numpy==1.26.1
+# python -m spacy download en_core_web_sm
 
 # torchrun --nproc_per_node=8 \
 #          --nnodes=1 \
@@ -128,7 +128,7 @@ torchrun --nproc_per_node=4 \
          --deepspeed scripts/zero3.json \
          --model_name_or_path  lmms-lab/llava-onevision-qwen2-0.5b-ov\
          --version qwen_1_5 \
-         --data_path scripts/train/tim_cross.yaml \
+         --data_path scripts/train/llava_video.yaml \
          --video_folder /media/data/haozhe/VFM/onevision/llava_video \
          --mm_tunable_parts mm_vision_tower,mm_mlp_adapter,mm_language_model \
          --mm_vision_tower_lr 2e-6 \
@@ -142,11 +142,11 @@ torchrun --nproc_per_node=4 \
          --image_grid_pinpoints "(1x1),...,(6x6)" \
          --mm_patch_merge_type spatial_unpad \
          --bf16 True \
-         --run_name dev_0.5b_4f_tim_cross_3_haozhe \
-         --output_dir experiments/dev_0.5b_4f_tim_cross_3_haozhe\
+         --run_name dev_0.5b_4f_llavavideo_ek100_haozhe \
+         --output_dir experiments/dev_0.5b_4f_llavavideo_ek100_haozhe\
          --num_train_epochs 1 \
-         --per_device_train_batch_size 8 \
-         --per_device_eval_batch_size 4 \
+         --per_device_train_batch_size 1 \
+         --per_device_eval_batch_size 1 \
          --gradient_accumulation_steps 2 \
          --evaluation_strategy epoch \
          --eval_steps 1 \
@@ -174,4 +174,4 @@ torchrun --nproc_per_node=4 \
          --llava_num_frames 4 \
          --clip_length 4 \
          --action_representation official_key \
-         --topk_predictions 5 > dev_0.5b_4f_tim_cross_3_haozhe.out 2>&1
+         --topk_predictions 5 > dev_0.5b_4f_llavavideo_ek100_haozhe.out 2>&1

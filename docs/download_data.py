@@ -1,8 +1,40 @@
 import os
+os.environ["HF_HOME"] = "/mnt/SV_storage/VFM/huggingface"
 from datasets import load_dataset
+from datasets import get_dataset_config_names, get_dataset_split_names
 from tqdm import tqdm
 import json
 import yaml
+
+dataset_name = "lmms-lab/LLaVA-Video-178K"
+
+save_root = "/mnt/SV_storage/VFM/onevision/llava_video_178k"
+
+subsets = get_dataset_config_names(dataset_name)
+for subset in subsets:
+    # download the dataset
+    data = load_dataset(dataset_name, subset)
+    for da in tqdm(data):
+        json_data = {}
+        json_data["id"] = da["id"]
+        json_data["video"] = da["video"]
+        json_data["conversations"] = da["conversations"]
+        with open(os.path.join(save_root, '{}.json'.format(da["id"])), "w") as f:
+            json.dump(json_data, f, indent=4, ensure_ascii=False)
+    aa= 1
+
+    # splits = get_dataset_split_names(dataset_name, subset)
+    
+        
+#     aa = 1
+
+
+# data = load_dataset("lmms-lab/LLaVA-Video-178K", '0_30_s_academic_v0_1', split="caption")
+
+# for da in tqdm(data):
+#     json_data = {}
+#     json_data["id"] = da["id"]
+#     aa= 2
 
 avaliable_datasets = ['CLEVR-Math(MathV360K)', 'FigureQA(MathV360K)', 'GEOS(MathV360K)', 'GeoQA+(MathV360K)', 
                       'Geometry3K(MathV360K)', 'IconQA(MathV360K)', 'MapQA(MathV360K)', 'PMC-VQA(MathV360K)', 

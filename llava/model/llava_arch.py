@@ -261,6 +261,8 @@ class LlavaMetaForCausalLM(ABC):
         if isinstance(modalities, str):
             modalities = [modalities]
 
+        vision_supervision = getattr(self.config, "vision_supervision", None)
+
         # import pdb; pdb.set_trace()
         if type(images) is list or images.ndim == 5:
             if type(images) is list:
@@ -298,7 +300,7 @@ class LlavaMetaForCausalLM(ABC):
             mm_patch_merge_type = getattr(self.config, "mm_patch_merge_type", "flat")
             image_aspect_ratio = getattr(self.config, "image_aspect_ratio", "square")
             mm_newline_position = getattr(self.config, "mm_newline_position", "one_token")
-            vision_supervision = getattr(self.config, "vision_supervision", None)
+            
 
             if mm_patch_merge_type == "flat":
                 image_features = [x.flatten(0, 1) for x in image_features]
@@ -338,7 +340,7 @@ class LlavaMetaForCausalLM(ABC):
                         elif mm_newline_position == "frame":
                             # Frame-wise
                             image_feature = self.add_token_per_frame(image_feature).flatten(0, 1)
-                            if "token" in vision_supervision:
+                            if vision_supervision and "token" in vision_supervision:
                                 image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
 
                             new_image_features.append(image_feature)
@@ -353,12 +355,12 @@ class LlavaMetaForCausalLM(ABC):
                                     self.model.image_newline[None].to(image_feature.device)
                                 ), dim=0)
                             
-                            if "token" in vision_supervision:
+                            if vision_supervision and "token" in vision_supervision:
                                 image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
                             new_image_features.append(image_feature)      
                         elif mm_newline_position == "no_token":
                             image_feature = image_feature.flatten(0, 1)
-                            if "token" in vision_supervision:
+                            if vision_supervision and "token" in vision_supervision:
                                 image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
                             new_image_features.append()
                         else:
