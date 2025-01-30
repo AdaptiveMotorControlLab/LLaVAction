@@ -245,9 +245,9 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     elif getattr(self.config, 'vision_token_training', None) and self.config.vision_token_training == 'all_layers':
                         pass
                     # by default, distilaltion uses all layers
-                                                          
+                    print ('actions', actions)
+                    print ('actions.shape', actions.shape)
                     for other_verb_logits, other_noun_logits, other_action_logits in triples:
-                        # if actions[:,0][0] > 0:
                         for batch_idx in range(actions.shape[0]):
                             if actions[batch_idx, 0] > 0:
                                 other_verb_loss = loss_fct(other_verb_logits, actions[batch_idx, 0])

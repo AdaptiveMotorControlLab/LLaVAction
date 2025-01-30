@@ -1324,7 +1324,6 @@ class LazySupervisedDataset(Dataset):
                                                  learn_neighbor_actions = self.eval_args.learn_neighbor_actions and 'narration_prev_1' in sources[0])
                     sources[0]["conversations"][0]["value"] = llava_prompt
                     # rank0_print (sources[0])
-                #print ('sources[0]', sources[0])
 
                 action = torch.tensor([sources[0]['verb_id'], sources[0]['noun_id'], sources[0]['action_id']] if 'verb_id' in sources[0] else [-1, -1, -1]).long()
                
