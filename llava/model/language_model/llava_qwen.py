@@ -250,9 +250,9 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     for other_verb_logits, other_noun_logits, other_action_logits in triples:
                         for batch_idx in range(actions.shape[0]):
                             if actions[batch_idx, 0] > 0:
-                                other_verb_loss = loss_fct(other_verb_logits, actions[batch_idx, 0])
-                                other_noun_loss = loss_fct(other_noun_logits, actions[batch_idx, 1])
-                                other_action_loss = loss_fct(other_action_logits, actions[batch_idx, 2])
+                                other_verb_loss = loss_fct(other_verb_logits[batch_idx], actions[batch_idx, 0])
+                                other_noun_loss = loss_fct(other_noun_logits[batch_idx], actions[batch_idx, 1])
+                                other_action_loss = loss_fct(other_action_logits[batch_idx], actions[batch_idx, 2])
                                 vision_supervision_loss += 0.5 * other_verb_loss + 0.5 * other_noun_loss + 0.1 * other_action_loss
 
                     vision_supervision_loss /= (len(triples) + 1)
