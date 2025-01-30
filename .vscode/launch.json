@@ -228,7 +228,7 @@
             "request": "launch",
             "module": "torch.distributed.run",
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0",
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
                 "OMP_NUM_THREADS": "8",
                 "NCCL_IB_DISABLE": "0",
                 "NCCL_IB_GID_INDEX": "3",
@@ -240,14 +240,14 @@
                 "PYTHONPATH": "/data/shaokai/LLaVA-NeXT:/usr/local/lib/python3.10/site-packages/decord-0.6.0-py3.10-linux-x86_64.egg/"
             },
             "args": [
-                "--nproc_per_node=1",
+                "--nproc_per_node=4",
                 "--nnodes=1",
                 "--node_rank=0",
                 "--master_addr=127.0.0.1",
                 "--master_port=29500",
                 "llava/train/train_mem.py",                 
                 "--deepspeed", "scripts/zero3.json",
-                "--model_name_or_path", "lmms-lab/llava-onevision-qwen2-0.5b-ov",
+                "--model_name_or_path", "lmms-lab/LLaVA-Video-7B-Qwen2",
                 "--version", "qwen_1_5",
                 "--data_path", "scripts/train/simple_avion_top5_mix.yaml",
                 "--video_folder", "/data/shaokai/",
@@ -266,7 +266,7 @@
                 "--run_name", "dpo_test",
                 "--output_dir", "experiments/dpo_test",
                 "--num_train_epochs", "1",
-                "--per_device_train_batch_size", "4",
+                "--per_device_train_batch_size", "1",
                 "--per_device_eval_batch_size", "4",
                 "--gradient_accumulation_steps", "2",
                 "--evaluation_strategy", "steps",
@@ -297,7 +297,7 @@
                 "--topk_predictions", "5",
                 "--eval_steps", "10000",
                 "--vision_supervision", "three_tokens",
-                "--vision_token_training", "all_layers",
+                "--vision_token_training", "first_layer",
                 "--action_types",  "97,300,3806"
             ],
             "console": "integratedTerminal",

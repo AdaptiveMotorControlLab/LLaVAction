@@ -245,16 +245,38 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     elif getattr(self.config, 'vision_token_training', None) and self.config.vision_token_training == 'all_layers':
                         pass
                     # by default, distilaltion uses all layers            
+                # First check if any process has valid examples across all triples
+                world_has_valid = torch.tensor(actions[:, 0].any() > 0, device=actions.device)
+                torch.distributed.all_reduce(world_has_valid, op=torch.distributed.ReduceOp.MAX)
+
+                if world_has_valid:  # If any process has valid examples
                     for other_verb_logits, other_noun_logits, other_action_logits in triples:
-                        for batch_idx in range(actions.shape[0]):
-                            if actions[batch_idx, 0] > 0:
-                                other_verb_loss = loss_fct(other_verb_logits[batch_idx], actions[batch_idx, 0])
-                                other_noun_loss = loss_fct(other_noun_logits[batch_idx], actions[batch_idx, 1])
-                                other_action_loss = loss_fct(other_action_logits[batch_idx], actions[batch_idx, 2])
-                                vision_supervision_loss += 0.5 * other_verb_loss + 0.5 * other_noun_loss + 0.1 * other_action_loss
+                        valid_mask = actions[:, 0] > 0
+                        
+                        if valid_mask.any():  # This process has valid examples
+                            valid_verb_logits = other_verb_logits[valid_mask]
+                            valid_noun_logits = other_noun_logits[valid_mask]
+                            valid_action_logits = other_action_logits[valid_mask]
+                            
+                            valid_verb_targets = actions[valid_mask, 0]
+                            valid_noun_targets = actions[valid_mask, 1]
+                            valid_action_targets = actions[valid_mask, 2]
+
+                            other_verb_loss = loss_fct(valid_verb_logits, valid_verb_targets)
+                            other_noun_loss = loss_fct(valid_noun_logits, valid_noun_targets)
+                            other_action_loss = loss_fct(valid_action_logits, valid_action_targets)
+                            
+                            vision_supervision_loss += 0.5 * other_verb_loss + 0.5 * other_noun_loss + 0.1 * other_action_loss
+                        else:  # This process has no valid examples but others do
+                            # Add dummy loss to maintain gradient flow
+                            vision_supervision_loss += 0.0 * (other_verb_logits.sum() + other_noun_logits.sum() + other_action_logits.sum())
 
                     vision_supervision_loss /= (len(triples) + 1)
-                    
+                    loss += vision_supervision_loss * 0.1
+                else:
+                    # If no process has valid examples, add dummy loss to prevent hanging
+                    dummy_loss = sum(sum(t.sum() * 0.0 for t in triple) for triple in triples)
+                    vision_supervision_loss = dummy_loss / (len(triples) + 1)
                     loss += vision_supervision_loss * 0.1
 
                 if getattr(self.config, 'vision_token_training', None) and  'distillation' in self.config.vision_token_training:
