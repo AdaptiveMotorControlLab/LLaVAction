@@ -230,9 +230,7 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
     We currently support mc_{action_representation} and gpt-gt-reason
     We are thinking about tweaking the prompt based on the action representation.
     """
-    dataset_prefix = ""
-    if 'official_key' in question_type:
-        dataset_prefix = "The name of the actions are designed for dataset EPIC-KITCHENS-100. "  
+    
     if perspective == "first_person":
         perspective_prefix = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with obects. What action are you performing? "
     elif perspective == "third_person":
@@ -241,7 +239,7 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
                                       
         if learn_neighbor_actions and meta_data:
             action_rep_suffix = "There are 3 sequential actions in the video such as action1, action2, action3. You will be given multiple choices for action3 and select the right answer. Try to use action1 and action2 to infer action3. " 
-            prefix = f"{perspective_prefix}{dataset_prefix}{action_rep_suffix}\n"
+            prefix = f"{perspective_prefix}{action_rep_suffix}\n"
             assert isinstance(question, list)
             suffix = ", ".join(question)
             prev2 = meta_data[0]
@@ -250,14 +248,14 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
             ret = prefix + suffix
         else:
             action_rep_suffix = "Given multiple choices, format your answer briefly such as 'A. move knife'. "              
-            prefix = f"{perspective_prefix}{dataset_prefix}{action_rep_suffix}\n"
+            prefix = f"{perspective_prefix}{action_rep_suffix}\n"
             assert isinstance(question, list)
             suffix = ", ".join(question)
             suffix = "Here are the options of actions you are selecting:\n" + suffix 
             ret = prefix + suffix
     
     elif question_type == "direct_narration":
-        ret = f"{perspective_prefix}{dataset_prefix} What action are you performing? Give a short sentence such as 'move knife'."
+        ret = f"{perspective_prefix} What action are you performing? Give a short sentence such as 'move knife'."
             
     elif question_type == "temporal_detection":
         ret = question
