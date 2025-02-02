@@ -222,6 +222,8 @@ class EK100EvalArguments:
     action_representation: str = "GT_random_narration_cut"
     n_narrations: int = -1
     test_type: str = 'base'
+    learn_neighbor_actions: bool = False
+    
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero
@@ -2000,8 +2002,8 @@ def train(attn_implementation=None):
 
     # # this needs to be tested. But let's always evaluate the model after training.
     # # we should also save the predictions into the experiment folder so we can analyze afterwards
-    if training_args.eval_steps!= trainer.state.global_step:
-        trainer.evaluate(eval_result_folder = training_args.output_dir)
+    # if training_args.eval_steps!= trainer.state.global_step:
+    #     trainer.evaluate(eval_result_folder = training_args.output_dir)
 
 
 if __name__ == "__main__":
