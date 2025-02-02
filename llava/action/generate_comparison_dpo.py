@@ -14,6 +14,9 @@ from pydantic import BaseModel
 import traceback
 from concurrent.futures import ProcessPoolExecutor
 import openai
+from llava.action.utils import avion_video_loader, avion_video_render_loader, generate_label_map
+import copy
+import json
 
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -37,14 +40,15 @@ class CaptionInference(ChatGPT):
                  root,                 
                  annotation_file,
                  clip_length = 4,
-                 debug = False
+                 debug = False,
+                 fraction = 0.2
                  ):    
         self.root = root
         self.annotation_file = annotation_file
         self.clip_length = clip_length        
         self.debug = debug
         self.question_type = 'gpt-gt-reason'        
-                
+        self.fraction = fraction                
         self.data = self.init_data()        
         
         print (len(self.data))
@@ -56,10 +60,11 @@ class CaptionInference(ChatGPT):
         header = csv_reader[0]  # Get header
         data = csv_reader[1:]   # Get data
         N = len(data)
-        print ('N', N)
+
         # get a random subset of the data such as 20% of them. Give the indices
         random.seed(0)
-        indices = random.sample(range(N), int(N*0.2))
+        indices = random.sample(range(N), int(N*self.fraction))
+        print ('indices', len(indices))
         return indices
         
     def init_data(self):
@@ -91,11 +96,14 @@ class CaptionInference(ChatGPT):
             count+=1
         return ret  
     
-    def multi_process_run(self, n_samples = -1):
+    
+    def multi_process_run(self, n_samples = -1, filename = 'inference_results.json'):
         # to initialize it
 
         if n_samples != -1:
             indices = list(range(len(self.data)))[:n_samples]
+        else:
+            indices = list(range(len(self.data)))
 
         num_chunks = os.cpu_count() if not self.debug else 1
 
@@ -114,20 +122,20 @@ class CaptionInference(ChatGPT):
         if self.debug:
             print (combined_results)
 
+        self.checkpoint(combined_results, filename)
     
     def predict_images(self, images, parsed_item):
         """
         Predict the action from the images
         """
         from llava.action.utils import format_task_related_prompt
-        options = parsed_item['options']
         start_second = 0
         end_second = parsed_item['end_second'] - parsed_item['start_second']
         temperature = 0
         video_duration = end_second - start_second
         n_frames = len(images)
 
-        task_related_prompt = format_task_related_prompt(options, self.question_type, perspective = 'first_person')
+        task_related_prompt = format_task_related_prompt('', self.question_type, perspective = 'first_person')
 
         time_instruction = f"The provided video lasts for {video_duration:.3f} seconds. "
 
@@ -210,23 +218,67 @@ class CaptionInference(ChatGPT):
 
             caption = parsed_answer.caption
             print ('caption:', caption)
+            print ('gt is ', v['gt_answer'])
+            
+            ret[k] = copy.deepcopy(v)
+            ret[k]['caption'] = caption
+            
 
+            
             if self.debug:
                 break
        
         return ret
-
-                  
-
-
-
+    
+    
+def create_comparison_data(positive_filename, negative_filename, out_filename):
+    """
+    Create the comparison data
+    """    
+    ret = []    
+    with open(positive_filename, 'r') as f:
+        positive_data = json.load(f)
+    with open(negative_filename, 'r') as f:
+        negative_data = json.load(f)
+    
+    for key in positive_data:
+        pos_data = positive_data[key]
+        neg_data = negative_data[key]
+        assert pos_data['vid_path'] == neg_data['vid_path']
+        assert pos_data['start_second'] == neg_data['start_second']
+        template = {
+            'id': pos_data['vid_path'].replace('/', '-'),
+            'prompt': '',
+            'answer': pos_data['caption'],
+            'chosen': pos_data['caption'],
+            'rejected': neg_data['caption'],
+            'video': pos_data['vid_path'].replace('/', '-'),
+            'split': 'train',
+            'dataset_name' : 'EK100',
+            'start_timestamp': pos_data['start_second'],
+            'end_timestamp': pos_data['end_second'],
+            'num_samples': 1,
+            'question_type': 'dpo',
+            'task_instruction': '',
+        }
+        ret.append(template)
+    
+    # save to jsonl
+    with open(out_filename, 'w') as f:
+        for item in ret:
+            f.write(json.dumps(item) + '\n')                
 
 if __name__ == '__main__':
     video_root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
     anno_root = '/data/shaokai/epic-kitchens-100-annotations/'
     clip_length = 8
         
-    cap = CaptionInference(video_root, os.path.join(anno_root, 'EPIC_100_train.csv'), clip_length, debug = True)
-    
-    #cap.multi_process_run(n_samples = 2)
-    cap.run()
+    # cap = CaptionInference(video_root, 
+    #                        os.path.join(anno_root, 'EPIC_100_train.csv'), 
+    #                        clip_length, 
+    #                        debug = False,
+    #                        fraction = 0.01)  
+    # cap.multi_process_run(n_samples = -1, filename = f'gpt4o_inference_{clip_length}frame_1percent.json')
+
+
+    create_comparison_data('gpt4o_inference_8frame_1percent.json', 'gpt4o_inference_1frame_1percent.json', 'comparison_data_1percent.jsonl')

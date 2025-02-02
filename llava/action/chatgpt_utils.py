@@ -289,7 +289,7 @@ class ChatGPT:
 
         return multi_image_content 
 
-    def extract_frames(self,  vid_path, start_second, end_second):
+    def extract_frames(self, vid_path, start_second, end_second):
         if hasattr(self, 'handobj_root') and self.handobj_root is not None:
 
             frames, time_meta = avion_video_render_loader(self.root, self.handobj_root,
