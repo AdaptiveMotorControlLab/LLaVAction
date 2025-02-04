@@ -26,12 +26,13 @@ echo "BASE_RUN_NAME: ${BASE_RUN_NAME}"
 # Stage 2
 PROMPT_VERSION="qwen_1_5"
 MID_RUN_NAME="llavanext-${VISION_MODEL_VERSION_CLEAN}-${LLM_VERSION_CLEAN}-ov_to_video_am9"
-PREV_STAGE_CHECKPOINT="lmms-lab/llava-onevision-qwen2-72b-ov"
+PREV_STAGE_CHECKPOINT="lmms-lab/llava-onevision-qwen2-72b-ov-si"
 echo "PREV_STAGE_CHECKPOINT: ${PREV_STAGE_CHECKPOINT}"
 echo "MID_RUN_NAME: ${MID_RUN_NAME}"
 
 
-ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node="${ARNOLD_WORKER_GPU}" --nnodes="${ARNOLD_WORKER_NUM}" --node_rank="${ARNOLD_ID}" --master_addr="${METIS_WORKER_0_HOST}" --master_port="${port_in_cmd}" \
+# ACCELERATE_CPU_AFFINITY=1 torchrun --nproc_per_node="${ARNOLD_WORKER_GPU}" --nnodes="${ARNOLD_WORKER_NUM}" --node_rank="${ARNOLD_ID}" --master_addr="${METIS_WORKER_0_HOST}" --master_port="${port_in_cmd}" \
+deepspeed --master_port 30000 \
     llava/train/train_mem.py \
     --deepspeed scripts/zero3.json \
     --model_name_or_path $PREV_STAGE_CHECKPOINT \
