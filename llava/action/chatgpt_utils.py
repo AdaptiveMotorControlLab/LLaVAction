@@ -411,7 +411,7 @@ class GPTInferenceAnnotator(ChatGPT):
                                                             self.mapping_vn2narration,
                                                             self.verb_maps,
                                                             self.noun_maps,
-                                                            benchmark_tesitng = self.benchmark_testing,
+                                                            benchmark_testing = self.benchmark_testing,
                                                             is_train = False)
             else:
                 mc_data = self.mc_generator.generate_multi_choice(gt_vn,

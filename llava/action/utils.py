@@ -411,7 +411,8 @@ class RandomMultiChoiceGenerator(MultiChoiceGenerator):
                               mapping_vn2narration, 
                               verb_maps, 
                               noun_maps,
-                              is_train = True
+                              is_train = True,
+                              benchmark_testing = False
                               ):
 
         """
@@ -425,7 +426,7 @@ class RandomMultiChoiceGenerator(MultiChoiceGenerator):
         if is_train:
             return self.train_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
         else:
-            return self.test_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+            return self.test_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps, benchmark_testing = benchmark_testing)
     
     def train_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
         # letters as A, B, C, D, .. Note we maximally support 26 letters

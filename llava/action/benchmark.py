@@ -10,9 +10,10 @@ tim_prediction_file = '/data/epic_kitchen/TIM_PREDS/tim_pred_ids_val.json'
 n_frames = 4
 topk = 5
 action_representation = 'GT_random_narration'
-gpt_model = 'gpt-4o-mini-2024-07-18'
-# gpt_model = 'gpt-4o-2024-08-06'
-perspective = 'third_person'
+#gpt_model = 'gpt-4o-mini-2024-07-18'
+gpt_model = 'gpt-4o-2024-08-06'
+perspective = 'first_person'
+benchmark_testing = True
 
 
 def benchmark_avion_mcq(n_samples):
@@ -26,6 +27,7 @@ def benchmark_avion_mcq(n_samples):
                                         question_type = 'mc_',
                                         action_representation=action_representation,
                                         perspective = perspective,
+                                        benchmark_testing = benchmark_testing,
                                         topk = topk)
     inferencer.multi_process_run(n_samples)
                                        
@@ -40,6 +42,7 @@ def benchmark_tim_mcq(n_samples):
                                         question_type = 'mc_',
                                         action_representation=action_representation,
                                         perspective = perspective,
+                                        benchmark_testing = benchmark_testing,
                                         topk = topk) 
     inferencer.multi_process_run(n_samples)    
 
@@ -53,6 +56,7 @@ def benchmark_random_mcq(n_samples):
                                         question_type = 'mc_',
                                         action_representation=action_representation,
                                         perspective = perspective,
+                                        benchmark_testing = benchmark_testing,
                                         topk = topk) 
     
     inferencer.multi_process_run(n_samples)
@@ -61,4 +65,4 @@ def benchmark_random_mcq(n_samples):
 if __name__ == '__main__':
     benchmark_avion_mcq(100)
     benchmark_tim_mcq(100)
-    benchmark_random_mcq(100)    
+    #benchmark_random_mcq(100)    
