@@ -128,6 +128,7 @@ def get_args_parser():
     parser.add_argument('--learn_neighbor_actions', action='store_true', default = False)
     parser.add_argument('--pseudo_folder', default = None, type = str)
     parser.add_argument('--output_dir', default = None, type = str)
+    parser.add_argument("--perspective", default = "first_person", type = str)
     return parser
 
 def prepare_llava(pretrained):
@@ -169,6 +170,7 @@ def ensemble_llava_evaluation(
                               learn_neighbor_actions = False,                             
                               time_meta = None,
                               meta_data = None,
+                              perspective = "first_person"
                               ):
     """
     This function tests how consistent the model is if we shuffle the position of the answers
@@ -206,7 +208,8 @@ def ensemble_llava_evaluation(
                             temperature = temperature,
                             time_meta = time_meta,
                             learn_neighbor_actions = learn_neighbor_actions,
-                            meta_data = meta_data
+                            meta_data = meta_data,
+                            perspective = perspective
                             )
         # remove the trailing comma if there is one
         pred = pred.rstrip(',')
@@ -386,7 +389,9 @@ def evaluate_on_EK100(eval_args,
                                                         test_type = eval_args.test_type,  
                                                         learn_neighbor_actions = eval_args.learn_neighbor_actions,                                                    
                                                         time_meta = time_meta,
-                                                        meta_data = meta_data)
+                                                        meta_data = meta_data,
+                                                        perspective = eval_args.perspective
+                                                        )
                                                         
                                                         
 

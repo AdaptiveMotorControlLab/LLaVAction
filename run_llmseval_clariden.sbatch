@@ -50,19 +50,11 @@ LAUNCHER="accelerate launch \
     "
 
 PYTHON_FILE="-m lmms_eval"
-# PYTHON_ARGS=" \
-#     --model llava_onevision \
-#     --model_args pretrained=experiments/llava-onevision-qwen2-0.5b-ov,conv_template=qwen_1_5,model_name=llava_qwen \
-#     --tasks video_dc499 \
-#     --batch_size 1 \
-#     --log_samples_suffix llava_onevision \
-#     --output_path ./logs/ \
-#     --verbosity=DEBUG \
-#     "
+
 
 PYTHON_ARGS=" \
     --model llava_vid \
-    --model_args pretrained=lmms-lab/LLaVA-Video-7B-Qwen2,conv_template=qwen_1_5,max_frames_num=64,mm_spatial_pool_mode=average \
+    --model_args pretrained=experiments/LLaVA-Video-7B-Qwen2,conv_template=qwen_1_5,max_frames_num=64,mm_spatial_pool_mode=average \
     --tasks videomme \
     --batch_size 1 \
     --log_samples \

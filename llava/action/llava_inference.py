@@ -21,7 +21,8 @@ def llava_inference(
     test_type = 'base',
     time_meta = None,
     learn_neighbor_actions = False,
-    meta_data = None
+    meta_data = None,
+    perspective = "first_person"
     ):
 
         model.eval()              
@@ -74,6 +75,7 @@ def llava_inference(
                                         "mc_top5_official_key",
                                         include_frame_time = False,
                                         learn_neighbor_actions = learn_neighbor_actions,
+                                        perspective = perspective,
                                         include_time_instruction= False)
 
             question = f"You observed the video before and wrote down the notes: {caption_answer}. Now you watch the same video again and you can do better. " +  question                             
@@ -87,6 +89,7 @@ def llava_inference(
                                         include_frame_time = False,
                                         learn_neighbor_actions = learn_neighbor_actions,
                                         include_time_instruction= False,
+                                        perspective = perspective,
                                         meta_data=meta_data)
 
 

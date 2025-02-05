@@ -328,13 +328,17 @@ def format_llava_prompt(image_token,
                         include_time_instruction = False,
                         include_frame_time = False,
                         meta_data = None,
-                        learn_neighbor_actions = False
+                        learn_neighbor_actions = False,
+                        perspective = "first_person"
                         ):
     """
     baseline llava prompt: {image_token}\n{task_related_prompt}
     with time instruction: {image_token}\n{time_instruction}\n{task_related_prompt}
     """
-    task_related_prompt = format_task_related_prompt(question, question_type, meta_data = meta_data, learn_neighbor_actions = learn_neighbor_actions)
+    task_related_prompt = format_task_related_prompt(question, question_type, 
+                                                     meta_data = meta_data, 
+                                                     learn_neighbor_actions = learn_neighbor_actions,
+                                                     perspective = perspective)
 
     time_instruction =  format_time_instruction(video_duration, n_frames, include_frame_time)
 
