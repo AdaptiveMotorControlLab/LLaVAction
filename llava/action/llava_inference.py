@@ -52,6 +52,9 @@ def llava_inference(
             question_type = "direct_narration"
         elif test_type == 'caption' or test_type == 'debug':
             question_type = "gpt-gt-reason"
+        elif test_type == 'temporal_cot':
+            question_type = 'temporal_cot'
+                    
         if  test_type == 'caption_then_answer':        
             caption_answer = llava_inference([video_frames], 
             tokenizer, 
@@ -73,7 +76,8 @@ def llava_inference(
                                         learn_neighbor_actions = learn_neighbor_actions,
                                         include_time_instruction= False)
 
-            question = f"You observed the video before and wrote down the notes: {caption_answer}. Now you watch the same video again and you can do better. " +  question            
+            question = f"You observed the video before and wrote down the notes: {caption_answer}. Now you watch the same video again and you can do better. " +  question                             
+            
         else:                        
             question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
                                         options,

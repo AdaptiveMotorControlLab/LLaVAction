@@ -103,16 +103,38 @@ def build_uid_pad_dict(ann_file,
     return uid_to_neighbors
                 
     
+def get_pseudo_dict(pseudo_folder,  delta = 3):
+    import glob
+    
 
-def get_lookup_dict(ann_file, delta = 3):
+    files = glob.glob(os.path.join(pseudo_folder, 'prediction*.json'))
+    
+    pseudo_data = {}
+    ret = {}
+    for file in files:
+        with open(file, 'r') as f:
+            pseudo_data.update(json.load(f))
+    for k,v in pseudo_data.items():
+        start_timestamp = round(float(v['start_second']),2)
+        end_timestamp = round(float(v['end_second']), 2)
+        vid = v['vid_path'].replace('/', '-')
+        uid = f"{vid}_{start_timestamp}_{end_timestamp}"
+        ret[uid] = v['llava_pred']
+            
+    assert len(ret) == len(pseudo_data)
+    return ret
+
+def get_lookup_dict(ann_file, test_type = 'base', delta = 3, pseudo_folder = None):
     
     vid_to_intervals, vid_to_gt_narration, _ = get_annotated_intervals(ann_file)
     table = {}
     
+    pseudo_dict = None
+    if test_type == 'temporal_cot':
+        pseudo_dict = get_pseudo_dict(pseudo_folder)
+    
     for vid, intervals in vid_to_intervals.items():
-        
-        #sorted_intervals = sorted(intervals, key=lambda x: x[1])
-        
+                
         sorted_indices = sorted(range(len(intervals)), key=lambda i: intervals[i][1])
         
         sorted_intervals = [intervals[i] for i in sorted_indices]
@@ -136,10 +158,14 @@ def get_lookup_dict(ann_file, delta = 3):
                 uid2 = f"{id}_{round(start_times[i+1],2)}_{round(end_times[i+1],2)}"
                 uid3 = f"{id}_{round(start_times[i+2],2)}_{round(end_times[i+2],2)}"
                              
-                
-                narration1 = sorted_narrations[i]
-                narration2 = sorted_narrations[i+1]
-                narration3 = sorted_narrations[i+2]
+                if test_type == 'base':
+                    narration1 = sorted_narrations[i]
+                    narration2 = sorted_narrations[i+1]
+                    narration3 = sorted_narrations[i+2]
+                elif test_type == 'temporal_cot':
+                    narration1 = pseudo_dict[uid1]
+                    narration2 = pseudo_dict[uid2]
+                    narration3 = sorted_narrations[i+2]
                 
                 table[uid3] = {'prev2_narration': narration1,
                                'prev2_offset': round(start_times[i+2] - start_times[i],2),

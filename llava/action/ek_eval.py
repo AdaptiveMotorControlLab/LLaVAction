@@ -14,7 +14,7 @@ from llava.utils import rank0_print
 from llava.action.utils import generate_label_map,  match_answer
 from collections import Counter 
 import torch.distributed as dist
-from llava.action.dataset import VideoMultiChoiceDataset
+from llava.action.dataset import VideoMultiChoiceDataset, VideoTemporalMultiChoiceDataset
 import torchvision.io as io
 import re
 
@@ -124,8 +124,9 @@ def get_args_parser():
                                    'random_narration_cut', 'top1_narration_cut', 'topk_narration_cut_key',
                                    'GT_key', 'GT_random_narration', 'GT_random_narration_cut', 'gpt_narration'])
     parser.add_argument('--n_narrations', default = -1, type = int)
-    parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'caption_then_answer', 'direct_narration'])
+    parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'temporal_cot', 'caption_then_answer', 'direct_narration'])
     parser.add_argument('--learn_neighbor_actions', action='store_true', default = False)
+    parser.add_argument('--pseudo_folder', default = None, type = str)
     parser.add_argument('--output_dir', default = None, type = str)
     return parser
 
@@ -253,7 +254,7 @@ def evaluate_on_EK100(eval_args,
     if eval_args.action_predictions:
         with open(eval_args.action_predictions, 'r') as f:
             predictions = json.load(f) 
-
+    
     val_dataset = VideoMultiChoiceDataset(
                 eval_args.dataset, eval_args.root, eval_args.val_metadata, val_transform_gpu,
                 is_training=False, label_mapping=mapping_vn2act,
@@ -332,12 +333,11 @@ def evaluate_on_EK100(eval_args,
         os.makedirs('debug_and_vis', exist_ok = True)
 
 
-    uid_pad_dict = None
     lookup_table = None
     meta_data = None
     if eval_args.learn_neighbor_actions:
         from llava.action.generate_interval_pred import  get_lookup_dict
-        lookup_table = get_lookup_dict(eval_args.val_metadata)
+        lookup_table = get_lookup_dict(eval_args.val_metadata, test_type = eval_args.test_type, pseudo_folder = eval_args.pseudo_folder)
 
 
     for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):                  
