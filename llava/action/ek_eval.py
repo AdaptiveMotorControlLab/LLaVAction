@@ -155,8 +155,7 @@ def prepare_llava(pretrained):
 
 
 
-def ensemble_llava_evaluation(
-                              pretrained_name,
+def ensemble_llava_evaluation(                              
                               gt_name,
                               frames, 
                               tokenizer, 
@@ -168,7 +167,7 @@ def ensemble_llava_evaluation(
                               test_type = 'base',
                               learn_neighbor_actions = False,                             
                               time_meta = None,
-                              uid_pad_dict = None
+                              meta_data = None,
                               ):
     """
     This function tests how consistent the model is if we shuffle the position of the answers
@@ -180,8 +179,7 @@ def ensemble_llava_evaluation(
     if test_type == 'base':
         temperature = 0,
         ensemble_k = 1
-   
-
+               
     # shuffle the options
     options = mc_data['options'][0]
     letters = mc_data['valid_letters']
@@ -196,7 +194,6 @@ def ensemble_llava_evaluation(
             options[idx] = f'{letter}.{option[sep+1:]}'       
 
         pred = llava_inference(
-                            pretrained_name,
                             frames, 
                             tokenizer, 
                             model, 
@@ -208,7 +205,8 @@ def ensemble_llava_evaluation(
                             temperature = temperature,
                             time_meta = time_meta,
                             learn_neighbor_actions = learn_neighbor_actions,
-                               )
+                            meta_data = meta_data
+                            )
         # remove the trailing comma if there is one
         pred = pred.rstrip(',')
         rank0_print('raw output', pred)
@@ -335,16 +333,26 @@ def evaluate_on_EK100(eval_args,
 
 
     uid_pad_dict = None
+    lookup_table = None
+    meta_data = None
     if eval_args.learn_neighbor_actions:
-        from llava.action.generate_interval_pred import build_uid_pad_dict
-        uid_pad_dict = build_uid_pad_dict(eval_args.val_metadata)
+        from llava.action.generate_interval_pred import  get_lookup_dict
+        lookup_table = get_lookup_dict(eval_args.val_metadata)
+
 
     for idx, (frames, mc_data, time_meta, global_index) in tqdm(enumerate(val_dataloader)):                  
         with torch.no_grad():
 
             global_index = global_index[0]
             mc_data = mc_data[0]
-            time_meta = time_meta[0]         
+            time_meta = time_meta[0]
+            
+            if eval_args.learn_neighbor_actions:
+                _id = time_meta['vid_path']
+                _id = _id.replace('/', '-')
+                uid = f"{_id}_{time_meta['start_second']}_{time_meta['end_second']}"
+                meta_data = lookup_table.get(uid, None)
+          
             gt_name = mc_data['gt_answer_name'][0]
             local_avion_correct = torch.tensor(0.0, device=device)
             local_running_corrects = torch.tensor(0.0, device=device)
@@ -367,7 +375,6 @@ def evaluate_on_EK100(eval_args,
         
                     
             llava_correct, llava_pred = ensemble_llava_evaluation(
-                                                        eval_args.pretrained_name,
                                                         gt_name,
                                                         frames, 
                                                         tokenizer,
@@ -379,7 +386,8 @@ def evaluate_on_EK100(eval_args,
                                                         test_type = eval_args.test_type,  
                                                         learn_neighbor_actions = eval_args.learn_neighbor_actions,                                                    
                                                         time_meta = time_meta,
-                                                        uid_pad_dict = uid_pad_dict)
+                                                        meta_data = meta_data)
+                                                        
                                                         
 
 

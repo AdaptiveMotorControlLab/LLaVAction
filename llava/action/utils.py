@@ -232,19 +232,21 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
     """
     
     if perspective == "first_person":
-        perspective_prefix = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with obects. What action are you performing? "
+        perspective_prefix = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with obects. "
     elif perspective == "third_person":
         perspective_prefix = "The video is taken from egocentric view. What action is the person performing? "
     if question_type.startswith("mc_"):
                                       
         if learn_neighbor_actions and meta_data:
-            action_rep_suffix = "There are 3 sequential actions in the video such as action1, action2, action3. You will be given multiple choices for action3 and select the right answer. Try to use action1 and action2 to infer action3. " 
-            prefix = f"{perspective_prefix}{action_rep_suffix}\n"
+            prefix = f"{perspective_prefix}\n"
             assert isinstance(question, list)
             suffix = ", ".join(question)
-            prev2 = meta_data[0]
-            prev1 = meta_data[1]
-            suffix = f"Sequentially, action1 is '{prev2}' and action 2 is '{prev1}'. Here are the options of actions you are selecting the answer for action3:\n" + suffix 
+            prev2_narration = meta_data['prev2_narration']
+            prev2_offset = meta_data['prev2_offset']
+            prev1_narration = meta_data['prev1_narration']
+            prev1_offset = meta_data['prev1_offset']
+            cur_narration = meta_data['cur_narration']
+            suffix = f"{prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. What action are you currently performing? Here are the options of actions you can select:\n" + suffix 
             ret = prefix + suffix
         else:
             action_rep_suffix = "Given multiple choices, format your answer briefly such as 'A. move knife'. "              

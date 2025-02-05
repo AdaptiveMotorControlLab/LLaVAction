@@ -16,6 +16,20 @@ def datetime2sec(str):
     hh, mm, ss = str.split(':')
     return int(hh) * 3600 + int(mm) * 60 + float(ss)
 
+
+def sort_correspondance(vid_to_intervals, vid_to_gt_narration):
+    sorted_vid_to_gt_narration = {}
+    
+    for vid, intervals in vid_to_intervals.items():
+        # Use the same sorting key as in the original sorting of intervals
+        sorted_indices = sorted(range(len(intervals)), key=lambda i: intervals[i][1])
+        
+        # Apply the same sorting to the narrations
+        sorted_vid_to_gt_narration[vid] = [vid_to_gt_narration[vid][i] for i in sorted_indices]
+    
+    return sorted_vid_to_gt_narration
+
+
 def get_annotated_intervals(file_path):
     csv_reader = csv.reader(open(file_path))
     _ = next(csv_reader)
@@ -89,6 +103,51 @@ def build_uid_pad_dict(ann_file,
     return uid_to_neighbors
                 
     
+
+def get_lookup_dict(ann_file, delta = 3):
+    
+    vid_to_intervals, vid_to_gt_narration, _ = get_annotated_intervals(ann_file)
+    table = {}
+    
+    for vid, intervals in vid_to_intervals.items():
+        
+        #sorted_intervals = sorted(intervals, key=lambda x: x[1])
+        
+        sorted_indices = sorted(range(len(intervals)), key=lambda i: intervals[i][1])
+        
+        sorted_intervals = [intervals[i] for i in sorted_indices]
+        sorted_narrations = [vid_to_gt_narration[vid][i] for i in sorted_indices]
+        
+        end_times = [end for _, end in sorted_intervals]
+        start_times = [start for start, _ in sorted_intervals]
+        
+        # Look for consecutive triples
+        for i in range(len(sorted_intervals)-2):  # -2 because we need 3 consecutive intervals
+            id = vid.split('_')[0] + '-' + vid
+            
+            # Get time differences between consecutive intervals
+            time_diff1 = start_times[i+1] - end_times[i]
+            time_diff2 = start_times[i+2] - end_times[i+1]
+            
+            # Check if both time differences are less than 3 seconds
+            if time_diff1 <= delta and time_diff2 <= delta:
+                # Create UIDs for each interval in the triple
+                uid1 = f"{id}_{round(start_times[i],2)}_{round(end_times[i],2)}"
+                uid2 = f"{id}_{round(start_times[i+1],2)}_{round(end_times[i+1],2)}"
+                uid3 = f"{id}_{round(start_times[i+2],2)}_{round(end_times[i+2],2)}"
+                             
+                
+                narration1 = sorted_narrations[i]
+                narration2 = sorted_narrations[i+1]
+                narration3 = sorted_narrations[i+2]
+                
+                table[uid3] = {'prev2_narration': narration1,
+                               'prev2_offset': round(start_times[i+2] - start_times[i],2),
+                                'prev1_narration': narration2,
+                                'prev1_offset': round(start_times[i+2] - start_times[i+1],2),
+                                'cur_narration': narration3}
+    return table
+                                
 
 def sample_uid_triples(anno_file, 
                        delta = 3, 

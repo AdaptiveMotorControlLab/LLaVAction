@@ -40,7 +40,7 @@ class VideoCaptionDatasetBase(torch.utils.data.Dataset):
                 _ = next(csv_reader)  # skip the header
                 for row in csv_reader:
                     pid, vid = row[1:3]
-                    start_timestamp, end_timestamp = datetime2sec(row[4]), datetime2sec(row[5])
+                    start_timestamp, end_timestamp = round(datetime2sec(row[4]),2), round(datetime2sec(row[5]),2)
                     narration = row[8]
                     verb, noun = int(row[10]), int(row[12])
                     # add verbs and nouns

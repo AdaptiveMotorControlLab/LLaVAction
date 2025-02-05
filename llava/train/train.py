@@ -49,7 +49,6 @@ from llava.utils import rank0_print,  process_video_with_decord
 from llava.action.utils import avion_video_loader, EK100_frame_loader
 
 from llava.action.utils import format_llava_prompt
-from llava.action.dataset import VideoMultiChoiceDataset
 from pathlib import Path
 import ast
 
@@ -997,7 +996,15 @@ class LazySupervisedDataset(Dataset):
         super(LazySupervisedDataset, self).__init__()
         self.tokenizer = tokenizer
         self.list_data_dict = []  
-        self.eval_args = eval_args              
+        self.eval_args = eval_args 
+        
+        # add a temporal dict for following processing
+        self.EK100_anno_root = Path(self.eval_args.val_metadata).parent
+        
+        from llava.action.generate_interval_pred import get_lookup_dict
+        
+        self.train_triple_lookup = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_train.csv'))
+        #self.val_triple_lookup = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_validation.csv'))                     
 
         # Handle multiple JSON files specified in the data_path
         if "{" in data_path and "}" in data_path:
@@ -1282,6 +1289,18 @@ class LazySupervisedDataset(Dataset):
 
                 processor = self.data_args.image_processor
                 image = processor.preprocess(video, return_tensors="pt")["pixel_values"]
+                
+                meta_data = None
+                
+                if self.eval_args.learn_neighbor_actions and 'EK100' in video_file:
+                    vid = video_info
+                    
+                    start_timestamp = round(self.list_data_dict[i]['start_timestamp'], 2)
+                    end_timestamp = round(self.list_data_dict[i]['end_timestamp'], 2)
+                    uid = f"{vid}_{start_timestamp}_{end_timestamp}"
+                    meta_data = self.train_triple_lookup.get(uid, None)
+                    
+                
                 if 'EK100' not in video_file and 'EKframes' not in video_folder:
                     if self.data_args.add_time_instruction:
                         time_instruciton = f"The video lasts for {video_time:.2f} seconds, and {num_frames_to_sample} frames are uniformly sampled from it. Please answer the following questions related to this video."
@@ -1298,20 +1317,8 @@ class LazySupervisedDataset(Dataset):
                             assert len(question) == self.eval_args.topk_predictions, f"len(options) = {len(question)} !=  {self.eval_args.topk_predictions}"
                     except:
                         pass
-                    
-                    meta_data = None
-                    if "triple_meta" in sources[0]:
-                        meta_data = sources[0]["triple_meta"]
-                        
-                    if self.eval_args.learn_neighbor_actions and 'narration_prev_1' in sources[0]:
-                        meta_data = [sources[0]['narration_prev_2'], sources[0]['narration_prev_1']]
-                        #question = [sources[0]["narration_prev_2"], sources[0]["narration_prev_1"]]
-                        #original_target = sources[0]["conversations"][1]["value"]
-                        #sources[0]["conversations"][1]["value"] = f'{sources[0]["narration_prev_2"]}, {sources[0]["narration_prev_1"]}, {original_target}'
-                        #sources[0]["conversations"][1]["value"] = f'{original_target}'
-                    else:
-                        a = []
-                        
+                                        
+                                                                                 
                     # We only store the option list in the annotation file to make it easier to use consistent prompting
                     llava_prompt = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
                                                  question,
@@ -1321,7 +1328,7 @@ class LazySupervisedDataset(Dataset):
                                                  include_time_instruction= self.data_args.add_time_instruction,
                                                  meta_data = meta_data,                                                 
                                                  include_frame_time = False,
-                                                 learn_neighbor_actions = self.eval_args.learn_neighbor_actions and 'narration_prev_1' in sources[0])
+                                                 learn_neighbor_actions = self.eval_args.learn_neighbor_actions)
                     sources[0]["conversations"][0]["value"] = llava_prompt
                     # rank0_print (sources[0])
 
