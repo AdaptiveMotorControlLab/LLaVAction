@@ -75,10 +75,10 @@ PYTHON_ARGS=" \
     --output_dir experiments/dev_7b_4f_llavavideo_test_haozhe \
     --num_train_epochs 1 \
     --per_device_train_batch_size 1 \
-    --per_device_eval_batch_size 1 \
+    --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 2 \
-    --evaluation_strategy no \
-    --eval_steps 2000 \
+    --evaluation_strategy epoch \
+    --eval_steps 1 \
     --save_strategy steps \
     --save_steps 2000 \
     --learning_rate 1e-5 \
@@ -95,7 +95,11 @@ PYTHON_ARGS=" \
     --torch_compile True \
     --torch_compile_backend inductor \
     --dataloader_drop_last True \
-    --frames_upbound 4 \
+    --frames_upbound 64 \
+    --mm_newline_position grid \
+    --add_time_instruction True \
+    --force_sample True \
+    --mm_spatial_pool_stride 2
     --root /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video/EK100 \
     --action_predictions /iopsstor/scratch/cscs/hqi/VFM/llava_data/TIM_PREDS/tim_pred_ids_val.json \
     --val_metadata /iopsstor/scratch/cscs/hqi/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \

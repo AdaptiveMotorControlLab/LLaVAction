@@ -103,16 +103,19 @@
                 "WANDB_API_KEY": "65aeda82a75f1eed29c8e9250b175fcc73dca0d7",
                 "CUDA_LAUNCH_BLOCKING": "1",
                 "HF_HOME": "/media/data/haozhe/VFM/huggingface",
+                "OPENAI_API_KEY": "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"
             },
             "args": [
                 "--num_processes", "4",
                 "-m", "lmms_eval",
-                "--model", "llava_vid",
-                "--model_args", "pretrained=experiments/dev_LLaVA-Video-7B-Qwen2_4f_test_haozhe,conv_template=qwen_1_5,max_frames_num=64,mm_spatial_pool_mode=average",
-                "--tasks", "videomme",
+                // "--model", "llava_vid",
+                "--model", "llava_onevision",
+                // "--model_args", "pretrained=experiments/dev_LLaVA-Video-7B-Qwen2_4f_test_haozhe,conv_template=qwen_1_5,max_frames_num=64,mm_spatial_pool_mode=average",
+                "--model_args", "pretrained=lmms-lab/llava-onevision-qwen2-0.5b-ov,conv_template=qwen_1_5,model_name=llava_qwen",
+                "--tasks", "video_dc499",
                 "--batch_size", "1",
                 "--log_samples",
-                "--log_samples_suffix", "llava_vid_retrained",
+                "--log_samples_suffix", "llava_onevision",
                 "--output_path", "./logs/"
             ],
             "console": "integratedTerminal",
