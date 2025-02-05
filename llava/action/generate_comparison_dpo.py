@@ -22,8 +22,6 @@ import json
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
-GPT_MODEL = 'gpt-4o'
-
 class CaptionResponse(BaseModel):
     """
     The GT was known. The response is to add more information to the GT
@@ -37,6 +35,7 @@ def datetime2sec(str):
 
 class CaptionInference(ChatGPT):
     def __init__(self, 
+                 gpt_model,
                  root,                 
                  annotation_file,
                  clip_length = 4,
@@ -48,7 +47,8 @@ class CaptionInference(ChatGPT):
         self.clip_length = clip_length        
         self.debug = debug
         self.question_type = 'gpt-gt-reason'        
-        self.fraction = fraction                
+        self.fraction = fraction
+        self.gpt_model = gpt_model
         self.data = self.init_data()        
         
         print (len(self.data))
@@ -147,16 +147,16 @@ class CaptionInference(ChatGPT):
 - `"answer"`: the answer to the question.
 - `"caption"`: A detailed caption of the video. Used to support the answer.
 """
-     
-        if 'o1' in GPT_MODEL:
+
+        if 'o1' in self.gpt_model:
             system_prompt += format_prompt
      
         print (system_prompt)
               
-        if 'o1-mini' == GPT_MODEL:
+        if 'o1-mini' == self.gpt_model:
             system_role = "user"
             temperature = 1
-        elif 'o1' == GPT_MODEL:
+        elif 'o1' == self.gpt_model:
             system_role = "developer"
         else:
             system_role = "system"
@@ -167,18 +167,18 @@ class CaptionInference(ChatGPT):
         multi_modal_content = [{"type": "text", "text": ""}] + multi_image_content
         user_message = [{"role": "user", "content": multi_modal_content}]               
 
-        kwargs = {'model': GPT_MODEL,
+        kwargs = {'model': self.gpt_model,
                     'messages': system_message + user_message,
                     'response_format': CaptionResponse,
                     'temperature': temperature}
         
-        if 'o1' in GPT_MODEL:
+        if 'o1' in self.gpt_model:
             kwargs.pop('response_format')
-        if 'o1' == GPT_MODEL:
+        if 'o1' == self.gpt_model:
             kwargs.pop('temperature')
             pass
             #kwargs['reasoning_effort'] = 'high'
-        if 'o1' not in GPT_MODEL:
+        if 'o1' not in self.gpt_model:
             # structural output
             response = client.beta.chat.completions.parse(
                 **kwargs
@@ -190,7 +190,7 @@ class CaptionInference(ChatGPT):
             
         total_cost = self.calculate_cost(response)
         
-        ret = response.choices[0].message.parsed if 'o1' not in GPT_MODEL else response.choices[0].message
+        ret = response.choices[0].message.parsed if 'o1' not in self.gpt_model else response.choices[0].message
 
         return ret
     
@@ -222,9 +222,7 @@ class CaptionInference(ChatGPT):
             
             ret[k] = copy.deepcopy(v)
             ret[k]['caption'] = caption
-            
-
-            
+                        
             if self.debug:
                 break
        

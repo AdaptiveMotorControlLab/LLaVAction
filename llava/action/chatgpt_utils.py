@@ -6,7 +6,8 @@ from pydantic import BaseModel
 import json
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
-from llava.action.utils import AvionMultiChoiceGenerator
+from llava.action.utils import AvionMultiChoiceGenerator as ActionMultiChoiceGenerator
+from llava.action.utils import RandomMultiChoiceGenerator
 from llava.action.utils import avion_video_loader, avion_video_render_loader, generate_label_map
 from llava.action.dataset import datetime2sec
 from llava.action.ek_eval import process_raw_pred
@@ -26,9 +27,12 @@ GPT_MODEL = "gpt-4o"
 
 prices = {
     "gpt-4o": {"input": 2.5 / 10**6, "output": 10 / 10**6},
+    "gpt-4o-2024-08-06": {"input": 2.5 / 10**6, "output": 10 / 10**6},
     "o1": {"input": 15 / 10**6, "output": 60 / 10**6},
     "o1-mini": {"input": 3 / 10**6, "output": 12 / 10**6},
     "gpt-4o-mini": {"input": 0.15 / 10**6, "output": 0.6 / 10**6},
+    "gpt-4o-mini-2024-07-18": {"input": 0.15 / 10**6, "output": 0.6 / 10**6},
+    
 }
 
 class ExpandReasonMCPrompt:
@@ -96,11 +100,10 @@ Make sure you use the first-person perspective in your reasoning.
 
 class InferenceAnswer:
     json_errors = 0
-    def __init__(self, answer):
+    def __init__(self, answer, gpt_model):
         
-        if 'o1' not in GPT_MODEL:
+        if 'o1' not in gpt_model:
             self.answer = answer.answer
-            self.caption = answer.caption
         else:
             content = answer.content
             temp = content.replace('```json', '').replace('```', '').strip()            
@@ -109,10 +112,8 @@ class InferenceAnswer:
             except json.JSONDecodeError as e:
                 print(f"Failed to decode JSON response: {response_content}")
                 self.answer = 'N/A'
-                self.caption = 'N/A'
                 json_errors += 1
             self.answer = answer['answer']
-            self.caption = answer['caption']
             
 
 
@@ -150,6 +151,14 @@ class GT_Augmentation_Response(BaseModel):
     """
     answer_with_reasoning: str
     disagree_with_human_annotation: bool
+
+
+class MultiChoice_Response(BaseModel):
+    """
+    The GT was known. The response is to add more information to the GT
+    """
+    answer: str
+
 
 class GT_Agnostic_Response(BaseModel):
     """
@@ -198,9 +207,10 @@ class ChatGPT:
     Importantly, this class should handle the error in case the inference fails in the middle    
     """
 
-    def __init__(self, clip_length = 4):
+    def __init__(self, gpt_model, clip_length = 4):
+        self.gpt_model = gpt_model
         self.clip_length = clip_length
-
+        
     def checkpoint(self):
         """
         In case we fail in the middle, we can still restore the progress
@@ -231,10 +241,10 @@ class ChatGPT:
     def calculate_cost(self, response):
         input_consumed = response.usage.prompt_tokens
         output_consumed = response.usage.completion_tokens
-        input_cost = input_consumed * prices[GPT_MODEL]["input"]
-        output_cost = output_consumed * prices[GPT_MODEL]["output"]
+        input_cost = input_consumed * prices[self.gpt_model]["input"]
+        output_cost = output_consumed * prices[self.gpt_model]["output"]
         total_cost = input_cost + output_cost
-        print (f'cost of the inference {total_cost:.4f}')
+        #print (f'cost of the inference {total_cost:.4f}')
         return total_cost
 
     def split_indices(self, indices, num_chunks):
@@ -326,15 +336,18 @@ class GPTInferenceAnnotator(ChatGPT):
     """
 
     def __init__(self, 
+                 gpt_model,
                  root,                 
                  annotation_file,
-                 avion_prediction_file,
+                 gen_type = 'tim',
+                 prediction_file = None,
                  handobj_root = None,
                  clip_length = 4, 
                  action_representation = 'GT_random_narration',
                  question_type = 'cot_mc',
                  debug = False,
                  topk = 10,
+                 perspective = 'first_person'
                  ):
         """
         Parameters
@@ -342,25 +355,31 @@ class GPTInferenceAnnotator(ChatGPT):
         annotation_file: Optional(str|None). We use this file to correct the action name if there was a mistake.
 
         """
-        super().__init__(clip_length = clip_length)
+        super().__init__(gpt_model, clip_length = clip_length)
         self.root = root
         self.debug = debug
         self.topk = topk
         self.annotation_file = annotation_file
-        self.avion_prediction_file = avion_prediction_file     
+        self.prediction_file = prediction_file     
         self.handobj_root = handobj_root
         self.question_type = question_type
         self.annotation_root = Path(annotation_file).parent
         self.action_representation = action_representation
         self.labels, self.mapping_vn2narration, self.mapping_vn2act, self.verb_maps, self.noun_maps = generate_label_map(self.annotation_root,                                                                                           
-                                                                                            action_representation)
-                                                                                            
-
+                                                                                            action_representation)                                                                                            
       
-        self.mc_generator = AvionMultiChoiceGenerator(self.annotation_root)
-        with open(avion_prediction_file, 'r') as f:
-            self.avion_predictions = json.load(f)
-
+        self.gen_type = gen_type
+        self.perspective = perspective
+        assert gen_type in ['avion', 'tim', 'random']
+      
+        if gen_type == 'avion' or gen_type == 'tim':                  
+            self.mc_generator = ActionMultiChoiceGenerator(self.annotation_root)
+            with open(self.prediction_file, 'r') as f:
+                self.action_model_predictions = json.load(f)
+        else:
+            self.mc_generator = RandomMultiChoiceGenerator(self.annotation_root)
+            
+            
         self.data = self.init_data()
        
      
@@ -375,20 +394,33 @@ class GPTInferenceAnnotator(ChatGPT):
             start_second, end_second = datetime2sec(row[4]), datetime2sec(row[5])
             vid_path = '{}/{}'.format(pid, vid)
             verb, noun = int(row[10]), int(row[12])
-            gt_vn = '{}:{}'.format(verb, noun)
-            avion_preds = self.avion_predictions[str(idx)]['predictions']
+            gt_vn = '{}:{}'.format(verb, noun)            
             narration = row[8]
-            mc_data = self.mc_generator.generate_multi_choice(gt_vn,
-                                                        avion_preds,
-                                                        narration,
-                                                        self.topk,
-                                                        self.action_representation,
-                                                        -1, # n_narrations
-                                                        self.labels,
-                                                        self.mapping_vn2narration,
-                                                        self.verb_maps,
-                                                        self.noun_maps,
-                                                        is_train = False)
+            
+            if self.gen_type == 'avion' or self.gen_type == 'tim':
+                action_preds = self.action_model_predictions[str(idx)]['predictions']
+                mc_data = self.mc_generator.generate_multi_choice(gt_vn,
+                                                            action_preds,
+                                                            narration,
+                                                            self.topk,
+                                                            self.action_representation,
+                                                            -1, # n_narrations
+                                                            self.labels,
+                                                            self.mapping_vn2narration,
+                                                            self.verb_maps,
+                                                            self.noun_maps,
+                                                            is_train = False)
+            else:
+                mc_data = self.mc_generator.generate_multi_choice(gt_vn,
+                                                            narration,
+                                                            self.topk,
+                                                            self.action_representation,
+                                                            -1, # n_narrations
+                                                            self.labels,
+                                                            self.mapping_vn2narration,
+                                                            self.verb_maps,
+                                                            self.noun_maps,
+                                                            is_train = False)
 
             options = mc_data['options'][0]
 
@@ -427,7 +459,11 @@ class GPTInferenceAnnotator(ChatGPT):
 
         calculation = calculate_gpt_accuracy(data = combined_results)
 
-        self.checkpoint(combined_results, "gpt_inference_results.json")                            
+        prefix = self.gen_type
+        assert n_samples != -1
+        checkpoint_name = f"{prefix}_{self.action_representation}_top{self.topk}_{self.clip_length}f_{n_samples}samples.json"
+
+        self.checkpoint(combined_results, checkpoint_name)                            
 
     def run(self, indices=None):
         if indices is None:
@@ -436,7 +472,7 @@ class GPTInferenceAnnotator(ChatGPT):
             data_batch = {i : self.data[i] for i in range(len(self.data)) if i in indices}
         ret = {}
 
-        for k,v in tqdm(data_batch.items()):            
+        for k,v in data_batch.items():
          
             start_timestamp = v['start_second']
             end_timestamp = v['end_second']
@@ -452,23 +488,15 @@ class GPTInferenceAnnotator(ChatGPT):
                 print ("An exception occurred: ", e)
             
             predicted_answer = parsed_answer.answer
-            caption = parsed_answer.caption
-            print ('caption:', caption)
             gt_name = v['gt_answer']
             ret[k] = {
                 'gt_name': gt_name,
                 'chatgpt_answer': process_raw_pred(predicted_answer),
             }
-            print (ret)
             if self.debug:
                 break
-        if indices is None:
-            calculation = calculate_gpt_accuracy(data = ret)
-            self.checkpoint(ret, "gpt_inference_results.json")
-        else:
-            return ret 
-
-
+      
+        return ret 
 
     def predict_images(self, images, parsed_item):
         """
@@ -482,7 +510,7 @@ class GPTInferenceAnnotator(ChatGPT):
         video_duration = end_second - start_second
         n_frames = len(images)
 
-        task_related_prompt = format_task_related_prompt(options, self.question_type, perspective = 'first_person')
+        task_related_prompt = format_task_related_prompt(options, self.question_type, perspective = self.perspective)
 
         time_instruction = f"The provided video lasts for {video_duration:.3f} seconds, and {n_frames} frames are uniformly sampled from it. "
 
@@ -492,21 +520,21 @@ class GPTInferenceAnnotator(ChatGPT):
 **Return only a JSON object** with the following two properties:
 
 - `"answer"`: the answer to the question.
-- `"caption"`: A detailed caption of the video. Used to support the answer.
+
 """
      
-        if 'o1' in GPT_MODEL:
+        if 'o1' in self.gpt_model:
             system_prompt += format_prompt
      
-        print (system_prompt)
+        #print (system_prompt)
 
         if self.handobj_root is not None:
             system_prompt += f"""To further assist you, we mark hands and object when they are visible. The left hand is marked with a bounding box that contains letter L and the right hand's bounding box contains letter R. The object is marked as 'O'."""
         
-        if 'o1-mini' == GPT_MODEL:
+        if 'o1-mini' == self.gpt_model:
             system_role = "user"
             temperature = 1
-        elif 'o1' == GPT_MODEL:
+        elif 'o1' == self.gpt_model:
             system_role = "developer"
         else:
             system_role = "system"
@@ -517,18 +545,18 @@ class GPTInferenceAnnotator(ChatGPT):
         multi_modal_content = [{"type": "text", "text": ""}] + multi_image_content
         user_message = [{"role": "user", "content": multi_modal_content}]               
 
-        kwargs = {'model': GPT_MODEL,
+        kwargs = {'model': self.gpt_model,
                     'messages': system_message + user_message,
-                    'response_format': GT_Agnostic_Response,
+                    'response_format': MultiChoice_Response,
                     'temperature': temperature}
         
-        if 'o1' in GPT_MODEL:
+        if 'o1' in self.gpt_model:
             kwargs.pop('response_format')
-        if 'o1' == GPT_MODEL:
+        if 'o1' == self.gpt_model:
             kwargs.pop('temperature')
             pass
             #kwargs['reasoning_effort'] = 'high'
-        if 'o1' not in GPT_MODEL:
+        if 'o1' not in self.gpt_model:
             # structural output
             response = client.beta.chat.completions.parse(
                 **kwargs
@@ -540,9 +568,9 @@ class GPTInferenceAnnotator(ChatGPT):
             
         total_cost = self.calculate_cost(response)
         
-        ret = response.choices[0].message.parsed if 'o1' not in GPT_MODEL else response.choices[0].message
+        ret = response.choices[0].message.parsed if 'o1' not in self.gpt_model else response.choices[0].message
 
-        return InferenceAnswer(ret)
+        return InferenceAnswer(ret, self.gpt_model)
 
 
 
@@ -577,7 +605,7 @@ class GPTHandObjectAnnotator(ChatGPT):
     def run(self, indices):
 
         ret = {}
-        for index in tqdm(indices):
+        for index in indices:
             item = self.data[index]                       
             parsed_item = self.parse_conversation_from_train_convs(item)
             print ('gt_narration', parsed_item['gt_narration'])          
@@ -610,7 +638,7 @@ class GPTHandObjectAnnotator(ChatGPT):
         user_message = [{"role": "user", "content": ""}]
 
         response = client.beta.chat.completions.parse(
-            model=GPT_MODEL,
+            model=self.gpt_model,
             messages=system_message + user_message, 
             response_format = RESPONSE_FACTORY[self.anno_type],
             temperature = temperature
@@ -628,7 +656,7 @@ class GPTHandObjectAnnotator(ChatGPT):
 
         sample_suffix = 'all' if n_samples == -1 else str(n_samples)
 
-        num_cores = os.cpu_count() * 2 if not self.debug else 2
+        num_cores = os.cpu_count() if not self.debug else 2
         indices_groups = self.split_indices(indices, num_cores)
         with ProcessPoolExecutor(max_workers=num_cores) as executor:
             # Pass additional arguments to the function
@@ -703,7 +731,7 @@ class GPTAugmentationAnnotator(ChatGPT):
 
         sample_suffix = 'all' if n_samples == -1 else str(n_samples)
 
-        num_cores = os.cpu_count() * 2 if not self.debug else 2
+        num_cores = os.cpu_count()  if not self.debug else 2
         indices_groups = self.split_indices(indices, num_cores)
         with ProcessPoolExecutor(max_workers=num_cores) as executor:
             # Pass additional arguments to the function
@@ -724,7 +752,7 @@ class GPTAugmentationAnnotator(ChatGPT):
 
     def run(self, indices):
         ret = {}
-        for index in tqdm(indices):
+        for index in indices:
             item = self.data[index]
             start_timestamp = item['start_timestamp']
             end_timestamp = item['end_timestamp']
@@ -773,7 +801,7 @@ class GPTAugmentationAnnotator(ChatGPT):
             user_message = [{"role": "user", "content": ""}]
 
         response = client.beta.chat.completions.parse(
-            model=GPT_MODEL,
+            model=self.gpt_model,
             messages=system_message + user_message, 
             response_format = RESPONSE_FACTORY[self.anno_type],
             temperature = temperature
@@ -817,7 +845,8 @@ def calculate_gpt_accuracy(path = None, data = None):
         if gt_name == chatgpt_answer:
             correct_count += 1
         else:
-            print (chatgpt_answer, gt_name)
+            pass
+            #print (chatgpt_answer, gt_name)
 
     print ('accuracy', correct_count / len(keys))
 
