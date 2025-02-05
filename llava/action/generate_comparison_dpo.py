@@ -70,6 +70,7 @@ class CaptionInference(ChatGPT):
     def init_data(self):
         ret = {}      
         csv_reader = csv.reader(open(self.annotation_file))
+        print ('loading data from ', self.annotation_file)
         _ = next(csv_reader) # skip the header
 
         indices = self.select_train_subset()
@@ -141,6 +142,11 @@ class CaptionInference(ChatGPT):
 
         system_prompt = time_instruction + task_related_prompt
         
+        suffix = " Note that you need to use first person perspective. Make sure you do not mention you are watching a video or an image."
+        
+        system_prompt += suffix
+                            
+        
         format_prompt = """
 **Return only a JSON object** with the following two properties:
 
@@ -150,9 +156,7 @@ class CaptionInference(ChatGPT):
 
         if 'o1' in self.gpt_model:
             system_prompt += format_prompt
-     
-        print (system_prompt)
-              
+                   
         if 'o1-mini' == self.gpt_model:
             system_role = "user"
             temperature = 1
@@ -270,13 +274,26 @@ if __name__ == '__main__':
     video_root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
     anno_root = '/data/shaokai/epic-kitchens-100-annotations/'
     clip_length = 8
+    gpt_model = 'gpt-4o'
         
-    # cap = CaptionInference(video_root, 
-    #                        os.path.join(anno_root, 'EPIC_100_train.csv'), 
-    #                        clip_length, 
-    #                        debug = False,
-    #                        fraction = 0.01)  
-    # cap.multi_process_run(n_samples = -1, filename = f'gpt4o_inference_{clip_length}frame_1percent.json')
+    cap = CaptionInference(
+                        gpt_model,
+                        video_root, 
+                           os.path.join(anno_root, 'EPIC_100_train.csv'), 
+                           clip_length, 
+                           debug = False,
+                           fraction = 0.1)  
+    cap.multi_process_run(n_samples = -1, filename = f'gpt4o_inference_{clip_length}frame_10percent.json')
+
+    clip_length = 1 
+    cap = CaptionInference(
+                            gpt_model,
+                            video_root, 
+                            os.path.join(anno_root, 'EPIC_100_train.csv'), 
+                            clip_length, 
+                            debug = False,
+                            fraction = 0.1)  
+    cap.multi_process_run(n_samples = -1, filename = f'gpt4o_inference_{clip_length}frame_10percent.json')
 
 
-    create_comparison_data('gpt4o_inference_8frame_1percent.json', 'gpt4o_inference_1frame_1percent.json', 'comparison_data_1percent.jsonl')
+    create_comparison_data('gpt4o_inference_8frame_10percent.json', 'gpt4o_inference_1frame_10percent.json', 'comparison_data_10percent.jsonl')
