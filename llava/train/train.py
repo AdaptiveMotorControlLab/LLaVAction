@@ -1293,10 +1293,9 @@ class LazySupervisedDataset(Dataset):
                 meta_data = None
                 
                 if self.eval_args.learn_neighbor_actions and 'EK100' in video_file:
-                    vid = video_info
-                    
-                    start_timestamp = round(self.list_data_dict[i]['start_timestamp'], 2)
-                    end_timestamp = round(self.list_data_dict[i]['end_timestamp'], 2)
+                    vid = video_info                  
+                    start_timestamp = round(float(self.list_data_dict[i]['start_timestamp']), 2)
+                    end_timestamp = round(float(self.list_data_dict[i]['end_timestamp']), 2)
                     uid = f"{vid}_{start_timestamp}_{end_timestamp}"
                     meta_data = self.train_triple_lookup.get(uid, None)
                     
