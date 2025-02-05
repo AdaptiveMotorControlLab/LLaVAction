@@ -232,9 +232,9 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
     """
     
     if perspective == "first_person":
-        perspective_prefix = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with obects. "
+        perspective_prefix = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with objects. What action are you doing?"
     elif perspective == "third_person":
-        perspective_prefix = "The video is taken from egocentric view. What action is the person performing? "
+        perspective_prefix = "The video is taken from egocentric view. The person's hands are sometimes interacting with objects. What action is the person doing?"
                     
     if question_type.startswith("mc_") or question_type == 'temporal_cot':
                                       
