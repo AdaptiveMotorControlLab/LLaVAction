@@ -204,6 +204,7 @@ class EK100EvalArguments:
     learn_neighbor_actions: bool = False
     perspective: str = "first_person"
     pseudo_folder: str = ""
+    benchmark_testing: bool = False
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero

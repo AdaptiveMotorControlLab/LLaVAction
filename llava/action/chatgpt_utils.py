@@ -347,7 +347,8 @@ class GPTInferenceAnnotator(ChatGPT):
                  question_type = 'cot_mc',
                  debug = False,
                  topk = 10,
-                 perspective = 'first_person'
+                 perspective = 'first_person',
+                 benchmark_testing = False
                  ):
         """
         Parameters
@@ -370,6 +371,7 @@ class GPTInferenceAnnotator(ChatGPT):
       
         self.gen_type = gen_type
         self.perspective = perspective
+        self.benchmark_testing = benchmark_testing
         assert gen_type in ['avion', 'tim', 'random']
       
         if gen_type == 'avion' or gen_type == 'tim':                  
@@ -409,6 +411,7 @@ class GPTInferenceAnnotator(ChatGPT):
                                                             self.mapping_vn2narration,
                                                             self.verb_maps,
                                                             self.noun_maps,
+                                                            benchmark_tesitng = self.benchmark_testing,
                                                             is_train = False)
             else:
                 mc_data = self.mc_generator.generate_multi_choice(gt_vn,
@@ -420,6 +423,7 @@ class GPTInferenceAnnotator(ChatGPT):
                                                             self.mapping_vn2narration,
                                                             self.verb_maps,
                                                             self.noun_maps,
+                                                            benchmark_testing = self.benchmark_testing,
                                                             is_train = False)
 
             options = mc_data['options'][0]

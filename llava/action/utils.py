@@ -522,12 +522,34 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
             }  
         return mc_data              
 
-    def test_generate(self, gt_vn, avion_predictions, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
+    def test_generate(self, 
+                      gt_vn, 
+                      action_model_predictions, 
+                      narration, 
+                      k, 
+                      action_representation, 
+                      n_narrations, 
+                      labels, 
+                      mapping_vn2narration, 
+                      verb_maps, 
+                      noun_maps,
+                      benchmark_testing = False
+                      ):
         """
         During testing, we use the top k predictions from avion. No randomness. We do not mix the gt_vn with the avion predictions
         """        
-
-        answer_ids = avion_predictions[:k]
+        answer_ids = action_model_predictions[:k]
+        
+        if benchmark_testing:
+            # if we are testing on benchmark, we need to ensure that the gt_vn is in the top k predictions
+            # if not, we remove the last prediction and add the gt_vn
+            if gt_vn not in answer_ids:
+                answer_ids.pop()
+                answer_ids.append(gt_vn)
+       
+        # let's shuffle answer_ids so that the gt_vn is not always at the end
+        random.shuffle(answer_ids)         
+        
         answers = []
         for answer_id in answer_ids:
             answer = parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
@@ -566,7 +588,8 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
                               mapping_vn2narration, 
                               verb_maps, 
                               noun_maps,
-                              is_train = True
+                              is_train = True,
+                              benchmark_testing = False
                               ):
         """
         Generate k multiple choices from gt_vn pairs
@@ -578,7 +601,7 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
         if is_train:
             return self.train_generate(gt_vn, avion_predictions, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
         else:
-            return self.test_generate(gt_vn, avion_predictions, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
+            return self.test_generate(gt_vn, avion_predictions, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps, benchmark_testing = benchmark_testing)
     
 def get_frame_ids(start_frame, end_frame, num_segments=32, jitter=True):
     frame_ids = np.convolve(np.linspace(start_frame, end_frame, num_segments + 1), [0.5, 0.5], mode='valid')
