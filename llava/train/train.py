@@ -1206,7 +1206,8 @@ class LazySupervisedDataset(Dataset):
             if not os.path.exists(video_file):
                 print("File {} not exist!".format(video_file))
 
-            try:
+            # try:
+            if True:
                 if "sharegpt4video" in video_folder:
                     frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
                     frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
@@ -1279,11 +1280,7 @@ class LazySupervisedDataset(Dataset):
 
                 processor = self.data_args.image_processor
                 image = processor.preprocess(video, return_tensors="pt")["pixel_values"]
-                if 'EK100' not in video_file and 'EKframes' not in video_folder:
-                    if self.data_args.add_time_instruction:
-                        time_instruciton = f"The video lasts for {video_time:.2f} seconds, and {num_frames_to_sample} frames are uniformly sampled from it. Please answer the following questions related to this video."
-                        sources[0]["conversations"][0]["value"] = f'{DEFAULT_IMAGE_TOKEN}\n{time_instruciton}\n{sources[0]["conversations"][0]["value"].replace(DEFAULT_IMAGE_TOKEN, "")}'
-                else:
+                if 'EK100' in video_file or 'EKframes' in video_folder:
                     # We use our own prompting logic when it's EK100
                     # We turn a string of list to a python list
                     question_type = sources[0]['question_type']
@@ -1306,16 +1303,21 @@ class LazySupervisedDataset(Dataset):
                                                  include_frame_time = False)
                     sources[0]["conversations"][0]["value"] = llava_prompt
                     # rank0_print (sources[0])
+                    
+                if self.data_args.add_time_instruction:
+                        time_instruciton = f"The video lasts for {video_time:.2f} seconds, and {num_frames_to_sample} frames are uniformly sampled from it. Please answer the following questions related to this video."
+                        sources[0]["conversations"][0]["value"] = f'{DEFAULT_IMAGE_TOKEN}\n{time_instruciton}\n{sources[0]["conversations"][0]["value"].replace(DEFAULT_IMAGE_TOKEN, "")}'
+                
                 action = torch.tensor([sources[0]['verb_id'], sources[0]['noun_id'], sources[0]['action_id']] if 'verb_id' in sources[0] else [-1, -1, -1]).long()
                 image = [(image, video[0].size, "video", action)]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
                 # print(sources)
-            except Exception as e:
-                import traceback
-                traceback.print_exc() 
-                print(f"Error: {e}")
-                print(f"Failed to read video file: {video_file}")
-                return self._get_item(i + 1)
+            # except Exception as e:
+            #     import traceback
+            #     traceback.print_exc() 
+            #     print(f"Error: {e}")
+            #     print(f"Failed to read video file: {video_file}")
+            #     return self._get_item(i + 1)
         else:
             sources = copy.deepcopy([e["conversations"] for e in sources])
 

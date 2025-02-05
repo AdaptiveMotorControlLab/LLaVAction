@@ -1,6 +1,6 @@
 datasets:
   - json_path: /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_academic_v0_1/0_30_s_academic_v0_1_cap_processed.json
-    sampling_strategy: "first:10%"
+    sampling_strategy: "first:1%"
   - json_path: /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_youtube_v0_1/0_30_s_youtube_v0_1_cap_processed.json
     sampling_strategy: "first:10%"
   - json_path: /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video/LLaVA-Video-178K/30_60_s_academic_v0_1/30_60_s_academic_v0_1_cap_processed.json
@@ -78,4 +78,4 @@ datasets:
   # - json_path: /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video/LLaVA-Video-178K/llava_hound/sharegptvideo_qa_255k_processed.json
   #   sampling_strategy: "first:10%"
   - json_path: /media/data/haozhe/VFM/EK100/EK100_in_LLAVA/TIM/tim_mc_top5_official_key/train_convs_narration_actionids.jsonl
-    sampling_strategy: all
+    sampling_strategy: "first:1%"

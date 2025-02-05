@@ -8,8 +8,8 @@
 #SBATCH --ntasks-per-node 1         # number of MP tasks. IMPORTANT: torchrun represents just 1 Slurm task
 #SBATCH --gres gpu:4                # Number of GPUs
 #SBATCH --time 23:00:00             # maximum execution time (DD-HH:MM:SS). Mandatory field in MN5
-#SBATCH --output logs/R-%x.%j-dev_7b_4f_llavavideo_test_haozhe.out
-#SBATCH --error logs/R-%x.%j-dev_7b_4f_llavavideo_test_haozhe.err
+#SBATCH --output logs/R-%x.%j-dev_7b_64f_10llavavideo_EK100_haozhe.out
+#SBATCH --error logs/R-%x.%j-dev_7b_64f_10llavavideo_EK100_haozhe.err
 
 mkdir -p logs
 
@@ -71,8 +71,8 @@ PYTHON_ARGS=" \
     --image_grid_pinpoints \"(1x1),...,(6x6)\" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name dev_7b_4f_llavavideo_test_haozhe \
-    --output_dir experiments/dev_7b_4f_llavavideo_test_haozhe \
+    --run_name dev_7b_64f_10llavavideo_EK100_haozhe \
+    --output_dir experiments/dev_7b_64f_10llavavideo_EK100_haozhe \
     --num_train_epochs 1 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
@@ -103,9 +103,8 @@ PYTHON_ARGS=" \
     --root /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video/EK100 \
     --action_predictions /iopsstor/scratch/cscs/hqi/VFM/llava_data/TIM_PREDS/tim_pred_ids_val.json \
     --val_metadata /iopsstor/scratch/cscs/hqi/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \
-    --add_time_instruction False \
-    --llava_num_frames 4 \
-    --clip_length 4 \
+    --llava_num_frames 64 \
+    --clip_length 64 \
     --action_representation official_key \
     --topk_predictions 5 \
     "
