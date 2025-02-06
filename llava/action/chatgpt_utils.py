@@ -379,7 +379,6 @@ class GPTInferenceAnnotator(ChatGPT):
         if gen_type == 'avion' or gen_type == 'tim':                  
             self.mc_generator = ActionMultiChoiceGenerator(self.annotation_root)
             assert os.path.exists(self.prediction_file)
-            print ('prediction_file'*5, self.prediction_file)
             with open(self.prediction_file, 'r') as f:
                 self.action_model_predictions = json.load(f)
         else:
