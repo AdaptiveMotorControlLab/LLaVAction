@@ -428,7 +428,7 @@ class RandomMultiChoiceGenerator(MultiChoiceGenerator):
         else:
             return self.test_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps, benchmark_testing = benchmark_testing)
     
-    def train_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
+    def train_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps, benchmark_testing = False):
         # letters as A, B, C, D, .. Note we maximally support 26 letters
         letters = [chr(65+i) for i in range(26)][:k]                
         answer_list = [vn for vn in mapping_vn2narration.keys()]                
@@ -463,11 +463,11 @@ class RandomMultiChoiceGenerator(MultiChoiceGenerator):
             }  
         return mc_data 
     
-    def test_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
+    def test_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps, benchmark_testing = False):
         """
         There is no difference between train and test for random generation
         """        
-        return self.train_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)        
+        return self.train_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps, benchmark_testing = benchmark_testing)        
 
 class AvionMultiChoiceGenerator(MultiChoiceGenerator):
     """

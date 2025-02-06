@@ -1,6 +1,15 @@
-# benchmark gpt-4o on avion_mcq_top5_500
-# benchmark gpt-4o on tim_mcq_top5_500
-# benchmark gpt-4o on random_mcq_top5_500
+"""
+We need to keep track of the following:
+
+The uid of each segment
+
+The GPT inference of corresponding segment
+The LLaVA zero-shot inference of corresponding segment
+The Finetuned LLaVA's inference of corresponding segment
+
+Note that in each inference, we should be able to pick the corresponding prompt and checkpoint folder
+"""
+
 from llava.action.chatgpt_utils import GPTInferenceAnnotator
 
 root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
@@ -16,53 +25,46 @@ perspective = 'first_person'
 benchmark_testing = True
 
 
-def benchmark_avion_mcq(n_samples):
 
-    inferencer = GPTInferenceAnnotator(gpt_model,
-                                       root,
-                                       annotation_file,
-                                        gen_type = 'avion',
-                                        prediction_file = avion_prediction_file,
-                                        clip_length = n_frames,
-                                        question_type = 'mc_',
-                                        action_representation=action_representation,
-                                        perspective = perspective,
-                                        benchmark_testing = benchmark_testing,
-                                        topk = topk)
-    inferencer.multi_process_run(n_samples)
-                                       
-def benchmark_tim_mcq(n_samples):
-    
-    inferencer = GPTInferenceAnnotator(gpt_model,
-                                        root,
-                                        annotation_file,
-                                        gen_type = 'tim',
-                                        prediction_file = tim_prediction_file,
-                                        clip_length = n_frames,
-                                        question_type = 'mc_',
-                                        action_representation=action_representation,
-                                        perspective = perspective,
-                                        benchmark_testing = benchmark_testing,
-                                        topk = topk) 
-    inferencer.multi_process_run(n_samples)    
-
-def benchmark_random_mcq(n_samples):
+def visualize_with_random(n_samples, question_type = 'mc_'):
+    """
+    Here we should test gpt-4o, gpt-4o-mini with different prompts
+    """
     inferencer = GPTInferenceAnnotator(gpt_model,
                                        root,
                                        annotation_file,
                                         gen_type = 'random',
-                                        prediction_file = avion_prediction_file,
+                                        prediction_file = tim_prediction_file,
                                         clip_length = n_frames,
-                                        question_type = 'mc_',
+                                        question_type = question_type,
                                         action_representation=action_representation,
                                         perspective = perspective,
                                         benchmark_testing = benchmark_testing,
+                                        do_visualization = True,
                                         topk = topk) 
     
-    inferencer.multi_process_run(n_samples)
+    inferencer.multi_process_run(n_samples, disable_api_calling=False)
+
+def visualize_with_gpt_with_tim(n_samples, question_type = 'mc_'):
+    """
+    Here we should test gpt-4o, gpt-4o-mini with different prompts
+    """
+    inferencer = GPTInferenceAnnotator(gpt_model,
+                                       root,
+                                       annotation_file,
+                                        gen_type = 'tim',
+                                        prediction_file = tim_prediction_file,
+                                        clip_length = n_frames,
+                                        question_type = question_type,
+                                        action_representation=action_representation,
+                                        perspective = perspective,
+                                        benchmark_testing = benchmark_testing,
+                                        do_visualization = True,
+                                        topk = topk) 
     
-    
+    inferencer.multi_process_run(n_samples, disable_api_calling=False)    
+
+
 if __name__ == '__main__':
-    #benchmark_avion_mcq(100)
-    benchmark_tim_mcq(100)
-    #benchmark_random_mcq(100)    
+    #visualize_with_random(1, question_type = "mc_")
+    visualize_with_gpt_with_tim(1, question_type = "mc_")

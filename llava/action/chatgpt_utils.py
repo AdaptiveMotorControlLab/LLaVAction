@@ -19,6 +19,7 @@ import numpy as np
 import base64
 from pathlib import Path
 import traceback
+import cv2
 
 
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -348,7 +349,8 @@ class GPTInferenceAnnotator(ChatGPT):
                  debug = False,
                  topk = 10,
                  perspective = 'first_person',
-                 benchmark_testing = False
+                 benchmark_testing = False,
+                 do_visualization = False
                  ):
         """
         Parameters
@@ -373,17 +375,31 @@ class GPTInferenceAnnotator(ChatGPT):
         self.perspective = perspective
         self.benchmark_testing = benchmark_testing
         assert gen_type in ['avion', 'tim', 'random']
-      
+
         if gen_type == 'avion' or gen_type == 'tim':                  
             self.mc_generator = ActionMultiChoiceGenerator(self.annotation_root)
+            assert os.path.exists(self.prediction_file)
+            print ('prediction_file'*5, self.prediction_file)
             with open(self.prediction_file, 'r') as f:
                 self.action_model_predictions = json.load(f)
         else:
             self.mc_generator = RandomMultiChoiceGenerator(self.annotation_root)
             
-            
+        self.do_visualization = do_visualization
+        self.vis_folder = f"{self.gpt_model}_{self.gen_type}_{self.question_type}_{self.perspective}"
         self.data = self.init_data()
-       
+     
+    def save_visualization(self,frames, uid):
+        """
+        Save the frames to the out_dir
+        """
+        out_dir = Path(self.vis_folder)
+        out_dir.mkdir(parents=True, exist_ok=True)        
+        sub_folder = out_dir / uid
+        sub_folder.mkdir(parents=True, exist_ok=True)
+        for idx, frame in enumerate(frames):            
+            cv2.imwrite(str(sub_folder / f"{uid}_{idx}.jpg"), cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                    
      
     def init_data(self):
         ret = {}      
@@ -438,8 +454,8 @@ class GPTInferenceAnnotator(ChatGPT):
 
         return ret
 
-    def multi_process_run(self, n_samples = -1):
-        # to initialize it
+    def multi_process_run(self, n_samples = -1, disable_api_calling = False):
+        # inside GPT inference annotator
 
         if n_samples != -1:
             indices = list(range(len(self.data)))[:n_samples]
@@ -450,7 +466,7 @@ class GPTInferenceAnnotator(ChatGPT):
 
         with ProcessPoolExecutor(max_workers=num_chunks) as executor:
             # Pass additional arguments to the function
-            futures = [executor.submit(self.run, group) for group in indices_groups]
+            futures = [executor.submit(self.run, group, disable_api_calling) for group in indices_groups]
             
             # Wait for all futures to complete
             combined_results = {}
@@ -460,16 +476,18 @@ class GPTInferenceAnnotator(ChatGPT):
 
         if self.debug:
             print (combined_results)
-
-        calculation = calculate_gpt_accuracy(data = combined_results)
+        if combined_results and 'mc_' in self.question_type:
+            calculation = calculate_gpt_accuracy(data = combined_results)
 
         prefix = self.gen_type
         assert n_samples != -1
         checkpoint_name = f"{prefix}_{self.action_representation}_top{self.topk}_{self.clip_length}f_{n_samples}samples.json"
 
+        if self.do_visualization:
+            self.checkpoint(combined_results, os.path.join(self.vis_folder, checkpoint_name))
         self.checkpoint(combined_results, checkpoint_name)                            
 
-    def run(self, indices=None):
+    def run(self, indices=None, disable_api_calling = False):      
         if indices is None:
             data_batch = {i : self.data[i] for i in range(len(self.data)) if i in list(range(len(self.data)))}
         else:
@@ -481,22 +499,36 @@ class GPTInferenceAnnotator(ChatGPT):
             start_timestamp = v['start_second']
             end_timestamp = v['end_second']
             vid_path = v['vid_path']
+            _id = v['vid_path'].replace('/', '-')
+            uid = f"{_id}_{start_timestamp}_{end_timestamp}"
 
             frames, time_meta = self.extract_frames(vid_path, start_timestamp, end_timestamp)
-            try:
+            
+            if self.do_visualization:
+                # the output folder should reflect the gen type, question type and perspective
+                # and the question type
+                self.save_visualization(frames, uid)
+            if disable_api_calling:
+                break
+            try:                
                 parsed_answer = self.predict_images(frames, v)
             except Exception as e:
                 # get full stack trace
-                traceback.print_exc()
-                
+                traceback.print_exc()                
                 print ("An exception occurred: ", e)
             
             predicted_answer = parsed_answer.answer
             gt_name = v['gt_answer']
             ret[k] = {
+                "uid": uid,
                 'gt_name': gt_name,
-                'chatgpt_answer': process_raw_pred(predicted_answer),
+                "options": v['options'],
+                'chatgpt_answer': process_raw_pred(predicted_answer) if 'mc_' in self.question_type else predicted_answer
             }
+            if self.do_visualization:
+                # save ret to the output folder
+                self.checkpoint(ret, os.path.join(self.vis_folder, uid, 'inference_results.json'))
+            
             if self.debug:
                 break
       
