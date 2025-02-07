@@ -52,7 +52,7 @@ def llava_inference(
         elif test_type == "direct_narration":
             question_type = "direct_narration"
         elif test_type == 'caption' or test_type == 'debug':
-            question_type = "gpt-gt-reason"
+            question_type = "caption"
         elif test_type == 'temporal_cot':
             question_type = 'temporal_cot'
                     

@@ -651,7 +651,7 @@ def avion_video_loader(root, vid, ext, second, end_second,
     chunk_start = int(second) // chunk_len * chunk_len
     chunk_end = int(end_second) // chunk_len * chunk_len
     while True:
-        video_filename = osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk_end, ext))
+        video_filename = osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk_end, ext))      
         if not osp.exists(video_filename):
             # print("{} does not exists!".format(video_filename))
             chunk_end -= chunk_len

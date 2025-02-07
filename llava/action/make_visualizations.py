@@ -9,9 +9,13 @@ The Finetuned LLaVA's inference of corresponding segment
 
 Note that in each inference, we should be able to pick the corresponding prompt and checkpoint folder
 """
-
+from llava.action.utils import generate_label_map  
 from llava.action.chatgpt_utils import GPTInferenceAnnotator
-
+from pathlib import Path
+from llava.action.utils import AvionMultiChoiceGenerator as ActionMultiChoiceGenerator
+from llava.action.llava_inference import llava_inference
+import json
+import cv2
 # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
 # annotation_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
 # avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
@@ -29,7 +33,6 @@ gpt_model = 'gpt-4o-mini-2024-07-18'
 #gpt_model = 'gpt-4o-2024-08-06'
 perspective = 'first_person'
 benchmark_testing = True
-
 
 
 def visualize_with_random(n_samples, offset = 0, question_type = 'mc_'):
@@ -75,6 +78,7 @@ def visualize_with_gpt_with_avion(n_samples, offset = 0, question_type = 'mc_'):
     """
     Here we should test gpt-4o, gpt-4o-mini with different prompts
     """
+    
     inferencer = GPTInferenceAnnotator(gpt_model,
                                        root,
                                        annotation_file,
@@ -91,13 +95,128 @@ def visualize_with_gpt_with_avion(n_samples, offset = 0, question_type = 'mc_'):
     inferencer.multi_process_run(n_samples = n_samples, offset = offset, disable_api_calling=False) 
     
     
-def visualize_with_llava(uid, ):
-    """
+def search_option_data_by_uid(uid, anno_file, gen_type = 'tim'):
+    import csv
+    from llava.action.dataset import datetime2sec
+    csv_reader = csv.reader(open(anno_file, 'r'))
+    _ = next(csv_reader) # skip the header
+    query_vid_path = '_'.join(uid.split('_')[:2]).replace('-', '/')
+    query_start_timestamp, query_end_timestamp = uid.split('_')[2:]
+    anno_root = Path(anno_file).parent
+    labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps = generate_label_map(anno_root,
+                                                                                            action_representation)    
+    with open(tim_prediction_file, 'r') as f:
+        action_model_predictions = json.load(f)
+    mc_generator = ActionMultiChoiceGenerator(anno_root)
     
-    """
+    for idx, row in enumerate(csv_reader):
+        pid, vid = row[1:3]
+        start_second, end_second = datetime2sec(row[4]), datetime2sec(row[5])
+        start_second = round(float(start_second),2)
+        end_second = round(float(end_second),2)
+        vid_path = '{}/{}'.format(pid, vid)  
+        verb, noun = int(row[10]), int(row[12])
+        gt_vn = '{}:{}'.format(verb, noun) 
+        narration = row[8]       
         
+        if query_vid_path!=vid_path and start_second!=query_start_timestamp and end_second!=query_end_timestamp:
+            continue
+        
+        if gen_type == 'avion' or gen_type == 'tim':
+            action_preds = action_model_predictions[str(idx)]['predictions']
+            mc_data =mc_generator.generate_multi_choice(gt_vn,
+                                                        action_preds,
+                                                        narration,
+                                                        topk,
+                                                        action_representation,
+                                                        -1, # n_narrations
+                                                        labels,
+                                                        mapping_vn2narration,
+                                                        verb_maps,
+                                                        noun_maps,
+                                                        benchmark_testing = benchmark_testing,
+                                                        is_train = False)            
+            
+            options = mc_data['options'][0]
+            return {
+                'options': options,
+                'narration': narration,
+                'start_second': start_second,
+                'end_second': end_second,
+                'gt_answer': gt_vn
+            }
     
+def save_visualization(vis_folder, frames, uid): 
+    out_dir = Path(vis_folder)
+    out_dir.mkdir(parents=True, exist_ok=True)        
+    sub_folder = out_dir / uid
+    sub_folder.mkdir(parents=True, exist_ok=True)
+    for idx, frame in enumerate(frames):            
+        cv2.imwrite(str(sub_folder / f"{uid}_{idx}.jpg"), cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))    
+    
+def visualize_with_llava(pretrained_path, uid, question_type, gen_type):
+    """    
+    """
+    from llava.action.ek_eval import prepare_llava
+    from llava.action.dataset import VideoMultiChoiceDataset
+  
+    import torch
+    
+    from llava.action.utils import avion_video_loader
+    val_metadata = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+        
+    gpu_val_transform_ls = []
 
+    val_transform_gpu = torch.nn.Sequential(*gpu_val_transform_ls)
+        
+    vid_path = '_'.join(uid.split('_')[:2]).replace('-', '/')
+    start_timestamp, end_timestamp = uid.split('_')[2:]
+    start_timestamp = float(start_timestamp)
+    end_timestamp = float(end_timestamp)
+    print (vid_path, start_timestamp, end_timestamp)
+    # split uid to video path and start, end second
+    frames, time_meta = avion_video_loader(root,
+                                           vid_path,
+                                           'MP4',
+                                            start_timestamp,
+                                            end_timestamp,
+                                            chunk_len = 15,
+                                            clip_length = n_frames,
+                                            threads = 1,
+                                            fast_rrc=False,
+                                            fast_rcc = False,
+                                            jitter = False)
+    
+    vis_folder = f"{gpt_model}_{gen_type}_{question_type}_{perspective}"                       
+    save_visualization(vis_folder, frames, uid)                       
+                                            
+    options = search_option_data_by_uid(uid, val_metadata, gen_type = gen_type)
+    
+    print (options)                                 
+    mc_data = options                           
+    tokenizer, model, image_processor, _ = prepare_llava(pretrained_path)      
+    pred = llava_inference(
+                            [frames], 
+                            tokenizer, 
+                            model, 
+                            image_processor,  
+                            mc_data,  
+                            test_type = question_type,
+                            clip_length = n_frames, 
+                            num_frames=n_frames,
+                            temperature = 0,
+                            time_meta = time_meta,
+                            learn_neighbor_actions = False,
+                            meta_data = None,
+                            perspective = perspective
+                            )
+    
+    print (pred)
 if __name__ == '__main__':
     
-    visualize_with_gpt_with_avion(10, offset = 100, question_type = "caption")
+    #visualize_with_gpt_with_avion(10, offset = 100, question_type = "caption")
+    llava_pretrained_path = 'lmms-lab/LLaVA-Video-7B-Qwen2'
+    llava_pretrained_path = 'experiments/LLaVA-Video-7B-Qwen2'
+    uid = 'P01-P01_11_34.38_41.15'
+    visualize_with_llava(llava_pretrained_path, uid, 'caption', 'tim')
+    
