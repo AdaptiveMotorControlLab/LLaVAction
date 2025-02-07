@@ -249,7 +249,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
 
                     if world_has_valid:  # If any process has valid examples
                         for other_verb_logits, other_noun_logits, other_action_logits in triples:
-                            valid_mask = actions[:, 0] > 0
+                            valid_mask = actions[:, 0] >= 0
                             
                             if valid_mask.any():  # This process has valid examples
                                 valid_verb_logits = other_verb_logits[valid_mask]
