@@ -224,7 +224,7 @@ def remove_sub_nouns_with_doc(doc, verb: str, noun: str) -> str:
     return processed_text
 
 
-def format_task_related_prompt(question, question_type, meta_data = None, perspective = "first_person", learn_neighbor_actions = False):
+def format_task_related_prompt(question, question_type, meta_data = None, perspective = "first_person", learn_neighbor_actions = ""):
     """
     Task related prompt is impacted by the question_type.
     We currently support mc_{action_representation} and gpt-gt-reason
@@ -238,7 +238,20 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
                     
     if question_type.startswith("mc_") or question_type == 'temporal_cot':
                                       
-        if learn_neighbor_actions and meta_data:
+        if question_type.startswith("mc_") and learn_neighbor_actions == "prior" and meta_data and random.random() < 0.3:
+            # this means it's training time and we are learning the prior actions
+            prefix = f"{perspective_prefix}\n"
+            assert isinstance(question, list)
+            suffix = ", ".join(question)
+            prev2_narration = meta_data['prev2_narration']
+            prev2_offset = meta_data['prev2_offset']
+            prev1_narration = meta_data['prev1_narration']
+            prev1_offset = meta_data['prev1_offset']
+            cur_narration = meta_data['cur_narration']
+            suffix = f"{prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. What action are you currently performing? Here are the options of actions you can select:\n" + suffix 
+            ret = prefix + suffix
+        elif question_type == "temporal_cot" and learn_neighbor_actions == "prior" and meta_data:
+            # means it's test time
             prefix = f"{perspective_prefix}\n"
             assert isinstance(question, list)
             suffix = ", ".join(question)
@@ -264,18 +277,7 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
         ret = question
     elif question_type == "gpt-gt-reason" or question_type == "caption":
         ret = f"{perspective_prefix} Describe in details what you see from the video frames. You must talk in the first person perspective. Try to focus on what you are doing. "
-    
-    elif question_type == "triple_direct_answer":
-        assert meta_data
-        duration1 = meta_data[0]['duration']
-        duration2 = meta_data[1]['duration']
-        duration3 = meta_data[2]['duration']
-        prompt = f"The video consists of 3 sequential actions.  What are the actions? Format your answer as action1, action2, action3."        
-        ret = f"{perspective_prefix}{prompt}"
-    
-    
-    elif question_type == "validation":
-        ret = f"Ask yourself questions to validate your notes."
+           
     
     elif question_type == "gpt-gt-strong-reason":
         ret = f"{perspective_prefix} Describe in details what you see and answer the multi-choice question. Explain why wrong answers are wrong and why the correct answer is correct. "
@@ -328,7 +330,7 @@ def format_llava_prompt(image_token,
                         include_time_instruction = False,
                         include_frame_time = False,
                         meta_data = None,
-                        learn_neighbor_actions = False,
+                        learn_neighbor_actions = "",
                         perspective = "first_person"
                         ):
     """

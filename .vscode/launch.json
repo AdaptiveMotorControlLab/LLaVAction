@@ -299,7 +299,8 @@
                 "--vision_supervision", "three_tokens",
                 "--vision_token_training", "all_layers",
                 "--action_types",  "97,300,3806",
-                "--perspective", "first_person"
+                "--learn_neighbor_actions", "prior",
+                "--test_type", "temporal_cot"
             ],
             "console": "integratedTerminal",
             "justMyCode": false,

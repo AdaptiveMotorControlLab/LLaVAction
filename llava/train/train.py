@@ -201,7 +201,7 @@ class EK100EvalArguments:
     action_representation: str = "GT_random_narration_cut"
     n_narrations: int = -1
     test_type: str = 'base'
-    learn_neighbor_actions: bool = False
+    learn_neighbor_actions: str = "" # "prior", "triple_direct"
     perspective: str = "first_person"
     pseudo_folder: str = ""
     benchmark_testing: bool = False
@@ -990,7 +990,6 @@ class LazySupervisedDataset(Dataset):
         from llava.action.generate_interval_pred import get_lookup_dict
         
         self.train_triple_lookup = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_train.csv'))
-        #self.val_triple_lookup = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_validation.csv'))                     
 
         # Handle multiple JSON files specified in the data_path
         if "{" in data_path and "}" in data_path:

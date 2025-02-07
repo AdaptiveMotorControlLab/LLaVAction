@@ -125,7 +125,7 @@ def get_args_parser():
                                    'GT_key', 'GT_random_narration', 'GT_random_narration_cut', 'gpt_narration'])
     parser.add_argument('--n_narrations', default = -1, type = int)
     parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'temporal_cot', 'caption_then_answer', 'direct_narration'])
-    parser.add_argument('--learn_neighbor_actions', action='store_true', default = False)
+    parser.add_argument('--learn_neighbor_actions', type= str, default = "")
     parser.add_argument('--pseudo_folder', default = None, type = str)
     parser.add_argument('--output_dir', default = None, type = str)
     parser.add_argument("--perspective", default = "first_person", type = str)
@@ -168,7 +168,7 @@ def ensemble_llava_evaluation(
                               clip_length,  
                               num_frames,
                               test_type = 'base',
-                              learn_neighbor_actions = False,                             
+                              learn_neighbor_actions = "",                             
                               time_meta = None,
                               meta_data = None,
                               perspective = "first_person"

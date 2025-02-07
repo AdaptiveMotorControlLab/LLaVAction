@@ -20,7 +20,7 @@ def llava_inference(
     temperature = 0,
     test_type = 'base',
     time_meta = None,
-    learn_neighbor_actions = False,
+    learn_neighbor_actions = "",
     meta_data = None,
     perspective = "first_person"
     ):

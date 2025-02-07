@@ -244,7 +244,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                         pass
                     # by default, distilaltion uses all layers            
                     # First check if any process has valid examples across all triples
-                    world_has_valid = torch.tensor(actions[:, 0].any() > 0, device=actions.device)
+                    world_has_valid = torch.tensor(actions[:, 0].any() >= 0, device=actions.device)
                     torch.distributed.all_reduce(world_has_valid, op=torch.distributed.ReduceOp.MAX)               
 
                     if world_has_valid:  # If any process has valid examples

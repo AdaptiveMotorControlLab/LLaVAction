@@ -206,7 +206,7 @@ def visualize_with_llava(pretrained_path, uid, question_type, gen_type):
                             num_frames=n_frames,
                             temperature = 0,
                             time_meta = time_meta,
-                            learn_neighbor_actions = False,
+                            learn_neighbor_actions = "",
                             meta_data = None,
                             perspective = perspective
                             )
