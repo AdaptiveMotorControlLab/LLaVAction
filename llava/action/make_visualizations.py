@@ -12,21 +12,27 @@ Note that in each inference, we should be able to pick the corresponding prompt 
 
 from llava.action.chatgpt_utils import GPTInferenceAnnotator
 
-root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-annotation_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
-tim_prediction_file = '/data/epic_kitchen/TIM_PREDS/tim_pred_ids_val.json'
-n_frames = 4
+# root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
+# annotation_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+# avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
+# tim_prediction_file = '/data/epic_kitchen/TIM_PREDS/tim_pred_ids_val.json'
+
+root = '/data/shaokai/EK100_512/EK100'
+annotation_file = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+avion_prediction_file = '/data/shaokai/AVION_PREDS/avion_pred_ids_val.json'
+tim_prediction_file = '/data/shaokai/TIM_PREDS/tim_pred_ids_val.json'
+
+n_frames = 32
 topk = 5
 action_representation = 'GT_random_narration'
-gpt_model = 'gpt-4o-mini-2024-07-18'
-#gpt_model = 'gpt-4o-2024-08-06'
+#gpt_model = 'gpt-4o-mini-2024-07-18'
+gpt_model = 'gpt-4o-2024-08-06'
 perspective = 'first_person'
 benchmark_testing = True
 
 
 
-def visualize_with_random(n_samples, question_type = 'mc_'):
+def visualize_with_random(n_samples, offset = 0, question_type = 'mc_'):
     """
     Here we should test gpt-4o, gpt-4o-mini with different prompts
     """
@@ -43,9 +49,9 @@ def visualize_with_random(n_samples, question_type = 'mc_'):
                                         do_visualization = True,
                                         topk = topk) 
     
-    inferencer.multi_process_run(n_samples, disable_api_calling=False)
+    inferencer.multi_process_run(n_samples = n_samples, offset = offset, disable_api_calling=False)
 
-def visualize_with_gpt_with_tim(n_samples, question_type = 'mc_'):
+def visualize_with_gpt_with_tim(n_samples, offset = 0, question_type = 'mc_'):
     """
     Here we should test gpt-4o, gpt-4o-mini with different prompts
     """
@@ -62,10 +68,10 @@ def visualize_with_gpt_with_tim(n_samples, question_type = 'mc_'):
                                         do_visualization = True,
                                         topk = topk) 
     
-    inferencer.multi_process_run(n_samples, disable_api_calling=False)    
+    inferencer.multi_process_run(n_samples = n_samples, offset = offset, disable_api_calling=False)    
 
 
-def visualize_with_gpt_with_avion(n_samples, question_type = 'mc_'):
+def visualize_with_gpt_with_avion(n_samples, offset = 0, question_type = 'mc_'):
     """
     Here we should test gpt-4o, gpt-4o-mini with different prompts
     """
@@ -82,9 +88,11 @@ def visualize_with_gpt_with_avion(n_samples, question_type = 'mc_'):
                                         do_visualization = True,
                                         topk = topk) 
     
-    inferencer.multi_process_run(n_samples, disable_api_calling=False) 
+    inferencer.multi_process_run(n_samples = n_samples, offset = offset, disable_api_calling=False) 
 
 if __name__ == '__main__':
-    #visualize_with_random(1, question_type = "mc_")
-    #visualize_with_gpt_with_tim(1, question_type = "mc_")
-    visualize_with_gpt_with_avion(1, question_type = "mc_")
+    
+    question_type = "gpt-gt-reason"
+    #visualize_with_random(20, offset = 40, question_type = "gpt-gt-reason")
+    #visualize_with_gpt_with_tim(20, offset = 40, question_type = "gpt-gt-reason")
+    visualize_with_gpt_with_avion(20, offset = 40, question_type = "gpt-gt-reason")

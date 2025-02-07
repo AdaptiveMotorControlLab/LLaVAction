@@ -386,6 +386,7 @@ class GPTInferenceAnnotator(ChatGPT):
             
         self.do_visualization = do_visualization
         self.vis_folder = f"{self.gpt_model}_{self.gen_type}_{self.question_type}_{self.perspective}"
+        os.makedirs(self.vis_folder, exist_ok = True)
         self.data = self.init_data()
      
     def save_visualization(self,frames, uid):
@@ -450,15 +451,17 @@ class GPTInferenceAnnotator(ChatGPT):
                 'end_second': end_second,
                 'vid_path': vid_path
             }
-
         return ret
 
-    def multi_process_run(self, n_samples = -1, disable_api_calling = False):
+    def multi_process_run(self, offset= 0, n_samples = -1, disable_api_calling = False):
         # inside GPT inference annotator
 
-        if n_samples != -1:
-            indices = list(range(len(self.data)))[:n_samples]
+        if n_samples == -1:
+            # do not use offset if n_samples is -1
+            assert offset == 0
 
+        if n_samples != -1:
+            indices = list(range(len(self.data)))[offset:offset + n_samples]
         num_chunks = os.cpu_count() if not self.debug else 2
 
         indices_groups = self.split_indices(indices, num_chunks)
@@ -472,7 +475,7 @@ class GPTInferenceAnnotator(ChatGPT):
             for future in futures:
                 result_dict = future.result()
                 combined_results.update(result_dict)
-
+            print (combined_results)
         if self.debug:
             print (combined_results)
         if combined_results and 'mc_' in self.question_type:
@@ -560,9 +563,7 @@ class GPTInferenceAnnotator(ChatGPT):
      
         if 'o1' in self.gpt_model:
             system_prompt += format_prompt
-     
-        #print (system_prompt)
-
+                    
         if self.handobj_root is not None:
             system_prompt += f"""To further assist you, we mark hands and object when they are visible. The left hand is marked with a bounding box that contains letter L and the right hand's bounding box contains letter R. The object is marked as 'O'."""
         
