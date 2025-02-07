@@ -232,7 +232,7 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
     """
     
     if perspective == "first_person":
-        perspective_prefix = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with objects. What action are you doing? Note that you need to use first person perspective."
+        perspective_prefix = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with objects. What action are you doing? "
     elif perspective == "third_person":
         perspective_prefix = "The video is taken from egocentric view. The person's hands are sometimes interacting with objects. What action is the person doing?"
                     
@@ -262,8 +262,8 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
             
     elif question_type == "temporal_detection":
         ret = question
-    elif question_type == "gpt-gt-reason":
-        ret = f"{perspective_prefix}Describe in details what you see from the video frames."
+    elif question_type == "gpt-gt-reason" or question_type == "caption":
+        ret = f"{perspective_prefix} Describe in details what you see from the video frames. You must talk in the first person perspective. Try to focus on what you are doing. "
     
     elif question_type == "triple_direct_answer":
         assert meta_data
