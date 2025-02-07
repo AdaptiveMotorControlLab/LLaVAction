@@ -232,7 +232,7 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
     """
     
     if perspective == "first_person":
-        perspective_prefix = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with objects. What action are you doing?"
+        perspective_prefix = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with objects. What action are you doing? "
     elif perspective == "third_person":
         perspective_prefix = "The video is taken from egocentric view. The person's hands are sometimes interacting with objects. What action is the person doing?"
                     
@@ -262,8 +262,8 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
             
     elif question_type == "temporal_detection":
         ret = question
-    elif question_type == "gpt-gt-reason":
-        ret = f"{perspective_prefix}Describe in details what you see from the video frames."
+    elif question_type == "gpt-gt-reason" or question_type == "caption":
+        ret = f"{perspective_prefix} Describe in details what you see from the video frames. You must talk in the first person perspective. Try to focus on what you are doing. "
     
     elif question_type == "triple_direct_answer":
         assert meta_data
@@ -428,7 +428,7 @@ class RandomMultiChoiceGenerator(MultiChoiceGenerator):
         else:
             return self.test_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps, benchmark_testing = benchmark_testing)
     
-    def train_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
+    def train_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps, benchmark_testing = False):
         # letters as A, B, C, D, .. Note we maximally support 26 letters
         letters = [chr(65+i) for i in range(26)][:k]                
         answer_list = [vn for vn in mapping_vn2narration.keys()]                
@@ -463,11 +463,11 @@ class RandomMultiChoiceGenerator(MultiChoiceGenerator):
             }  
         return mc_data 
     
-    def test_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps):
+    def test_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps, benchmark_testing = False):
         """
         There is no difference between train and test for random generation
         """        
-        return self.train_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)        
+        return self.train_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps, benchmark_testing = benchmark_testing)        
 
 class AvionMultiChoiceGenerator(MultiChoiceGenerator):
     """
@@ -651,7 +651,7 @@ def avion_video_loader(root, vid, ext, second, end_second,
     chunk_start = int(second) // chunk_len * chunk_len
     chunk_end = int(end_second) // chunk_len * chunk_len
     while True:
-        video_filename = osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk_end, ext))
+        video_filename = osp.join(root, '{}.{}'.format(vid, ext), '{}.{}'.format(chunk_end, ext))      
         if not osp.exists(video_filename):
             # print("{} does not exists!".format(video_filename))
             chunk_end -= chunk_len

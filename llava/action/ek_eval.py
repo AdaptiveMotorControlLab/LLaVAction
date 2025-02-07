@@ -11,10 +11,10 @@ from llava.action.llava_inference import llava_inference
 import json
 import logging
 from llava.utils import rank0_print
-from llava.action.utils import generate_label_map,  match_answer
+from llava.action.utils import generate_label_map
 from collections import Counter 
 import torch.distributed as dist
-from llava.action.dataset import VideoMultiChoiceDataset, VideoTemporalMultiChoiceDataset
+from llava.action.dataset import VideoMultiChoiceDataset
 import torchvision.io as io
 import re
 

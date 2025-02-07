@@ -37,7 +37,7 @@ def benchmark_tim_mcq(n_samples):
                                         root,
                                         annotation_file,
                                         gen_type = 'tim',
-                                        prediction_file = avion_prediction_file,
+                                        prediction_file = tim_prediction_file,
                                         clip_length = n_frames,
                                         question_type = 'mc_',
                                         action_representation=action_representation,
@@ -63,6 +63,6 @@ def benchmark_random_mcq(n_samples):
     
     
 if __name__ == '__main__':
-    benchmark_avion_mcq(100)
+    #benchmark_avion_mcq(100)
     benchmark_tim_mcq(100)
     #benchmark_random_mcq(100)    
