@@ -313,7 +313,8 @@ class VideoTemporalMultiChoiceDataset(VideoCaptionDatasetBase):
                                                         self.mapping_vn2narration,                                                        
                                                         self.verb_maps, 
                                                         self.noun_maps,
-                                                        is_train = False) # note we only use this dataset for evaluation for now.
+                                                        is_train = False,
+                                                        benchmark_testing = eval_args.benchmark_testing) # note we only use this dataset for evaluation for now.
 
        
         return frames, data, time_meta, i
