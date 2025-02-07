@@ -215,8 +215,8 @@ def visualize_with_llava(pretrained_path, uid, question_type, gen_type):
 if __name__ == '__main__':
     
     #visualize_with_gpt_with_avion(10, offset = 100, question_type = "caption")
-    llava_pretrained_path = 'lmms-lab/LLaVA-Video-7B-Qwen2'
+    #llava_pretrained_path = 'lmms-lab/LLaVA-Video-7B-Qwen2'
     llava_pretrained_path = 'experiments/LLaVA-Video-7B-Qwen2'
-    uid = 'P01-P01_11_34.38_41.15'
+    uid = 'P01-P01_11_182.65_192.07'
     visualize_with_llava(llava_pretrained_path, uid, 'caption', 'tim')
     
