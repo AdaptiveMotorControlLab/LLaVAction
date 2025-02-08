@@ -172,7 +172,13 @@ def get_lookup_dict(ann_file, test_type = 'base', delta = 3, pseudo_folder = Non
                                'prev2_offset': round(start_times[i+2] - start_times[i],2),
                                 'prev1_narration': narration2,
                                 'prev1_offset': round(start_times[i+2] - start_times[i+1],2),
-                                'cur_narration': narration3}
+                                'cur_narration': narration3,
+                                'prev2_start': start_times[i],
+                                'prev2_end': end_times[i],
+                                'prev1_start': start_times[i+1],
+                                'prev1_end': end_times[i+1],
+                                'cur_start': start_times[i+2],
+                                'cur_end': end_times[i+2]}
     return table
                                 
 

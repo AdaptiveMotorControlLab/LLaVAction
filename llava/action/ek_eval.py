@@ -342,7 +342,6 @@ def evaluate_on_EK100(eval_args,
     if eval_args.learn_neighbor_actions:
         from llava.action.generate_interval_pred import  get_lookup_dict
         if eval_args.test_type.startswith('temporal_cot'):
-
             lookup_table = get_lookup_dict(eval_args.val_metadata, test_type = eval_args.test_type, pseudo_folder = eval_args.pseudo_folder)
 
 
@@ -353,7 +352,7 @@ def evaluate_on_EK100(eval_args,
             mc_data = mc_data[0]
             time_meta = time_meta[0]
             
-            if eval_args.learn_neighbor_actions:
+            if eval_args.learn_neighbor_actions and lookup_table:
                 _id = time_meta['vid_path']
                 _id = _id.replace('/', '-')
                 uid = f"{_id}_{time_meta['start_second']}_{time_meta['end_second']}"
