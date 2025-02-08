@@ -8,8 +8,8 @@
 #SBATCH --ntasks-per-node 1         # number of MP tasks. IMPORTANT: torchrun represents just 1 Slurm task
 #SBATCH --gres gpu:4                # Number of GPUs
 #SBATCH --time 23:00:00             # maximum execution time (DD-HH:MM:SS). Mandatory field in MN5
-#SBATCH --output logs/R-%x.%j-lmmseval-dev_7b_4f_llavavideo_test_haozhe.out
-#SBATCH --error logs/R-%x.%j-lmmseval-dev_7b_4f_llavavideo_test_haozhe.err
+#SBATCH --output logs/R-%x.%j-lmmseval-dev_LLaVA-Video-7B-Qwen2_64f_10llavavideo_EK100_haozhe.out
+#SBATCH --error logs/R-%x.%j-lmmseval-dev_LLaVA-Video-7B-Qwen2_64f_10llavavideo_EK100_haozhe.err
 
 mkdir -p logs
 
@@ -62,12 +62,12 @@ PYTHON_FILE="-m lmms_eval"
 
 PYTHON_ARGS=" \
     --model llava_vid \
-    --model_args pretrained=lmms-lab/LLaVA-Video-7B-Qwen2,conv_template=qwen_1_5,max_frames_num=64,mm_spatial_pool_mode=average \
-    --tasks activitynetqa,videochatgpt,nextqa_mc_test,egoschema,video_dc499,videomme,videomme_w_subtitle,perceptiontest_val_mc \
+    --model_args pretrained=experiments/dev_LLaVA-Video-7B-Qwen2_64f_10llavavideo_EK100_haozhe,conv_template=qwen_1_5,max_frames_num=64,mm_spatial_pool_mode=average \
+    --tasks youcook2_val \
     --batch_size 1 \
     --log_samples \
     --log_samples_suffix llava_vid \
-    --output_path ./logs/
+    --output_path ./logs/ \
     --verbosity=DEBUG \
     "
 

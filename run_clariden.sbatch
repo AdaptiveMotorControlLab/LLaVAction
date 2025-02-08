@@ -4,12 +4,12 @@
 #SBATCH --hint nomultithread    
 #SBATCH --cpus-per-task 288
 #SBATCH --no-requeue
-#SBATCH --nodes 8                   # number of Nodes
+#SBATCH --nodes 16                   # number of Nodes
 #SBATCH --ntasks-per-node 1         # number of MP tasks. IMPORTANT: torchrun represents just 1 Slurm task
 #SBATCH --gres gpu:4                # Number of GPUs
 #SBATCH --time 23:00:00             # maximum execution time (DD-HH:MM:SS). Mandatory field in MN5
-#SBATCH --output logs/R-%x.%j-dev_7b_64f_10llavavideo_EK100_haozhe.out
-#SBATCH --error logs/R-%x.%j-dev_7b_64f_10llavavideo_EK100_haozhe.err
+#SBATCH --output logs/R-%x.%j-dev_7b_64f_EK100_haozhe.out
+#SBATCH --error logs/R-%x.%j-dev_7b_64f_EK100_haozhe.err
 
 mkdir -p logs
 
@@ -71,8 +71,8 @@ PYTHON_ARGS=" \
     --image_grid_pinpoints \"(1x1),...,(6x6)\" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name dev_7b_64f_10llavavideo_EK100_haozhe \
-    --output_dir experiments/dev_7b_64f_10llavavideo_EK100_haozhe \
+    --run_name dev_7b_64f_EK100_haozhe \
+    --output_dir experiments/dev_7b_64f_EK100_haozhe \
     --num_train_epochs 1 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
@@ -99,7 +99,7 @@ PYTHON_ARGS=" \
     --mm_newline_position grid \
     --add_time_instruction True \
     --force_sample True \
-    --mm_spatial_pool_stride 2
+    --mm_spatial_pool_stride 2 \
     --root /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video/EK100 \
     --action_predictions /iopsstor/scratch/cscs/hqi/VFM/llava_data/TIM_PREDS/tim_pred_ids_val.json \
     --val_metadata /iopsstor/scratch/cscs/hqi/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \

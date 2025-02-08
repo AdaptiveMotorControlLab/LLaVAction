@@ -1206,8 +1206,7 @@ class LazySupervisedDataset(Dataset):
             if not os.path.exists(video_file):
                 print("File {} not exist!".format(video_file))
 
-            # try:
-            if True:
+            try:
                 if "sharegpt4video" in video_folder:
                     frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
                     frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
@@ -1312,12 +1311,12 @@ class LazySupervisedDataset(Dataset):
                 image = [(image, video[0].size, "video", action)]
                 sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
                 # print(sources)
-            # except Exception as e:
-            #     import traceback
-            #     traceback.print_exc() 
-            #     print(f"Error: {e}")
-            #     print(f"Failed to read video file: {video_file}")
-            #     return self._get_item(i + 1)
+            except Exception as e:
+                import traceback
+                traceback.print_exc() 
+                print(f"Error: {e}")
+                print(f"Failed to read video file: {video_file}")
+                return self._get_item(i + 1)
         else:
             sources = copy.deepcopy([e["conversations"] for e in sources])
 
