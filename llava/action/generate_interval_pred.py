@@ -158,7 +158,7 @@ def get_lookup_dict(ann_file, test_type = 'base', delta = 3, pseudo_folder = Non
                 uid2 = f"{id}_{round(start_times[i+1],2)}_{round(end_times[i+1],2)}"
                 uid3 = f"{id}_{round(start_times[i+2],2)}_{round(end_times[i+2],2)}"
                              
-                if test_type == 'base':
+                if test_type == 'base' or test_type == 'temporal_cot_oracle':
                     narration1 = sorted_narrations[i]
                     narration2 = sorted_narrations[i+1]
                     narration3 = sorted_narrations[i+2]

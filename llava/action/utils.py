@@ -17,6 +17,7 @@ import cv2
 from llava.action.render_utils import render_frame
 from collections import defaultdict
 import json
+from llava.utils import rank0_print
 
 def remove_sub_nouns(nlp, narration, verb, nouns):
     narration = copy.deepcopy(narration)
@@ -111,13 +112,7 @@ def generate_label_map(anno_root, action_representation):
             verb_maps[str(row['id'])] = row['key']
         for _, row in noun_classes_pd.iterrows():
             elements = row['key'].split(':')
-            noun_maps[str(row['id'])] = ' '.join(elements[1:] + [elements[0]]) if len(elements) > 1 else row['key']
-    # print ('verb_maps')
-    # print (verb_maps)
-    # print ('noun_maps')
-    # print (noun_maps)
-    # import sys
-    # sys.exit()
+            noun_maps[str(row['id'])] = ' '.join(elements[1:] + [elements[0]]) if len(elements) > 1 else row['key']   
     # Batch processing setup
     if 'cut' in action_representation:
         import spacy
@@ -235,33 +230,31 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
         perspective_prefix = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with objects. What action are you doing? "
     elif perspective == "third_person":
         perspective_prefix = "The video is taken from egocentric view. The person's hands are sometimes interacting with objects. What action is the person doing?"
-                    
-    if question_type.startswith("mc_") or question_type == 'temporal_cot':
+    
+    if learn_neighbor_actions == "prior" and meta_data:
+        prev2_narration = meta_data['prev2_narration']
+        prev2_offset = meta_data['prev2_offset']
+        prev1_narration = meta_data['prev1_narration']
+        prev1_offset = meta_data['prev1_offset']
+        cur_narration = meta_data['cur_narration']
+                   
+    if question_type.startswith("mc_") or question_type.startswith('temporal_cot'):
                                       
         if question_type.startswith("mc_") and learn_neighbor_actions == "prior" and meta_data and random.random() < 0.3:
             # this means it's training time and we are learning the prior actions
             prefix = f"{perspective_prefix}\n"
             assert isinstance(question, list)
             suffix = ", ".join(question)
-            prev2_narration = meta_data['prev2_narration']
-            prev2_offset = meta_data['prev2_offset']
-            prev1_narration = meta_data['prev1_narration']
-            prev1_offset = meta_data['prev1_offset']
-            cur_narration = meta_data['cur_narration']
+            
             suffix = f"{prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. What action are you currently performing? Here are the options of actions you can select:\n" + suffix 
             ret = prefix + suffix
-        elif question_type == "temporal_cot" and learn_neighbor_actions == "prior" and meta_data:
+        elif question_type.startswith("temporal_cot") and learn_neighbor_actions == "prior" and meta_data:
             # means it's test time
             prefix = f"{perspective_prefix}\n"
             assert isinstance(question, list)
-            suffix = ", ".join(question)
-            prev2_narration = meta_data['prev2_narration']
-            prev2_offset = meta_data['prev2_offset']
-            prev1_narration = meta_data['prev1_narration']
-            prev1_offset = meta_data['prev1_offset']
-            cur_narration = meta_data['cur_narration']
-            suffix = f"{prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. What action are you currently performing? Here are the options of actions you can select:\n" + suffix 
-            ret = prefix + suffix
+            suffix = ", ".join(question)           
+            suffix = f"{prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. What action are you currently performing? Explain your thoughts and then answer the question. Here are the options of actions you can select:\n" + suffix 
+            ret = prefix + suffix         
         else:
             action_rep_suffix = "Given multiple choices, format your answer briefly such as 'A. move knife'. "              
             prefix = f"{perspective_prefix}{action_rep_suffix}\n"
@@ -271,7 +264,11 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
             ret = prefix + suffix
     
     elif question_type == "direct_narration":
-        ret = f"{perspective_prefix} What action are you performing? Give a short sentence such as 'move knife'."
+
+        if learn_neighbor_actions == "prior" and meta_data and random.random() < 0.5:
+            ret = f"{perspective_prefix} {prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. What action are you currently performing? Give a short sentence such as 'move knife'. "            
+        else:            
+            ret = f"{perspective_prefix} What action are you performing? Give a short sentence such as 'move knife'."
             
     elif question_type == "temporal_detection":
         ret = question
