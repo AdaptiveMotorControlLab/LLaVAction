@@ -253,7 +253,7 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
             prefix = f"{perspective_prefix}\n"
             assert isinstance(question, list)
             suffix = ", ".join(question)           
-            suffix = f"{prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. What action are you currently performing? Explain your thoughts and then answer the question. Here are the options of actions you can select:\n" + suffix 
+            suffix = f"{prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. What action are you currently performing? Here are the options of actions you can select:\n" + suffix 
             ret = prefix + suffix         
         else:
             action_rep_suffix = "Given multiple choices, format your answer briefly such as 'A. move knife'. "              

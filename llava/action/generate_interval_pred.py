@@ -131,6 +131,7 @@ def get_lookup_dict(ann_file, test_type = 'base', delta = 3, pseudo_folder = Non
     
     pseudo_dict = None
     if test_type == 'temporal_cot':
+        assert os.path.exists(pseudo_folder), f"Folder {pseudo_folder} does not exist"
         pseudo_dict = get_pseudo_dict(pseudo_folder)
     
     for vid, intervals in vid_to_intervals.items():
