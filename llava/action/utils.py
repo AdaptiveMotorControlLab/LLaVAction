@@ -550,17 +550,18 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
                 answer_ids.pop()
                 answer_ids.append(gt_vn)
        
-        # let's shuffle answer_ids so that the gt_vn is not always at the end
-        random.shuffle(answer_ids)         
-        
+                      
         answers = []
         for answer_id in answer_ids:
             answer = parse_vn_ids(answer_id, gt_vn, narration, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
             answers.append(answer)
+        avion_pred = answers[0]
+        
+        random.shuffle(answers)
         
         letters = [chr(65+i) for i in range(26)][:k]
         options = list(range(26))[:k]
-
+                
         options = []
         for answer, letter in zip(answers, letters):
             options.append(f'{letter}. {answer}')
@@ -572,7 +573,7 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
                 'options': {0: options},               
                 'gt_answer_name': {0: gt_answer},
                 'valid_letters': letters,
-                'avion_pred': answers[0],
+                'avion_pred': avion_pred,
                 'all_avion_preds': answers
             }
 
