@@ -250,14 +250,15 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
             ret = prefix + suffix
         elif question_type.startswith("temporal_cot") and learn_neighbor_actions == "prior" and meta_data:
             # means it's test time
-            prefix = f"{perspective_prefix}\n"
-            assert isinstance(question, list)
-            suffix = ", ".join(question)           
-            suffix = f"{prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. What action are you currently performing? Here are the options of actions you can select:\n" + suffix 
-            ret = prefix + suffix 
-            rank0_print('debug')
-            rank0_print (meta_data)
-            rank0_print (ret)
+            if question_type == 'temporal_cot_caption':
+                ret = f"{perspective_prefix} {prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. Describe in details what you see from the video frames. You must talk in the first person perspective. Try to focus on what you are doing."
+                rank0_print(ret)
+            else:
+                prefix = f"{perspective_prefix}\n"
+                assert isinstance(question, list)
+                suffix = ", ".join(question)           
+                suffix = f"{prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. What action are you currently performing? Here are the options of actions you can select:\n" + suffix 
+                ret = prefix + suffix             
             
         else:
             action_rep_suffix = "Given multiple choices, format your answer briefly such as 'A. move knife'. "              

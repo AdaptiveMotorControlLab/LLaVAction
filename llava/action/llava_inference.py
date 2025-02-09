@@ -53,10 +53,12 @@ def llava_inference(
             question_type = "direct_narration"
         elif test_type == 'caption' or test_type == 'debug':
             question_type = "caption"
-        elif test_type == 'temporal_cot':
-            question_type = 'temporal_cot'
+        elif test_type == 'temporal_cot_pseudo':
+            question_type = 'temporal_cot_pseudo'
         elif test_type == 'temporal_cot_oracle':
-            question_type = 'temporal_cot_oracle'
+            question_type = 'temporal_cot_oracle'            
+        elif test_type == 'temporal_cot_caption':
+            question_type = 'temporal_cot_caption'
                     
         if  test_type == 'caption_then_answer':        
             caption_answer = llava_inference([video_frames], 

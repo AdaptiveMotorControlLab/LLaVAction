@@ -124,7 +124,7 @@ def get_args_parser():
                                    'random_narration_cut', 'top1_narration_cut', 'topk_narration_cut_key',
                                    'GT_key', 'GT_random_narration', 'GT_random_narration_cut', 'gpt_narration'])
     parser.add_argument('--n_narrations', default = -1, type = int)
-    parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'temporal_cot', 'temporal_cot_oracle', 'caption_then_answer', 'direct_narration'])
+    parser.add_argument('--test_type', default = 'base', type = str, choices = ['caption', 'base', 'temporal_cot_caption', 'temporal_cot_pseudo', 'temporal_cot_oracle', 'caption_then_answer', 'direct_narration'])
     parser.add_argument('--learn_neighbor_actions', type= str, default = "")
     parser.add_argument('--pseudo_folder', default = None, type = str)
     parser.add_argument('--output_dir', default = None, type = str)
