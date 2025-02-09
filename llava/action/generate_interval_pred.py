@@ -30,14 +30,16 @@ def sort_correspondance(vid_to_intervals, vid_to_gt_narration):
     return sorted_vid_to_gt_narration
 
 
-def get_annotated_intervals(file_path):
+def get_annotated_intervals(file_path, action_representation):
     csv_reader = csv.reader(open(file_path))
     _ = next(csv_reader)
     vid_to_intervals = defaultdict(list)
-    vid_to_gt_narration = defaultdict(list)
+    vid_to_action_representation = defaultdict(list)
     vid_to_action_ids = defaultdict(list)
     
-    labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps = generate_label_map(Path(file_path).parent, 'GT_random_narration')
+    labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps = generate_label_map(Path(file_path).parent, action_representation)
+    print (verb_maps)
+    print (noun_maps)
     for row in csv_reader:       
         pid, vid = row[1:3]
         narration = row[8]
@@ -53,15 +55,17 @@ def get_annotated_intervals(file_path):
             #print(f"{vid} has a long duration of action {narration} {end_timestamp - start_timestamp:.2f}")
 
         vid_to_intervals[vid].append((start_timestamp, end_timestamp))
-        vid_to_gt_narration[vid].append(narration)
-
+        if action_representation == 'GT_random_narration':
+            vid_to_action_representation[vid].append(narration)
+        elif action_representation == 'official_key':
+            vid_to_action_representation[vid].append(f'{verb_maps[str(verb_id)]} {noun_maps[str(noun_id)]}')
 
         vid_to_action_ids[vid].append((verb_id, noun_id, action_id))
     
-    return vid_to_intervals, vid_to_gt_narration, vid_to_action_ids
+    return vid_to_intervals, vid_to_action_representation, vid_to_action_ids
 
 
-def build_uid_pad_dict(ann_file,
+def build_uid_pad_dict(ann_file,                       
                        delta = 3):
     """
     every uid corresponds to two neighboring actions    
@@ -103,10 +107,8 @@ def build_uid_pad_dict(ann_file,
     return uid_to_neighbors
                 
     
-def get_pseudo_dict(pseudo_folder,  delta = 3):
-    import glob
-    
-
+def get_pseudo_dict(pseudo_folder):
+    import glob    
     files = glob.glob(os.path.join(pseudo_folder, 'prediction*.json'))
     
     pseudo_data = {}
@@ -124,9 +126,9 @@ def get_pseudo_dict(pseudo_folder,  delta = 3):
     assert len(ret) == len(pseudo_data)
     return ret
 
-def get_lookup_dict(ann_file, test_type = 'base', delta = 3, pseudo_folder = None):
+def get_lookup_dict(ann_file, action_representation, test_type = 'base', delta = 3, pseudo_folder = None):
     
-    vid_to_intervals, vid_to_gt_narration, _ = get_annotated_intervals(ann_file)
+    vid_to_intervals, vid_to_action_representation, _ = get_annotated_intervals(ann_file, action_representation)
     table = {}
     
     pseudo_dict = None
@@ -139,7 +141,7 @@ def get_lookup_dict(ann_file, test_type = 'base', delta = 3, pseudo_folder = Non
         sorted_indices = sorted(range(len(intervals)), key=lambda i: intervals[i][1])
         
         sorted_intervals = [intervals[i] for i in sorted_indices]
-        sorted_narrations = [vid_to_gt_narration[vid][i] for i in sorted_indices]
+        sorted_narrations = [vid_to_action_representation[vid][i] for i in sorted_indices]
         
         end_times = [end for _, end in sorted_intervals]
         start_times = [start for start, _ in sorted_intervals]
@@ -182,99 +184,6 @@ def get_lookup_dict(ann_file, test_type = 'base', delta = 3, pseudo_folder = Non
     return table
                                 
 
-def sample_uid_triples(anno_file, 
-                       delta = 3, 
-                       question_type="triple_direct_answer"):
-    vid_to_intervals, vid_to_gt_narration, vid_to_action_ids = get_annotated_intervals(anno_file)
-    ret = []
-    
-    for vid, intervals in vid_to_intervals.items():
-        # Sort intervals by end time
-        sorted_intervals = sorted(intervals, key=lambda x: x[1])
-        
-        end_times = [end for _, end in sorted_intervals]
-        start_times = [start for start, _ in sorted_intervals]
-        
-        # Look for consecutive triples
-        for i in range(len(sorted_intervals)-2):  # -2 because we need 3 consecutive intervals
-            id = vid.split('_')[0] + '-' + vid
-            
-            # Get time differences between consecutive intervals
-            time_diff1 = start_times[i+1] - end_times[i]
-            time_diff2 = start_times[i+2] - end_times[i+1]
-            
-            # Check if both time differences are less than 3 seconds
-            if time_diff1 <= delta and time_diff2 <= delta:
-                # Create UIDs for each interval in the triple
-                uid1 = f"{id}_{round(start_times[i],2)}_{round(end_times[i],2)}"
-                uid2 = f"{id}_{round(start_times[i+1],2)}_{round(end_times[i+1],2)}"
-                uid3 = f"{id}_{round(start_times[i+2],2)}_{round(end_times[i+2],2)}"
-                
-                # Get corresponding narrations
-                verb_id1, noun_id1, action_id1 = vid_to_action_ids[vid][i]
-                verb_id2, noun_id2, action_id2 = vid_to_action_ids[vid][i+1]
-                verb_id3, noun_id3, action_id3 = vid_to_action_ids[vid][i+2]
-
-                
-                narration1 = vid_to_gt_narration[vid][i]
-                narration2 = vid_to_gt_narration[vid][i+1]
-                narration3 = vid_to_gt_narration[vid][i+2]
-                                
-                if question_type == "triple_multiple_choice":
-                    pass
-                elif question_type == "triple_direct_answer":
-                    target = narration1 + ', ' + narration2 + ', ' + narration3                
-                
-                triple = {
-                    'id': id,
-                    'video': id,
-                    'start_timestamp': start_times[i],
-                    'end_timestamp': end_times[i+2],
-                    'gt_narration_triple': [narration1, narration2, narration3],  
-                    'conversations': [{"from": "human", "value":""},
-                                    {"from": "gpt", "value": target}
-                                        ], 
-                    "question_type": question_type,              
-                    'split': 'train',
-                    'dataset_name': 'EK100',
-                    'triple_meta':
-                        [
-                            {   'uid': uid1,
-                                'narration': narration1,
-                                'start_timestep': start_times[i],
-                                'end_timestep': end_times[i],
-                                'duration': round(end_times[i] - start_times[i],2),
-                                'verb_id': verb_id1,
-                                'noun_id': noun_id1,
-                                'action_id': action_id1
-                                
-                            },                        
-                            {   'uid': uid2,
-                                'narration': narration2,
-                                'start_timestep': start_times[i+1],
-                                'end_timestep': end_times[i+1],
-                                'duration': round(end_times[i+1] - start_times[i+1],2),
-                                'verb_id': verb_id2,
-                                'noun_id': noun_id2,
-                                'action_id': action_id2
-                            },                        
-                            {   'uid': uid3,
-                                'narration': narration3,
-                                'start_timestep': start_times[i+2],
-                                'end_timestep': end_times[i+2],
-                                'duration': round(end_times[i+2] - start_times[i+2],2),
-                                'verb_id': verb_id3,
-                                'noun_id': noun_id3,            
-                                'action_id': action_id3
-                            }
-                        ]
-                }
-                ret.append(triple)
-    
-    print(f'Found {len(ret)} triples with gaps <= {delta} seconds')
-    return ret
-
-
 
 def create_merged_intervals(train_ann_file):
     """
@@ -299,7 +208,11 @@ if __name__ == '__main__':
     # with open('ek100_triples.jsonl', 'w') as f:
     #     for item in res:
     #         f.write(json.dumps(item) + '\n')
-    triple_file_path = 'ek100_triples.jsonl'
-    caption_file_path = '/data/shaokai/first_person_annos/train_anno_gpt-gt-reason_4_first_person_all_action_idx.jsonl'
-    create_merged_captions(triple_file_path, caption_file_path)
+    # triple_file_path = 'ek100_triples.jsonl'
+    # caption_file_path = '/data/shaokai/first_person_annos/train_anno_gpt-gt-reason_4_first_person_all_action_idx.jsonl'
+    # create_merged_captions(triple_file_path, caption_file_path)
+    ann_file = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv'
+    actoin_representation = 'GT_random_narration'
+    ret = get_lookup_dict(ann_file, actoin_representation)
     
+    print(list(ret.items())[:10])
