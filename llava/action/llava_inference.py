@@ -46,7 +46,6 @@ def llava_inference(
         conv_template = "qwen_1_5"
 
         options = mc_data['options'][0]
-        
         if test_type == 'base':
             question_type = "mc_top5_official_key"
         elif test_type == "direct_narration":

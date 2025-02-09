@@ -989,7 +989,7 @@ class LazySupervisedDataset(Dataset):
         
         from llava.action.generate_interval_pred import get_lookup_dict
         
-        self.train_triple_lookup = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_train.csv'))
+        self.train_triple_lookup = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_train.csv'), self.eval_args.action_representation)
 
         # Handle multiple JSON files specified in the data_path
         if "{" in data_path and "}" in data_path:
