@@ -989,7 +989,8 @@ class LazySupervisedDataset(Dataset):
         
         from llava.action.generate_interval_pred import get_lookup_dict
         
-        self.train_triple_lookup = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_train.csv'), self.eval_args.action_representation)
+        self.train_triple_lookup_official = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_train.csv'), 'official_key')
+        self.train_triple_lookup_narration = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_train.csv'), 'GT_random_narration')
 
         # Handle multiple JSON files specified in the data_path
         if "{" in data_path and "}" in data_path:
@@ -1282,7 +1283,12 @@ class LazySupervisedDataset(Dataset):
                     start_timestamp = round(float(self.list_data_dict[i]['start_timestamp']), 2)
                     end_timestamp = round(float(self.list_data_dict[i]['end_timestamp']), 2)
                     uid = f"{vid}_{start_timestamp}_{end_timestamp}"
-                    meta_data = self.train_triple_lookup.get(uid, None)
+                    # if True:
+                    #     meta_data = self.train_triple_lookup_narration.get(uid, None)
+                    if 'official_key' in sources[0]['question_type']:
+                        meta_data = self.train_triple_lookup_official.get(uid, None)
+                    elif 'GT_random_narration' in sources[0]['question_type']:
+                        meta_data = self.train_triple_lookup_narration.get(uid, None)
                     
                 
                 if 'EK100' not in video_file and 'EKframes' not in video_folder:
