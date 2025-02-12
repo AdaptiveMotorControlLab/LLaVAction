@@ -1193,6 +1193,11 @@ class LazySupervisedDataset(Dataset):
             else:
                 # designed for LLaVA-Video-178K
                 video_folder = os.path.join(self.data_args.video_folder, 'LLaVA-Video-178K', sources[0]['data_source'])
+            if 'dataset_name' in sources[0]:
+                video_folder = os.path.join(self.data_args.video_folder, sources[0]['dataset_name'])
+            else:
+                # designed for LLaVA-Video-178K
+                video_folder = os.path.join(self.data_args.video_folder, 'LLaVA-Video-178K', sources[0]['data_source'])
             if 'EK100' in video_folder:
                 video_file = os.path.join(video_folder, video_info.split("-")[0], video_info.split("-")[1]+".MP4")
             elif 'EKframes' in video_folder:

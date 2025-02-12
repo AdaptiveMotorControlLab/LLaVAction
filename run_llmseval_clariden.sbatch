@@ -8,8 +8,13 @@
 #SBATCH --ntasks-per-node 1         # number of MP tasks. IMPORTANT: torchrun represents just 1 Slurm task
 #SBATCH --gres gpu:4                # Number of GPUs
 #SBATCH --time 23:00:00             # maximum execution time (DD-HH:MM:SS). Mandatory field in MN5
+<<<<<<< HEAD
 #SBATCH --output logs/R-%x.%j-lmmseval-dev_7b_4f_llavavideo_test_haozhe.out
 #SBATCH --error logs/R-%x.%j-lmmseval-dev_7b_4f_llavavideo_test_haozhe.err
+=======
+#SBATCH --output logs/R-%x.%j-lmmseval-dev_LLaVA-Video-7B-Qwen2_64f_10llavavideo_EK100_haozhe.out
+#SBATCH --error logs/R-%x.%j-lmmseval-dev_LLaVA-Video-7B-Qwen2_64f_10llavavideo_EK100_haozhe.err
+>>>>>>> origin/haozhedev
 
 mkdir -p logs
 
@@ -60,8 +65,28 @@ PYTHON_ARGS=" \
     --log_samples \
     --log_samples_suffix llava_vid \
     --output_path ./benchmarks/
-    --verbosity=DEBUG \
     "
+
+# PYTHON_ARGS=" \
+#     --model llava_onevision \
+#     --model_args pretrained=lmms-lab/llava-onevision-qwen2-0.5b-ov,conv_template=qwen_1_5,model_name=llava_qwen \
+#     --tasks video_dc499 \
+#     --batch_size 1 \
+#     --log_samples_suffix llava_onevision \
+#     --output_path ./logs/ \
+#     --verbosity=DEBUG \
+#     "
+
+# PYTHON_ARGS=" \
+#     --model llava_vid \
+#     --model_args pretrained=experiments/dev_LLaVA-Video-7B-Qwen2_64f_10llavavideo_EK100_haozhe,conv_template=qwen_1_5,max_frames_num=64,mm_spatial_pool_mode=average \
+#     --tasks youcook2_val \
+#     --batch_size 1 \
+#     --log_samples \
+#     --log_samples_suffix llava_vid \
+#     --output_path ./logs/ \
+#     --verbosity=DEBUG \
+#     "
 
 export CMD="$LAUNCHER $PYTHON_FILE $PYTHON_ARGS"
 export HF_HOME=$SCRATCH/huggingface

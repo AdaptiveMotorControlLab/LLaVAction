@@ -1,14 +1,14 @@
 # Export environment variables
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+export CUDA_VISIBLE_DEVICES="0,1,2,3"
 export OMP_NUM_THREADS="8"
-export NCCL_IB_DISABLE="0"
-export NCCL_IB_GID_INDEX="3"
-export NCCL_SOCKET_IFNAME="eth0"
-export NCCL_DEBUG="INFO"
+# export NCCL_IB_DISABLE="0"
+# export NCCL_IB_GID_INDEX="3"
+# export NCCL_SOCKET_IFNAME="eth0"
+# export NCCL_DEBUG="INFO"
 export ACCELERATE_CPU_AFFINITY="1"
 export WANDB_API_KEY="4474ec79de023b0c3ffb43588ab6163264f875db"
-export HF_HOME=/media/data/haozhe/VFM/huggingface
-export PYTHONPATH=/media/data/haozhe/VFM/LLaVA-NeXT:$PYTHONPATH
+export HF_HOME=/iopsstor/scratch/cscs/hqi/huggingface
+export PYTHONPATH=/iopsstor/scratch/cscs/hqi/VFM/haozhe/LLaVA-NeXT:$PYTHONPATH
 
 # pip install moviepy spacy==3.7.5 numpy==1.26.1
 # python -m spacy download en_core_web_sm
@@ -177,14 +177,14 @@ export PYTHONPATH=/media/data/haozhe/VFM/LLaVA-NeXT:$PYTHONPATH
 #          --topk_predictions 5 > dev_0.5b_4f_tim_cross_3_haozhe.out 2>&1
 
 
-torchrun --nproc_per_node=8 \
+torchrun --nproc_per_node=4 \
          --nnodes=1 \
          llava/train/train_mem.py \
          --deepspeed scripts/zero3.json \
-         --model_name_or_path  lmms-lab/LLaVA-Video-7B-Qwen2\
+         --model_name_or_path lmms-lab/LLaVA-Video-7B-Qwen2 \
          --version qwen_1_5 \
          --data_path scripts/train/llava_video.yaml \
-         --video_folder /media/data/haozhe/VFM/onevision/llava_video \
+         --video_folder /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video \
          --mm_tunable_parts mm_vision_tower,mm_mlp_adapter,mm_language_model \
          --mm_vision_tower_lr 2e-6 \
          --vision_tower google/siglip-so400m-patch14-384 \
@@ -198,7 +198,7 @@ torchrun --nproc_per_node=8 \
          --mm_patch_merge_type spatial_unpad \
          --bf16 True \
          --run_name dev_7b_4f_llavavideo_test_haozhe \
-         --output_dir experiments/dev_7b_4f_llavavideo_test_haozhe\
+         --output_dir experiments/dev_7b_4f_llavavideo_test_haozhe \
          --num_train_epochs 1 \
          --per_device_train_batch_size 1 \
          --per_device_eval_batch_size 1 \
@@ -222,11 +222,11 @@ torchrun --nproc_per_node=8 \
          --torch_compile_backend inductor \
          --dataloader_drop_last True \
          --frames_upbound 4 \
-         --root /media/data/haozhe/VFM/onevision/llava_video/EK100 \
-         --action_predictions /media/data/haozhe/VFM/EK100/EK100_in_LLAVA/TIM/tim_pred_ids_val.json \
-         --val_metadata  /media/data/haozhe/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \
+         --root /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video/EK100 \
+         --action_predictions /iopsstor/scratch/cscs/hqi/VFM/llava_data/TIM_PREDS/tim_pred_ids_val.json \
+         --val_metadata /iopsstor/scratch/cscs/hqi/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \
          --add_time_instruction False \
          --llava_num_frames 4 \
          --clip_length 4 \
          --action_representation official_key \
-         --topk_predictions 5 > dev_7b_4f_llavavideo_test_haozhe.out 2>&1
+         --topk_predictions 5 #> dev_7b_4f_llavavideo_test_haozhe.out 2>&1

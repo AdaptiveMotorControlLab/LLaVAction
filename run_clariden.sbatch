@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name multinode
-#SBATCH --account a03
-#SBATCH --reservation=sai-a03
+#SBATCH -A a-a03
 #SBATCH --hint nomultithread    
 #SBATCH --cpus-per-task 288
 #SBATCH --mem=460000
@@ -9,9 +8,9 @@
 #SBATCH --nodes 16                   # number of Nodes
 #SBATCH --ntasks-per-node 1         # number of MP tasks. IMPORTANT: torchrun represents just 1 Slurm task
 #SBATCH --gres gpu:4                # Number of GPUs
-#SBATCH --time 05:00:00             # maximum execution time (DD-HH:MM:SS). Mandatory field in MN5
-#SBATCH --output logs/R-%x.%j_train_llavavideo_kitchen_7b_avion_mc_32f_top10_5epochs.out
-#SBATCH --error logs/R-%x.%j_train_llavavideo_kitchen_7b_avion_mc_32f_top10_5epochs.err
+#SBATCH --time 23:00:00             # maximum execution time (DD-HH:MM:SS). Mandatory field in MN5
+#SBATCH --output logs/R-%x.%j-dev_7b_64f_EK100_haozhe.out
+#SBATCH --error logs/R-%x.%j-dev_7b_64f_EK100_haozhe.err
 
 mkdir -p logs
 
@@ -57,10 +56,10 @@ LAUNCHER="torchrun \
 PYTHON_FILE=llava/train/train_mem.py
 PYTHON_ARGS=" \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path pretrained_models/LLaVA-Video-7B-Qwen2 \
+    --model_name_or_path lmms-lab/LLaVA-Video-7B-Qwen2 \
     --version qwen_1_5 \
-    --data_path scripts/train/EK100_avion_mc_top10.yaml \
-    --video_folder /capstor/scratch/cscs/hqi/llava/onevision/llava_video \
+    --data_path scripts/train/llava_video.yaml \
+    --video_folder /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video \
     --mm_tunable_parts mm_vision_tower,mm_mlp_adapter,mm_language_model \
     --mm_vision_tower_lr 2e-6 \
     --vision_tower google/siglip-so400m-patch14-384 \
@@ -73,16 +72,21 @@ PYTHON_ARGS=" \
     --image_grid_pinpoints \"(1x1),...,(6x6)\" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name todi_llava_video_7b_avion_mc_top10_5epochs \
-    --output_dir experiments/todi_llava_video_7b_avion_mc_top10_5epochs \
-    --num_train_epochs 5 \
-    --per_device_train_batch_size 2 \
+    --run_name dev_7b_64f_EK100_haozhe \
+    --output_dir experiments/dev_7b_64f_EK100_haozhe \
+    --num_train_epochs 1 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 2 \
+<<<<<<< HEAD:run_todi.sbatch
     --evaluation_strategy steps \
     --eval_steps 200000\
+=======
+    --evaluation_strategy epoch \
+    --eval_steps 1 \
+>>>>>>> origin/haozhedev:run_clariden.sbatch
     --save_strategy steps \
-    --save_steps 1000 \
+    --save_steps 2000 \
     --learning_rate 1e-5 \
     --weight_decay 0. \
     --warmup_ratio 0.03 \
@@ -97,13 +101,18 @@ PYTHON_ARGS=" \
     --torch_compile True \
     --torch_compile_backend inductor \
     --dataloader_drop_last True \
-    --frames_upbound 32 \
-    --root /capstor/scratch/cscs/hqi/llava/onevision/llava_video/EK100 \
-    --action_predictions /capstor/scratch/cscs/hqi/llava/EK100/avion_predictions_test.json \
-    --val_metadata /capstor/scratch/cscs/hqi/llava/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \
-    --llava_num_frames 32 \
-    --clip_length 32 \
-    --topk_predictions 10 \
+    --frames_upbound 64 \
+    --mm_newline_position grid \
+    --add_time_instruction True \
+    --force_sample True \
+    --mm_spatial_pool_stride 2 \
+    --root /iopsstor/scratch/cscs/hqi/VFM/onevision/llava_video/EK100 \
+    --action_predictions /iopsstor/scratch/cscs/hqi/VFM/llava_data/TIM_PREDS/tim_pred_ids_val.json \
+    --val_metadata /iopsstor/scratch/cscs/hqi/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \
+    --llava_num_frames 64 \
+    --clip_length 64 \
+    --action_representation official_key \
+    --topk_predictions 5 \
     "
 
 export CMD="$LAUNCHER $PYTHON_FILE $PYTHON_ARGS"
@@ -132,7 +141,11 @@ SRUN_ARGS=" \
 
 # bash -c is needed for the delayed interpolation of env vars to work
 srun $SRUN_ARGS numactl --membind=0-3 bash -c "
+<<<<<<< HEAD:run_todi.sbatch
     source /capstor/scratch/cscs/hqi/llava/llava_dependency/llava-venv/bin/activate
+=======
+    source /iopsstor/scratch/cscs/hqi/VFM/llava_dependency/llava-venv/bin/activate
+>>>>>>> origin/haozhedev:run_clariden.sbatch
     $CMD"
 
 echo "END TIME: $(date)"
