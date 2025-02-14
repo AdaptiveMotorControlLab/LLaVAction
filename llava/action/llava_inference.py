@@ -22,7 +22,8 @@ def llava_inference(
     time_meta = None,
     learn_neighbor_actions = "",
     meta_data = None,
-    perspective = "first_person"
+    perspective = "first_person",
+    include_time_instruction = False
     ):
 
         model.eval()              
@@ -39,8 +40,7 @@ def llava_inference(
         video_duration = time_meta['duration']
         n_frames = time_meta['n_frames']
         
-        frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].cuda().to(torch.bfloat16)
-
+        frames = image_processor.preprocess(video_frames, return_tensors="pt")["pixel_values"].cuda().to(torch.bfloat16)        
         image_tensors.append(frames)
 
         conv_template = "qwen_1_5"
@@ -79,7 +79,7 @@ def llava_inference(
                                         include_frame_time = False,
                                         learn_neighbor_actions = learn_neighbor_actions,
                                         perspective = perspective,
-                                        include_time_instruction= False)
+                                        include_time_instruction= include_time_instruction)
 
             question = f"You observed the video before and wrote down the notes: {caption_answer}. Now you watch the same video again and you can do better. " +  question                             
             
@@ -91,7 +91,7 @@ def llava_inference(
                                         question_type,
                                         include_frame_time = False,
                                         learn_neighbor_actions = learn_neighbor_actions,
-                                        include_time_instruction= False,
+                                        include_time_instruction= include_time_instruction,
                                         perspective = perspective,
                                         meta_data=meta_data)
 

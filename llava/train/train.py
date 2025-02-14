@@ -205,6 +205,7 @@ class EK100EvalArguments:
     perspective: str = "first_person"
     pseudo_folder: str = ""
     benchmark_testing: bool = False
+    include_time_instruction: bool = False
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero
@@ -1601,7 +1602,7 @@ def train(attn_implementation=None):
 
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, EK100EvalArguments))
     model_args, data_args, training_args, eval_args = parser.parse_args_into_dataclasses()
-
+    eval_args.include_time_instruction = data_args.add_time_instruction
     if training_args.verbose_logging:
         rank0_print(f"Inspecting experiment hyperparameters:\n")
         rank0_print(f"model_args = {vars(model_args)}\n\n")

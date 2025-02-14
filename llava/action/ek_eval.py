@@ -171,7 +171,8 @@ def ensemble_llava_evaluation(
                               learn_neighbor_actions = "",                             
                               time_meta = None,
                               meta_data = None,
-                              perspective = "first_person"
+                              perspective = "first_person",
+                              include_time_instruction = False
                               ):
     """
     This function tests how consistent the model is if we shuffle the position of the answers
@@ -210,7 +211,8 @@ def ensemble_llava_evaluation(
                             time_meta = time_meta,
                             learn_neighbor_actions = learn_neighbor_actions,
                             meta_data = meta_data,
-                            perspective = perspective
+                            perspective = perspective,
+                            include_time_instruction = include_time_instruction
                             )
         # remove the trailing comma if there is one
         pred = pred.rstrip(',')
@@ -395,7 +397,8 @@ def evaluate_on_EK100(eval_args,
                                                         learn_neighbor_actions = eval_args.learn_neighbor_actions,                                                    
                                                         time_meta = time_meta,
                                                         meta_data = meta_data,
-                                                        perspective = eval_args.perspective
+                                                        perspective = eval_args.perspective,
+                                                        include_time_instruction = eval_args.include_time_instruction
                                                         )
                                                         
                                                         
