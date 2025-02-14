@@ -130,6 +130,7 @@ def get_args_parser():
     parser.add_argument('--output_dir', default = None, type = str)
     parser.add_argument("--perspective", default = "first_person", type = str)
     parser.add_argument('--benchmark_testing', action='store_true', default = False)
+    parser.add_argument('--include_time_instruction', action='store_true', default = False)
     return parser
 
 def prepare_llava(pretrained):
