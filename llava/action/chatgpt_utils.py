@@ -483,7 +483,6 @@ class GPTInferenceAnnotator(ChatGPT):
         if combined_results and 'mc_' in self.question_type:
             calculation = calculate_gpt_accuracy(data = combined_results)
 
-        assert n_samples != -1
         checkpoint_name = f"{self.gpt_model}_{self.gen_type}_{self.action_representation}_top{self.topk}_{self.clip_length}f_{n_samples}samples.json"
 
         if self.do_visualization:
