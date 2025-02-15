@@ -346,7 +346,7 @@ def evaluate_on_EK100(eval_args,
         from llava.action.generate_interval_pred import  get_lookup_dict
         if eval_args.test_type.startswith('temporal_cot'):
             lookup_table = get_lookup_dict(eval_args.val_metadata, 
-                                           eval_args.action_representation,
+                                           'GT_random_narration',
                                            test_type = eval_args.test_type, 
                                            pseudo_folder = eval_args.pseudo_folder)
 

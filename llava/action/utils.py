@@ -268,12 +268,8 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
             suffix = "Here are the options of actions you are selecting:\n" + suffix 
             ret = prefix + suffix
     
-    elif question_type == "direct_narration":
-
-        if learn_neighbor_actions == "prior" and meta_data and random.random() < 0.1:
-            ret = f"{perspective_prefix} {prev2_offset} seconds ago, you started an action {prev2_narration}. {prev1_offset} seconds ago, you started an action {prev1_narration}. What action are you currently performing? Give a short sentence such as 'move knife'. "            
-        else:            
-            ret = f"{perspective_prefix} What action are you performing? Give a short sentence such as 'move knife'."
+    elif question_type == "direct_narration":                  
+        ret = f"{perspective_prefix} What action are you performing? Give a short sentence such as 'move knife'."
             
     elif question_type == "temporal_detection":
         ret = question
