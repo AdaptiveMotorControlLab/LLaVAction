@@ -17,8 +17,6 @@ tim_prediction_file = '/data/shaokai/TIM_PREDS/tim_pred_ids_val.json'
 n_frames = 16
 topk = 5
 action_representation = 'GT_random_narration'
-gpt_model = 'gpt-4o-mini-2024-07-18'
-#gpt_model = 'gpt-4o-2024-08-06'
 perspective = 'first_person'
 benchmark_testing = True
 
@@ -71,6 +69,10 @@ def benchmark_random_mcq(n_samples, gpt_model):
     
     
 if __name__ == '__main__':
-    benchmark_avion_mcq(-1)
-    benchmark_tim_mcq(-1)
-    benchmark_random_mcq(-1)
+    benchmark_avion_mcq(-1, 'gpt-4o-mini-2024-07-18')
+    benchmark_tim_mcq(-1, 'gpt-4o-mini-2024-07-18')
+    benchmark_random_mcq(-1, 'gpt-4o-mini-2024-07-18')
+    benchmark_avion_mcq(-1, 'gpt-4o-2024-08-06')
+    benchmark_tim_mcq(-1, 'gpt-4o-2024-08-06')
+    benchmark_random_mcq(-1, 'gpt-4o-2024-08-06')    
+    

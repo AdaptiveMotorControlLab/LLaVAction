@@ -462,6 +462,8 @@ class GPTInferenceAnnotator(ChatGPT):
 
         if n_samples != -1:
             indices = list(range(len(self.data)))[offset:offset + n_samples]
+        else:
+            indices = list(range(len(self.data)))
         num_chunks = os.cpu_count() if not self.debug else 2
 
         indices_groups = self.split_indices(indices, num_chunks)
