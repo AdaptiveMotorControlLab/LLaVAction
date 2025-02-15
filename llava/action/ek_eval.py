@@ -130,6 +130,7 @@ def get_args_parser():
     parser.add_argument('--output_dir', default = None, type = str)
     parser.add_argument("--perspective", default = "first_person", type = str)
     parser.add_argument('--benchmark_testing', action='store_true', default = False)
+    parser.add_argument('--include_time_instruction', action='store_true', default = False)
     return parser
 
 def prepare_llava(pretrained):
@@ -345,7 +346,7 @@ def evaluate_on_EK100(eval_args,
         from llava.action.generate_interval_pred import  get_lookup_dict
         if eval_args.test_type.startswith('temporal_cot'):
             lookup_table = get_lookup_dict(eval_args.val_metadata, 
-                                           eval_args.action_representation,
+                                           'GT_random_narration',
                                            test_type = eval_args.test_type, 
                                            pseudo_folder = eval_args.pseudo_folder)
 
