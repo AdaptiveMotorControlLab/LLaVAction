@@ -462,6 +462,8 @@ class GPTInferenceAnnotator(ChatGPT):
 
         if n_samples != -1:
             indices = list(range(len(self.data)))[offset:offset + n_samples]
+        else:
+            indices = list(range(len(self.data)))
         num_chunks = os.cpu_count() if not self.debug else 2
 
         indices_groups = self.split_indices(indices, num_chunks)
@@ -481,9 +483,7 @@ class GPTInferenceAnnotator(ChatGPT):
         if combined_results and 'mc_' in self.question_type:
             calculation = calculate_gpt_accuracy(data = combined_results)
 
-        prefix = self.gen_type
-        assert n_samples != -1
-        checkpoint_name = f"{prefix}_{self.action_representation}_top{self.topk}_{self.clip_length}f_{n_samples}samples.json"
+        checkpoint_name = f"{self.gpt_model}_{self.gen_type}_{self.action_representation}_top{self.topk}_{self.clip_length}f_{n_samples}samples.json"
 
         if self.do_visualization:
             self.checkpoint(combined_results, os.path.join(self.vis_folder, checkpoint_name))
