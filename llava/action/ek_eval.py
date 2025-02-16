@@ -131,6 +131,7 @@ def get_args_parser():
     parser.add_argument("--perspective", default = "first_person", type = str)
     parser.add_argument('--benchmark_testing', action='store_true', default = False)
     parser.add_argument('--include_time_instruction', action='store_true', default = False)
+    parser.add_argument('--gen_type', type = str, default = 'action_model') # action_model, random
     return parser
 
 def prepare_llava(pretrained):
@@ -191,7 +192,7 @@ def ensemble_llava_evaluation(
     # shuffle the options
     options = mc_data['options'][0]
     letters = mc_data['valid_letters']
-    avion_pred = mc_data['avion_pred']
+    avion_pred = mc_data.get('avion_pred', None)
     # each option was in the format of {letter}. {answer}
     preds = []
     for _ in range(ensemble_k):
@@ -283,6 +284,7 @@ def evaluate_on_EK100(eval_args,
                 mapping_vn2narration = mapping_vn2narration,
                 avion_predictions = predictions if eval_args.action_predictions else None,
                 n_narrations = eval_args.n_narrations,
+                gen_type = eval_args.gen_type
             )
 
     def collate_fn(batch):
@@ -371,7 +373,7 @@ def evaluate_on_EK100(eval_args,
             local_running_corrects = torch.tensor(0.0, device=device)
             local_total_samples = torch.tensor(0.0, device=device)            
                 
-            if eval_args.action_predictions:
+            if eval_args.action_predictions and eval_args.gen_type == 'action_model':
                 avion_pred = mc_data['avion_pred']
                 if gt_name == avion_pred:               
                     local_avion_correct.add_(1)
@@ -420,7 +422,7 @@ def evaluate_on_EK100(eval_args,
             val_dataset.prediction_analysis.log(global_index,
                                                 llava_pred,
                                                 gt_name,
-                                                mc_data['all_avion_preds'],
+                                                mc_data.get('all_avion_preds', None),
                                                 time_meta['start_second'],
                                                 time_meta['end_second'],
                                                 time_meta['vid_path'],

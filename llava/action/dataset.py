@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 import decord
 from pathlib import Path
-from llava.action.utils import  AvionMultiChoiceGenerator,  avion_video_loader, EK100_frame_loader
+from llava.action.utils import  AvionMultiChoiceGenerator,  RandomMultiChoiceGenerator, avion_video_loader, EK100_frame_loader
 from llava.action.prediction_analysis import PredictionAnalysis
 import torch.distributed as dist
 
@@ -147,6 +147,7 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         verb_maps = None,
         noun_maps = None,
         eval_result_folder = None,
+        gen_type = 'action_model',
         action_representation = 'GT_random_narration_cut',
         mapping_vn2narration = None,
         avion_predictions = None,
@@ -175,13 +176,18 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
         self.labels = labels
         self.topk_predictions = topk_predictions
         self.ann_root = Path(metadata).parent
-        self.mc_generator = AvionMultiChoiceGenerator(self.ann_root)
+        self.gen_type = gen_type
+        if gen_type == 'action_model':
+            self.mc_generator = AvionMultiChoiceGenerator(self.ann_root)
+        elif gen_type == 'random':
+            self.mc_generator = RandomMultiChoiceGenerator(self.ann_root)
         self.rank = dist.get_rank()
         self.prediction_analysis = PredictionAnalysis(rank = self.rank, save_folder = eval_result_folder)
         self.action_representation = action_representation
         self.n_narrations = n_narrations
         self.mapping_vn2narration = mapping_vn2narration
         self.avion_predictions = avion_predictions
+        
         
     def __getitem__(self, i):
         frames, label, time_meta = self.get_raw_item(
@@ -205,19 +211,31 @@ class VideoMultiChoiceDataset(VideoCaptionDatasetBase):
             frames = self.transform(frames)
         narration = self.samples[i][4]
         avion_preds = self.avion_predictions[str(i)]['predictions']
-
-        data = self.mc_generator.generate_multi_choice(label, 
-                                                        avion_preds,                                                       
-                                                        narration,
-                                                        self.topk_predictions, 
-                                                        self.action_representation,
-                                                        self.n_narrations,
-                                                        self.labels,
-                                                        self.mapping_vn2narration,                                                        
-                                                        self.verb_maps, 
-                                                        self.noun_maps,
-                                                        benchmark_testing = self.eval_args.benchmark_testing,
-                                                        is_train = False) # note we only use this dataset for evaluation for now.
-
+        if self.gen_type =='action_model':
+            data = self.mc_generator.generate_multi_choice(label, 
+                                                            avion_preds,                                                       
+                                                            narration,
+                                                            self.topk_predictions, 
+                                                            self.action_representation,
+                                                            self.n_narrations,
+                                                            self.labels,
+                                                            self.mapping_vn2narration,                                                        
+                                                            self.verb_maps, 
+                                                            self.noun_maps,
+                                                            benchmark_testing = self.eval_args.benchmark_testing,
+                                                            is_train = False) # note we only use this dataset for evaluation for now.
+        else:
+            data = self.mc_generator.generate_multi_choice(label, 
+                                                            narration,
+                                                            self.topk_predictions, 
+                                                            self.action_representation,
+                                                            self.n_narrations,
+                                                            self.labels,
+                                                            self.mapping_vn2narration,                                                        
+                                                            self.verb_maps, 
+                                                            self.noun_maps,
+                                                            benchmark_testing = self.eval_args.benchmark_testing,
+                                                            is_train = False) # no
+            
        
         return frames, data, time_meta, i

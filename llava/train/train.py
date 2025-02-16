@@ -206,6 +206,7 @@ class EK100EvalArguments:
     pseudo_folder: str = ""
     benchmark_testing: bool = False
     include_time_instruction: bool = False
+    gen_type: str = 'action_model'
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero

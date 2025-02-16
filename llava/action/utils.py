@@ -425,7 +425,6 @@ class RandomMultiChoiceGenerator(MultiChoiceGenerator):
         randomly pick k-1 letters from vn_list
 
         """        
-        
         if is_train:
             return self.train_generate(gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps)
         else:
@@ -547,14 +546,13 @@ class AvionMultiChoiceGenerator(MultiChoiceGenerator):
         answer_ids = action_model_predictions[:k]
         
         if benchmark_testing:
-            print ("am i here")
             # if we are testing on benchmark, we need to ensure that the gt_vn is in the top k predictions
             # if not, we remove the last prediction and add the gt_vn
             if gt_vn not in answer_ids:
                 answer_ids.pop()
                 answer_ids.append(gt_vn)
         else:
-           print ("am i not here")
+           pass
                       
         answers = []
         for answer_id in answer_ids:
