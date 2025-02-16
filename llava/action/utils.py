@@ -19,6 +19,9 @@ from collections import defaultdict
 import json
 from llava.utils import rank0_print
 
+# set random seed
+random.seed(42)
+
 def remove_sub_nouns(nlp, narration, verb, nouns):
     narration = copy.deepcopy(narration)
     noun_list = ast.literal_eval(nouns)
@@ -431,7 +434,9 @@ class RandomMultiChoiceGenerator(MultiChoiceGenerator):
     def train_generate(self, gt_vn, narration, k, action_representation, n_narrations, labels, mapping_vn2narration, verb_maps, noun_maps, benchmark_testing = False):
         # letters as A, B, C, D, .. Note we maximally support 26 letters
         letters = [chr(65+i) for i in range(26)][:k]                
-        answer_list = [vn for vn in mapping_vn2narration.keys()]                
+        answer_list = [vn for vn in mapping_vn2narration.keys()]     
+        
+                   
         wrong_answers = np.random.choice(answer_list, size = k-1, replace = False)        
         answer_ids = [gt_vn] + list(wrong_answers)
         random.shuffle(answer_ids)

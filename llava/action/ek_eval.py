@@ -143,9 +143,11 @@ def prepare_llava(pretrained):
     device_map = "auto"
 
     overwrite_config = None
-    if 'video' in pretrained or 'Video' in pretrained or '7b' in pretrained:
-        overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
-
+    if 'ov' not in pretrained:
+        if 'video' in pretrained or 'Video' in pretrained or '7b' in pretrained:
+            overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
+    else:
+        pass
 
     tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, 
                                                                           None, 
