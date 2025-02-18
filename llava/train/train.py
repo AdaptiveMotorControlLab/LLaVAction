@@ -1290,8 +1290,10 @@ class LazySupervisedDataset(Dataset):
                     start_timestamp = round(float(self.list_data_dict[i]['start_timestamp']), 2)
                     end_timestamp = round(float(self.list_data_dict[i]['end_timestamp']), 2)
                     uid = f"{vid}_{start_timestamp}_{end_timestamp}"
-                    if True:
+                    if 'narration' in self.eval_args.action_representation:
                         meta_data = self.train_triple_lookup_narration.get(uid, None)
+                    elif 'official_key' in self.eval_args.action_representation:
+                        meta_data = self.train_triple_lookup_official.get(uid, None)
                     # if 'official_key' in sources[0]['question_type']:
                     #     meta_data = self.train_triple_lookup_official.get(uid, None)
                     # elif 'GT_random_narration' in sources[0]['question_type']:
