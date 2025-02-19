@@ -25,6 +25,7 @@ root = '/data/shaokai/EK100_512/EK100'
 annotation_file = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'
 avion_prediction_file = '/data/shaokai/AVION_PREDS/avion_pred_ids_val.json'
 tim_prediction_file = '/data/shaokai/TIM_PREDS/tim_pred_ids_val.json'
+val_metadata = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv' 
 
 n_frames = 32
 topk = 5
@@ -164,7 +165,7 @@ def save_visualization(vis_folder, frames, uid):
 
 def visualize_with_uid(uid, out_folder):
     from llava.action.utils import avion_video_loader
-    val_metadata = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'                
+                   
     vid_path = '_'.join(uid.split('_')[:2]).replace('-', '/')
     start_timestamp, end_timestamp = uid.split('_')[2:]
     start_timestamp = float(start_timestamp)
