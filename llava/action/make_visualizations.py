@@ -162,7 +162,7 @@ def save_visualization(vis_folder, frames, uid):
         video_out.write(bgr_frame)
     video_out.release()
 
-def visualize_with_uid(uid):
+def visualize_with_uid(uid, out_folder):
     from llava.action.utils import avion_video_loader
     val_metadata = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'                
     vid_path = '_'.join(uid.split('_')[:2]).replace('-', '/')
@@ -183,8 +183,8 @@ def visualize_with_uid(uid):
                                             fast_rcc = False,
                                             jitter = False)
     
-    vis_folder = f"figure1_vis"                       
-    save_visualization(vis_folder, frames, uid)       
+
+    save_visualization(out_folder, frames, uid)       
     
 def visualize_with_llava(pretrained_path, uid, question_type, gen_type):
     """    
@@ -251,6 +251,7 @@ if __name__ == '__main__':
     # llava_pretrained_path = 'experiments/LLaVA-Video-7B-Qwen2'
     # uid = 'P01-P01_11_182.65_192.07'
     # visualize_with_llava(llava_pretrained_path, uid, 'caption', 'tim')
-    visualize_with_uid("P28-P28_16_73.84_74.66")
-    visualize_with_uid("P28-P28_15_50.66_51.69")
-    visualize_with_uid("P26-P26_41_113.0_114.1")
+    # visualize_with_uid("P28-P28_16_73.84_74.66")
+    # visualize_with_uid("P28-P28_15_50.66_51.69")
+    # visualize_with_uid("P26-P26_41_113.0_114.1")
+    visualize_with_uid("P28-P28_26_45.97_46.97", "key_confusing_examples")    

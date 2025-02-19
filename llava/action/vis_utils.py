@@ -99,7 +99,7 @@ def get_uid_options_map_from_prediction_folder(uid, prediction_folder):
         options = value["avion_preds"]
         ret[uid] = options   
     return ret
-def get_uid_official_map(uid, ann_file):
+def get_uid_official_map(ann_file):
     csv_reader = csv.reader(open(ann_file, 'r'))
     _ = next(csv_reader)
     anno_root = Path(ann_file).parent
@@ -123,6 +123,32 @@ def get_uid_official_map(uid, ann_file):
         official_key = verb_maps[str(verb)] + ' ' + noun_maps[str(noun)]
         ret[uid] = official_key
     return ret
+
+def get_uid_narration_map(ann_file):
+    csv_reader = csv.reader(open(ann_file, 'r'))
+    _ = next(csv_reader)
+    anno_root = Path(ann_file).parent
+    labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps = generate_label_map(anno_root,
+                                                                                            'official_key')    
+    ret = {}
+    for idx, row in enumerate(csv_reader):
+        pid, vid = row[1:3]
+        
+        start_second, end_second = datetime2sec(row[4]), datetime2sec(row[5])
+        start_second = round(float(start_second),2)
+        end_second = round(float(end_second),2)
+        vid_path = '{}/{}'.format(pid, vid)
+        left = vid_path.split('/')[0]
+        right = vid_path.split('/')[1]
+        uid = f'{left}-{right}_{start_second}_{end_second}'
+                  
+        verb, noun = int(row[10]), int(row[12])
+        gt_vn = '{}:{}'.format(verb, noun) 
+        narration = row[8]
+        official_key = verb_maps[str(verb)] + ' ' + noun_maps[str(noun)]
+        ret[uid] = narration
+    return ret
+
 
 
 def get_narration_by_uid(uid, ann_file):
@@ -177,7 +203,17 @@ def get_uid_official_map(uid, ann_file):
         official_key = verb_maps[str(verb)] + ' ' + noun_maps[str(noun)]
         ret[uid] = official_key
     return ret   
+
+
+
  
+def compare_caption_generation(chatgpt_file, llava_file):
+    "Do we have llava file for this yet?"
+    pass 
+ 
+def compare_open_ended_question_answering(chatgpt_file, llava_file):
+    "Do we have llava file for this yet?"
+    pass
 
 def search_llavaction_win(tim_chatgpt_file, 
                     random_chatgpt_file, 
@@ -202,18 +238,7 @@ def search_llavaction_win(tim_chatgpt_file,
         if llavaction_pred[uid]['pred'] == llavaction_pred[uid]['gt'] and \
             tim_chatgpt_pred[uid]['pred'] != tim_chatgpt_pred[uid]['gt'] and \
             llava_pred[uid]['pred'] != llava_pred[uid]['gt']:            
-
-            # print ('uid', uid)
-            # print ('gt', tim_chatgpt_pred[uid]['gt'])
-            # print ('tim_chatgpt_pred', tim_chatgpt_pred[uid]['pred'])
-            # print ('llava_pred', llava_pred[uid]['pred'])
-            # print ('llavaction_pred', llavaction_pred[uid]['pred'])
-            # print ('options', tim_chatgpt_options)
-            # print ('llava_options', llava_options)
-            # print ('llavaction_options', llavaction_options)
-            # print ('random_chatgpt_options', random_chatgpt_options)
-            # print ('----')
-            # get all these printed items in the results dictionary
+        
             results[uid] = {'gt': tim_chatgpt_pred[uid]['gt'],
                             'tim_chatgpt_pred': tim_chatgpt_pred[uid]['pred'],
                             'llava_pred': llava_pred[uid]['pred'],
@@ -226,33 +251,50 @@ def search_llavaction_win(tim_chatgpt_file,
         with open('llavaction_win.json', 'w') as f:
             json.dump(results, f, indent = 4)
 
-def get_wrong_prediction_uids(prediction_folder):
+def get_wrong_prediction_uids(prediction_folder, ann_file):
     """
     look for where llava makes mistakes
     """
     files = glob.glob(os.path.join(prediction_folder, '*.json'))
-
+    uid_narration_map = get_uid_narration_map(ann_file)
+    
     data = {}
     for file in files:
         with open(file, 'r') as f:
             data.update(json.load(f))
     sorted_keys = sorted(data.keys(), key = lambda k: int(k))
+    results = {}
     for key in sorted_keys:
         value = data[key]
         start_second = value['start_second']
         end_second = value['end_second']
         vid_path = value['vid_path']
         gt_name = value['gt_name']
+        official_key = value['gt_name']
         left = vid_path.split('/')[0]
         right = vid_path.split('/')[1]
         uid = f'{left}-{right}_{start_second}_{end_second}'
+        narration = uid_narration_map[uid]
+       
+        if value['gt_name'] not in value['avion_preds']:
+            continue
+        
         if value['llava_pred'] != value['gt_name']:
             print ('uid', uid)
             print ('llava_pred', value['llava_pred'])
-            print ('gt', gt_name)
+            print ('official key gt', gt_name)
+            print ('gt narration', narration)
             print ('options', value['avion_preds'])
-            
-        
+            # put everything i printed in a dictionary
+            results[uid] = {'llava_pred': value['llava_pred'],
+                            'gt': gt_name,
+                            'narration': narration,
+                            'official_key': official_key,
+                            'options': value['avion_preds']}
+       
+        # write results to a file
+    with open('llava_gets_confused_by_key.json', 'w') as f:
+        json.dump(results, f, indent = 4)
 
 def walk_through(ann_file):
     csv_reader = csv.reader(open(ann_file, 'r'))
@@ -283,20 +325,20 @@ def walk_through(ann_file):
         print ('narration', narration)
         print ('----')
         count+=1
-    print ('count', count)
+
         
 if __name__ == '__main__':
     ann_file = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-    prediction_folder = '/data/shaokai/LLaVA-NeXT/tt_dev_7b_16f_top20_full_includes_tim/'
+    prediction_folder = '/data/shaokai/predictions_for_vis/dev_7b_16f_top5_full_includes_tim/'
     #walk_through(ann_file)
-    #get_wrong_prediction_uids(prediction_folder)
+    get_wrong_prediction_uids(prediction_folder, ann_file)
     root = '/data/shaokai/predictions_for_vis/'
     chatgpt_tim_file = os.path.join(root, 'gpt-4o-2024-08-06_tim_GT_random_narration_top5_8f_9668samples.json')
     chatgpt_random_file = os.path.join(root, 'gpt-4o-2024-08-06_random_GT_random_narration_top5_8f_9668samples.json')
     llava_zeroshot_folder = os.path.join(root, 'LLaVA_Video_7B')
     llavaction_folder = os.path.join(root, 'LLaVAction_7B')
-    search_llavaction_win(chatgpt_tim_file, 
-                    chatgpt_random_file, 
-                    llava_zeroshot_folder, 
-                    llavaction_folder)
+    # search_llavaction_win(chatgpt_tim_file, 
+    #                 chatgpt_random_file, 
+    #                 llava_zeroshot_folder, 
+    #                 llavaction_folder)
                                 
