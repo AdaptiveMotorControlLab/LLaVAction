@@ -291,6 +291,9 @@ def format_task_related_prompt(question, question_type, meta_data = None, perspe
     elif question_type == "dpo":
         ret = "You are seeing this video from egocentric view and you are the person. Your hands are sometimes interacting with obects. Describe in details what you see and what you are doing."
 
+    elif question_type == "open-ended":
+        ret = f"You are seeing this video from egocentric view and you are the person. {question}"
+
     elif question_type == "gpt-gt-instruct-reason":
         ret = question
     elif question_type == "gpt-hand-object":

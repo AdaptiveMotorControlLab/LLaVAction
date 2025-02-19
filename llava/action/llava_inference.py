@@ -14,7 +14,7 @@ def llava_inference(
     tokenizer, 
     model, 
     image_processor, 
-    mc_data,
+    input,
     clip_length = 16,
     num_frames = 16,
     temperature = 0,
@@ -44,27 +44,21 @@ def llava_inference(
         image_tensors.append(frames)
 
         conv_template = "qwen_1_5"
-
-        options = mc_data['options'][0]
+        original_input = input
+        if isinstance(input, dict):
+            input = input['options'][0] if input else None      
+                                    
         if test_type == 'base':
             question_type = "mc_top5_official_key"
-        elif test_type == "direct_narration":
-            question_type = "direct_narration"
-        elif test_type == 'caption' or test_type == 'debug':
-            question_type = "caption"
-        elif test_type == 'temporal_cot_pseudo':
-            question_type = 'temporal_cot_pseudo'
-        elif test_type == 'temporal_cot_oracle':
-            question_type = 'temporal_cot_oracle'            
-        elif test_type == 'temporal_cot_caption':
-            question_type = 'temporal_cot_caption'
+        else:
+            question_type = test_type
                     
         if  test_type == 'caption_then_answer':        
             caption_answer = llava_inference([video_frames], 
             tokenizer, 
             model,  
             image_processor, 
-            mc_data,
+            original_input,
             test_type = 'caption',
             clip_length = clip_length,
             num_frames = num_frames,
@@ -72,7 +66,7 @@ def llava_inference(
             time_meta = time_meta)
 
             question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
-                                        options,
+                                        input,
                                         video_duration,                                  
                                         n_frames,
                                         "mc_top5_official_key",
@@ -85,7 +79,7 @@ def llava_inference(
             
         else:                        
             question = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
-                                        options,
+                                        input,
                                         video_duration,                                  
                                         n_frames,
                                         question_type,
@@ -102,7 +96,8 @@ def llava_inference(
         conv.append_message(conv.roles[0], question)
         conv.append_message(conv.roles[1], None)
         prompt_question = conv.get_prompt()
-
+        print ("what is the question?", question)
+               
 
         input_ids = tokenizer_image_token(prompt_question, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt").unsqueeze(0).to(device)
         image_sizes = [frame.size for frame in video_frames]
