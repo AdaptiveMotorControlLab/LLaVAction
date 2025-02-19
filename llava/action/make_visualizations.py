@@ -150,9 +150,41 @@ def save_visualization(vis_folder, frames, uid):
     out_dir = Path(vis_folder)
     out_dir.mkdir(parents=True, exist_ok=True)        
     sub_folder = out_dir / uid
+    fps = 30
+    height, width = frames[0].shape[:2]
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video_path = str(sub_folder / f"{uid}.mp4")
+    video_out = cv2.VideoWriter(video_path, fourcc, fps, (width, height))
     sub_folder.mkdir(parents=True, exist_ok=True)
     for idx, frame in enumerate(frames):            
         cv2.imwrite(str(sub_folder / f"{uid}_{idx}.jpg"), cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))    
+        bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        video_out.write(bgr_frame)
+    video_out.release()
+
+def visualize_with_uid(uid):
+    from llava.action.utils import avion_video_loader
+    val_metadata = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'                
+    vid_path = '_'.join(uid.split('_')[:2]).replace('-', '/')
+    start_timestamp, end_timestamp = uid.split('_')[2:]
+    start_timestamp = float(start_timestamp)
+    end_timestamp = float(end_timestamp)
+    print (vid_path, start_timestamp, end_timestamp)
+    # split uid to video path and start, end second
+    frames, time_meta = avion_video_loader(root,
+                                           vid_path,
+                                           'MP4',
+                                            start_timestamp,
+                                            end_timestamp,
+                                            chunk_len = 15,
+                                            clip_length = n_frames,
+                                            threads = 1,
+                                            fast_rrc=False,
+                                            fast_rcc = False,
+                                            jitter = False)
+    
+    vis_folder = f"figure1_vis"                       
+    save_visualization(vis_folder, frames, uid)       
     
 def visualize_with_llava(pretrained_path, uid, question_type, gen_type):
     """    
@@ -216,7 +248,9 @@ if __name__ == '__main__':
     
     #visualize_with_gpt_with_avion(10, offset = 100, question_type = "caption")
     #llava_pretrained_path = 'lmms-lab/LLaVA-Video-7B-Qwen2'
-    llava_pretrained_path = 'experiments/LLaVA-Video-7B-Qwen2'
-    uid = 'P01-P01_11_182.65_192.07'
-    visualize_with_llava(llava_pretrained_path, uid, 'caption', 'tim')
-    
+    # llava_pretrained_path = 'experiments/LLaVA-Video-7B-Qwen2'
+    # uid = 'P01-P01_11_182.65_192.07'
+    # visualize_with_llava(llava_pretrained_path, uid, 'caption', 'tim')
+    visualize_with_uid("P28-P28_16_73.84_74.66")
+    visualize_with_uid("P28-P28_15_50.66_51.69")
+    visualize_with_uid("P26-P26_41_113.0_114.1")

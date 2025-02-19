@@ -192,7 +192,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     verb_logits = self.verb_head(action_states[:, 0])
                     noun_logits = self.noun_head(action_states[:, 1])
                     action_logits = self.action_head(action_states[:, 2])
-                    
+                     
                     get_visual_tokens = lambda x: x[torch.arange(hidden_states.size(0)).unsqueeze(1), action_idx,:]
                     device = action_states.device
                     
