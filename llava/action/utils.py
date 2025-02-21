@@ -460,9 +460,6 @@ class RandomMultiChoiceGenerator(MultiChoiceGenerator):
 
         gt_letter = letters[answer_ids.index(gt_vn)]
         gt_answer = answers[answer_ids.index(gt_vn)]
-        print ('got here')
-        import sys
-        sys.exit()
         mc_data = {
                 'options': {0: options},
                 # the correct letter in mc

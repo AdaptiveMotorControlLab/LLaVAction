@@ -180,7 +180,10 @@ def get_lookup_dict(ann_file, action_representation, test_type = 'base', delta =
                                 'prev1_start': start_times[i+1],
                                 'prev1_end': end_times[i+1],
                                 'cur_start': start_times[i+2],
-                                'cur_end': end_times[i+2]}
+                                'cur_end': end_times[i+2],
+                                'prev2_uid': uid1,
+                                'prev1_uid': uid2,
+                                'cur_uid': uid3}
     return table
                                 
 
