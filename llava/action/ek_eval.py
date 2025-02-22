@@ -287,6 +287,13 @@ def evaluate_on_EK100(eval_args,
                 gen_type = eval_args.gen_type
             )
 
+    def worker_init_fn(worker_id):
+        # Calculate a seed unique to each worker
+        worker_seed = torch.initial_seed() % 2**32
+        random.seed(worker_seed)
+        np.random.seed(worker_seed)
+        torch.manual_seed(worker_seed)
+
     def collate_fn(batch):
         frames = [item[0] for item in batch]
         mc_data = [item[1] for item in batch]
@@ -309,6 +316,7 @@ def evaluate_on_EK100(eval_args,
                                 sampler = sampler, 
                                 batch_size=1, 
                                 pin_memory = False,
+                                worker_init_fn=worker_init_fn,
                                 shuffle=False)    
         
     # Set up logging
