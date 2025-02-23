@@ -41,16 +41,21 @@ import llava
 from transformers import AutoConfig
 from torch.utils.data import Dataset
 from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
-from llava.train.llava_trainer import LLaVATrainer
+#from llava.train.llava_trainer import LLaVATrainer
+from llava.train.llava_trainer import LLaVADPOTrainer
 from llava import conversation as conversation_lib
 from llava.model import *
 from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token
 from llava.utils import rank0_print,  process_video_with_decord
-from llava.action.utils import avion_video_loader, EK100_frame_loader
+from llava.action.utils import avion_video_loader
 
 from llava.action.utils import format_llava_prompt
+from llava.action.dataset import VideoMultiChoiceDataset
+from trl.trainer.utils import DPODataCollatorWithPadding
+
 from pathlib import Path
 import ast
+from typing import Any
 
 
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -119,10 +124,6 @@ class ModelArguments:
     add_faster_video: Optional[bool] = field(default=False)
     faster_token_stride: Optional[int] = field(default=10)
 
-    vision_supervision: Optional[str] = field(default=None) # could be "one_token", "three_token", "newline", "all_newlines"
-    vision_token_training:  Optional[str] = "last_layer" # could be "first_layer", "last_layer", "normal_distillation", "reverse_distillation"
-    action_types: Optional[str] = field(default=None)
-
 
 
 @dataclass
@@ -144,8 +145,6 @@ class DataArguments:
     force_sample: Optional[bool] = field(default=False)
     train_fused_decode_crop: bool = False
     train_jitter: bool = False
-    
-
 
 
 @dataclass
@@ -180,7 +179,29 @@ class TrainingArguments(transformers.TrainingArguments):
     # attn_implementation: str = field(default='sdpa', metadata={"help": "Use transformers attention implementation."})
     attn_implementation: str = field(default='flash_attention_2', metadata={"help": "Use transformers attention implementation."})
     overwrite_output_dir: bool =True
-    
+    dpo_alpha: float = field(default=1.0)
+    beta: float = field(default=0.1)
+    gamma: float = field(default=1.0)
+    generate_during_eval: bool = field(default=False)
+    precompute_ref_log_probs: bool = field(default=False)
+
+# @dataclass
+# class EvaluationArguments:
+#     eval_num_processes: int = field(default=1)
+#     task_names: str = field(default=None)
+#     model: str = field(default="llava")
+#     model_args: Optional[str] = field(default=None)
+#     num_fewshot: Optional[int] = field(default=None)
+#     batch_size: int = field(default=1)
+#     device: Optional[str] = field(default=None)
+#     limit: Optional[int] = field(default=None)
+#     check_integrity: Optional[bool] = field(default=False)
+#     show_task_to_terminal: Optional[bool] = field(default=False)
+#     log_samples: Optional[bool] = field(default=True)
+#     gen_kwargs: Optional[str] = field(default="")
+#     log_samples_suffix: Optional[str] = field(default="")
+#     output_path: Optional[str] = field(default="./logs/")
+
 # for EK100
 @dataclass
 class EK100EvalArguments:
@@ -201,12 +222,10 @@ class EK100EvalArguments:
     action_representation: str = "GT_random_narration_cut"
     n_narrations: int = -1
     test_type: str = 'base'
-    learn_neighbor_actions: str = "" # "prior", "triple_direct"
+    learn_neighbor_actions: bool = False
     perspective: str = "first_person"
     pseudo_folder: str = ""
-    benchmark_testing: bool = False
-    include_time_instruction: bool = False
-    gen_type: str = 'action_model'
+    
 
 def maybe_zero_3(param, ignore_status=False, name=None):
     from deepspeed import zero
@@ -503,6 +522,18 @@ def preprocess_llama_2(sources, tokenizer: transformers.PreTrainedTokenizer, has
         input_ids=input_ids,
         labels=targets,
     )
+
+def make_conv(prompt, answer):
+    return [
+        {
+            "from": "human",
+            "value": prompt,
+        },
+        {
+            "from": "gpt",
+            "value": answer,
+        },
+    ]
 
 
 def preprocess_gemma(sources: List[List[Dict[str, str]]], tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False) -> Dict:
@@ -979,20 +1010,12 @@ def preprocess(sources: Sequence[str], tokenizer: transformers.PreTrainedTokeniz
     return dict(input_ids=input_ids, labels=targets)
 
 
-class LazySupervisedDataset(Dataset):
+class NewDPODataset(Dataset):
     def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer, data_args: DataArguments, eval_args):
-        super(LazySupervisedDataset, self).__init__()
+        super(NewDPODataset, self).__init__()
         self.tokenizer = tokenizer
         self.list_data_dict = []  
-        self.eval_args = eval_args 
-        
-        # add a temporal dict for following processing
-        self.EK100_anno_root = Path(self.eval_args.val_metadata).parent
-        
-        from llava.action.generate_interval_pred import get_lookup_dict
-        
-        self.train_triple_lookup_official = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_train.csv'), 'official_key')
-        self.train_triple_lookup_narration = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_train.csv'), 'GT_random_narration')
+        self.eval_args = eval_args              
 
         # Handle multiple JSON files specified in the data_path
         if "{" in data_path and "}" in data_path:
@@ -1085,12 +1108,11 @@ class LazySupervisedDataset(Dataset):
     def modality_lengths(self):
         length_list = []
         for sample in self.list_data_dict:
-            cur_len = sum(len(conv["value"].split()) for conv in sample["conversations"])
-            assert cur_len > 0, f"Conversation length is 0 for {sample}"
-            if "image" in sample or "video" in sample or self.data_args.early_mix_text:
-                length_list.append(cur_len)
-            else:
-                length_list.append(-cur_len)
+            # Calculate the length of the prompt, answer, chosen, and rejected text
+            cur_len = len(sample["prompt"].split()) + len(sample["answer"].split()) + len(sample["chosen"].split()) + len(sample["rejected"].split())
+            # If the sample includes a video, the length is positive; otherwise, it is negative
+            cur_len = cur_len if ("video" in sample or "image" in sample) else -cur_len
+            length_list.append(cur_len)
         return length_list
 
     def process_image(self, image_file, overwrite_image_aspect_ratio=None):
@@ -1173,8 +1195,6 @@ class LazySupervisedDataset(Dataset):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
 
-        action_dict = {}
-
         if "image" in sources[0]:
             image_file = self.list_data_dict[i]["image"]
             if type(image_file) is list:
@@ -1190,20 +1210,10 @@ class LazySupervisedDataset(Dataset):
 
         elif "video" in sources[0]:
             video_info = self.list_data_dict[i]["video"]
-            if 'dataset_name' in sources[0]:
-                video_folder = os.path.join(self.data_args.video_folder, sources[0]['dataset_name'])
-            else:
-                # designed for LLaVA-Video-178K
-                video_folder = os.path.join(self.data_args.video_folder, 'LLaVA-Video-178K', sources[0]['data_source'])
-            if 'dataset_name' in sources[0]:
-                video_folder = os.path.join(self.data_args.video_folder, sources[0]['dataset_name'])
-            else:
-                # designed for LLaVA-Video-178K
-                video_folder = os.path.join(self.data_args.video_folder, 'LLaVA-Video-178K', sources[0]['data_source'])
+
+            video_folder = os.path.join(self.data_args.video_folder, sources[0]['dataset_name'])
             if 'EK100' in video_folder:
                 video_file = os.path.join(video_folder, video_info.split("-")[0], video_info.split("-")[1]+".MP4")
-            elif 'EKframes' in video_folder:
-                video_file = os.path.join(self.eval_args.root, video_info.split("-")[1])
             else:
                 video_file = os.path.join(video_folder, video_info)
 
@@ -1211,7 +1221,7 @@ class LazySupervisedDataset(Dataset):
                 print("File {} not exist!".format(video_file))
 
             try:
-                if "sharegpt4video" in video_folder:
+                if "sharegpt4video" in video_file:
                     frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
                     frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
 
@@ -1242,13 +1252,12 @@ class LazySupervisedDataset(Dataset):
                                 video.append(frame)
                         except IOError:
                             print(f"Failed to read frame at path: {frame_path}")
-                elif 'EK100' in video_folder:               
+                elif 'EK100' in video_file:
                     start_second = float(self.list_data_dict[i]['start_timestamp'])
                     end_second = float(self.list_data_dict[i]['end_timestamp'])            
                     pid = sources[0]['video'].split('-')[0]
                     vid = sources[0]['video'].split('-')[1]
-
-                                
+            
                     video, time_meta = avion_video_loader(os.path.join(video_folder, pid),
                                                           vid, 
                                                           'MP4', 
@@ -1267,40 +1276,13 @@ class LazySupervisedDataset(Dataset):
                     video_time = time_meta['duration']
                     num_frames_to_sample = time_meta['n_frames']
                     # add log 
-                
-                elif 'EKframes' in video_folder:
-                    start_frame = int(self.list_data_dict[i]['start_frame'])
-                    end_frame = int(self.list_data_dict[i]['end_frame'])
-                    start_second = float(self.list_data_dict[i]['start_timestamp'])
-                    end_second = float(self.list_data_dict[i]['end_timestamp'])  
-                    video, time_meta = EK100_frame_loader(video_file, start_frame, end_frame, start_second, end_second, clip_length = self.eval_args.clip_length, jitter = self.data_args.train_jitter)
-                    frame_time = time_meta['frame_time']
-                    video_time = time_meta['duration']
-                    num_frames_to_sample = time_meta['n_frames']
+
                 else:
                     video, video_time, frame_time, num_frames_to_sample = process_video_with_decord(video_file, self.data_args)
 
                 processor = self.data_args.image_processor
                 image = processor.preprocess(video, return_tensors="pt")["pixel_values"]
-                
-                meta_data = None
-                
-                if self.eval_args.learn_neighbor_actions and 'EK100' in video_file:
-                    vid = video_info                  
-                    start_timestamp = round(float(self.list_data_dict[i]['start_timestamp']), 2)
-                    end_timestamp = round(float(self.list_data_dict[i]['end_timestamp']), 2)
-                    uid = f"{vid}_{start_timestamp}_{end_timestamp}"
-                    if 'narration' in self.eval_args.action_representation:
-                        meta_data = self.train_triple_lookup_narration.get(uid, None)
-                    elif 'official_key' in self.eval_args.action_representation:
-                        meta_data = self.train_triple_lookup_official.get(uid, None)
-                    # if 'official_key' in sources[0]['question_type']:
-                    #     meta_data = self.train_triple_lookup_official.get(uid, None)
-                    # elif 'GT_random_narration' in sources[0]['question_type']:
-                    #     meta_data = self.train_triple_lookup_narration.get(uid, None)
-                    
-                
-                if 'EK100' not in video_file and 'EKframes' not in video_folder:
+                if 'EK100' not in video_file:
                     if self.data_args.add_time_instruction:
                         time_instruciton = f"The video lasts for {video_time:.2f} seconds, and {num_frames_to_sample} frames are uniformly sampled from it. Please answer the following questions related to this video."
                         sources[0]["conversations"][0]["value"] = f'{DEFAULT_IMAGE_TOKEN}\n{time_instruciton}\n{sources[0]["conversations"][0]["value"].replace(DEFAULT_IMAGE_TOKEN, "")}'
@@ -1308,35 +1290,24 @@ class LazySupervisedDataset(Dataset):
                     # We use our own prompting logic when it's EK100
                     # We turn a string of list to a python list
                     question_type = sources[0]['question_type']
-                    question = sources[0]["conversations"][0]["value"]
-                    try:
-                        result = ast.literal_eval(question)
-                        if isinstance(result, list):
-                            question = result
-                            assert len(question) == self.eval_args.topk_predictions, f"len(options) = {len(question)} !=  {self.eval_args.topk_predictions}"
-                    except:
-                        pass
-                                        
-                                                                                 
+
+                    # to come back to this
+                    question = sources[0]["prompt"]
+                    
                     # We only store the option list in the annotation file to make it easier to use consistent prompting
                     llava_prompt = format_llava_prompt(DEFAULT_IMAGE_TOKEN,
                                                  question,
                                                  video_time,
                                                  num_frames_to_sample,
                                                  question_type,
-                                                 include_time_instruction= self.data_args.add_time_instruction,
-                                                 meta_data = meta_data,                                                 
-                                                 include_frame_time = False,
-                                                 learn_neighbor_actions = self.eval_args.learn_neighbor_actions,
-                                                 perspective = self.eval_args.perspective)
-                    sources[0]["conversations"][0]["value"] = llava_prompt
-                    # rank0_print (sources[0])
+                                                 include_time_instruction= False,
+                                                 include_frame_time = False)
+                    sources[0]["prompt"] = llava_prompt
 
-                action = torch.tensor([sources[0]['verb_id'], sources[0]['noun_id'], sources[0]['action_id']] if 'verb_id' in sources[0] else [-1, -1, -1]).long()
-               
-                image = [(image, video[0].size, "video", action)]
-                sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
-
+                    rank0_print (sources[0])
+                image = [(image, video[0].size, "video")]
+                if sources[0]["question_type"] != "dpo":
+                    sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
                 # print(sources)
             except Exception as e:
                 import traceback
@@ -1347,18 +1318,22 @@ class LazySupervisedDataset(Dataset):
         else:
             sources = copy.deepcopy([e["conversations"] for e in sources])
 
-        # rank0_print (sources[0])
+        rank0_print (sources[0])
         
         has_image = ("image" in self.list_data_dict[i]) or ("video" in self.list_data_dict[i])
-        data_dict = preprocess(sources, self.tokenizer, has_image=has_image)
+        # this is to avoid the case where template is not applied yet 
+        #data_dict = preprocess(sources, self.tokenizer, has_image=has_image)
+
+
+        data_dict = copy.deepcopy(self.list_data_dict[i])  # inplace modification following
 
         if "prompt" in data_dict:
             prompt = data_dict["prompt"]
         else:
             prompt = None
 
-        if isinstance(i, int):
-            data_dict = dict(input_ids=data_dict["input_ids"][0], labels=data_dict["labels"][0])
+        # if isinstance(i, int):
+        #     data_dict = dict(input_ids=data_dict["input_ids"][0], labels=data_dict["labels"][0])
 
         # image exist in the data
         if "image" in self.list_data_dict[i]:
@@ -1377,63 +1352,133 @@ class LazySupervisedDataset(Dataset):
 
         data_dict["id"] = self.list_data_dict[i].get("id", i)
 
+        data_dict["has_image"] = has_image
         return data_dict
 
 
+
 @dataclass
-class DataCollatorForSupervisedDataset(object):
-    """Collate examples for supervised fine-tuning."""
+class DPODataCollator(DPODataCollatorWithPadding):
+    """Collate examples for DPO fine-tuning."""
 
-    tokenizer: transformers.PreTrainedTokenizer
+    # tokenizer: transformers.PreTrainedTokenizer
 
-    def pad_sequence(self, input_ids, batch_first, padding_value):
-        if self.tokenizer.padding_side == "left":
-            input_ids = [torch.flip(_input_ids, [0]) for _input_ids in input_ids]
-        input_ids = torch.nn.utils.rnn.pad_sequence(input_ids, batch_first=batch_first, padding_value=padding_value)
-        if self.tokenizer.padding_side == "left":
-            input_ids = torch.flip(input_ids, [1])
-        return input_ids
+    def collate(self, batch):
+        # first, pad everything to the same length
+        # input_ids, labels = tuple([instance[key] for instance in instances]
+        #                           for key in ("input_ids", "labels"))
+        # input_ids = torch.nn.utils.rnn.pad_sequence(
+        #     input_ids,
+        #     batch_first=True,
+        #     padding_value=self.tokenizer.pad_token_id)
+        # labels = torch.nn.utils.rnn.pad_sequence(labels,
+        #                                          batch_first=True,
+        #                                          padding_value=IGNORE_INDEX)
+        # input_ids = input_ids[:, :self.tokenizer.model_max_length]
+        # labels = labels[:, :self.tokenizer.model_max_length]
+        # batch = dict(
+        #     input_ids=input_ids,
+        #     labels=labels,
+        #     attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
+        # )
+        padded_batch = {}
+        for k in batch[0].keys():
+            if k.endswith("_input_ids") or k.endswith("_attention_mask") or k.endswith("_labels"):
+                # if "prompt" in k:
+                #     to_pad = [torch.LongTensor(ex[k][::-1]) for ex in batch]
+                # else:
+                to_pad = [torch.LongTensor(ex[k]) for ex in batch]
+                if k.endswith("_input_ids"):
+                    padding_value = self.tokenizer.pad_token_id
+                elif k.endswith("_labels"):
+                    padding_value = self.label_pad_token_id
+                else:
+                    continue
+                # elif k.endswith("_attention_mask"):
+                #     padding_value = self.padding_value
+                # else:
+                #     raise ValueError(f"Unexpected key in batch '{k}'")
 
-    def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        input_ids, labels = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels"))
-        # input_ids, labels, ids = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels", "id"))
-        input_ids = [_input_ids[: self.tokenizer.model_max_length] for _input_ids in input_ids]
-        labels = [_labels[: self.tokenizer.model_max_length] for _labels in labels]
-        if self.tokenizer.pad_token_id is None:
-            # self.tokenizer.pad_token_id = self.tokenizer.eos_token_id  # FIXME: this could only be triggered for llama3 model.
-            self.tokenizer.pad_token_id = 0 # This gets the best result. Don't know why.
-        input_ids = self.pad_sequence(input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id)
-        labels = self.pad_sequence(labels, batch_first=True, padding_value=IGNORE_INDEX)
-        batch = dict(input_ids=input_ids, labels=labels.long() if labels.dtype == torch.int32 else labels, attention_mask=input_ids.ne(self.tokenizer.pad_token_id))
-        # batch = dict(input_ids=input_ids, labels=labels, attention_mask=input_ids.ne(self.tokenizer.pad_token_id), ids=ids)
+                padded_batch[k] = torch.nn.utils.rnn.pad_sequence(to_pad, batch_first=True, padding_value=padding_value)
+                # for the prompt, flip back so padding is on left side
+                # if "prompt" in k:
+                #     padded_batch[k] = padded_batch[k].flip(dims=[1])
+            else:
+                padded_batch[k] = [ex[k] for ex in batch]
+        for k in ["chosen_input_ids", "rejected_input_ids"]:
+            attn_k = k.replace("input_ids", "attention_mask")
+            padded_batch[attn_k] = padded_batch[k].ne(self.tokenizer.pad_token_id)
+        return padded_batch
 
-        if "image" in instances[0]:
-            images = [instance["image"] for instance in instances]
+    def tokenize_batch_element(self, prompt: str, chosen: str, rejected: str, has_image: bool = True) -> Dict:
+        """Tokenize a single batch element.
 
-            batch["image_sizes"] = [im[1] for im_list in images for im in im_list]
-            batch["modalities"] = [im[2] for im_list in images for im in im_list]
-            
-            batch["actions"] = torch.stack([im[3] for im_list in images for im in im_list])
-            images = [im[0] for im_list in images for im in im_list]
+        At this stage, we don't convert to PyTorch tensors yet; we just handle the truncation
+            in case the prompt + chosen or prompt + rejected responses is/are too long. First
+            we truncate the prompt; if we're still too long, we truncate the chosen/rejected.
 
-            # if all(x is not None and x.shape == images[0].shape for x in images):
-                # Image: (N, P, C, H, W)
-                # Video: (N, F, C, H, W)
-            #     batch["images"] = torch.stack(images)
-            # else:
-            batch["images"] = images
+        We also create the labels for the chosen/rejected responses, which are of length equal to
+            the sum of the length of the prompt and the chosen/rejected response, with
+            label_pad_token_id  for the prompt tokens.
+        """
+        # import pdb; pdb.set_trace()
+        batch = {}
 
-        if "prompt" in instances[0]:
-            batch["prompts"] = [instance["prompt"] for instance in instances]
+        chosen_sources = make_conv(prompt, chosen)
+        rejected_sources = make_conv(prompt, rejected)
+        chosen_data_dict = preprocess([chosen_sources], self.tokenizer, has_image=has_image)
+        # chosen_data_dict['attention_mask'] = chosen_data_dict["input_ids"].ne(self.tokenizer.pad_token_id)
 
+        rejected_data_dict = preprocess([rejected_sources], self.tokenizer, has_image=has_image)
+        # rejected_data_dict['attention_mask'] = rejected_data_dict["input_ids"].ne(self.tokenizer.pad_token_id)
+
+        chosen_data_dict = {k: v[0] for k, v in chosen_data_dict.items()}
+        rejected_data_dict = {k: v[0] for k, v in rejected_data_dict.items()}
+
+        for k, toks in {
+            "chosen": chosen_data_dict,
+            "rejected": rejected_data_dict,
+        }.items():
+            for type_key, tokens in toks.items():
+                if type_key == "token_type_ids":
+                    continue
+                batch[f"{k}_{type_key}"] = tokens
         return batch
 
+    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
 
-def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer, data_args, eval_args) -> Dict:
-    """Make dataset and collator for supervised fine-tuning."""
-    train_dataset = LazySupervisedDataset(tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args, eval_args = eval_args)
-    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
-    return dict(train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator)
+        tokenized_batch = []
+        Xs, keys = [], []
+        for feature in features:
+            prompt = feature["prompt"]
+            chosen = feature["chosen"]
+            rejected = feature["rejected"]
+            has_image = feature["has_image"]
+            # Xs.append(feature[has_X])
+            # keys.append(has_X)
+
+            batch_element = self.tokenize_batch_element(prompt, chosen, rejected, has_image=has_image)
+            tokenized_batch.append(batch_element)
+
+        # return collated batch
+        padded_batch = self.collate(tokenized_batch)
+        # import pdb;pdb.set_trace()
+        if "image" in features[0]:
+            # instances[1]['image'][0][0].shape
+            # torch.Size([5, 3, 224, 224])
+            images = [instance["image"] for instance in features]
+
+            padded_batch["image_sizes"] = [im[1] for im_list in images for im in im_list]
+            padded_batch["modalities"] = [im[2] for im_list in images for im in im_list]
+            images = [im[0] for im_list in images for im in im_list]
+            # import pdb;pdb.set_trace()
+
+            padded_batch["images"] = images
+            # padded_batch["images"] =[padded_batch["modalities"], images]
+
+        return padded_batch
+
+
 
 
 def get_model(model_args, training_args, bnb_model_from_pretrained_args):
@@ -1447,7 +1492,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
 
     overwrite_config = {}
 
-    if 'video' in model_args.model_name_or_path or 'Video' in model_args.model_name_or_path or 'experiments/' in model_args.model_name_or_path:
+    if 'video' in model_args.model_name_or_path or 'Video' in model_args.model_name_or_path:
         overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
 
     if any(
@@ -1489,11 +1534,6 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
     if model_args.mm_spatial_pool_mode is not None:
         overwrite_config["mm_spatial_pool_mode"] = model_args.mm_spatial_pool_mode
 
-    if model_args.vision_supervision is not None:
-        overwrite_config["vision_supervision"] = model_args.vision_supervision
-        overwrite_config["action_types"] = model_args.action_types
-        overwrite_config["vision_token_training"] = model_args.vision_token_training
-
     if overwrite_config:
         assert cfg_pretrained is not None, "cfg_pretrained is None"
 
@@ -1503,6 +1543,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
 
         customized_kwargs["config"] = cfg_pretrained
 
+    ref_model = None
     if model_args.model_class_name is not None:
         actual_model_class_name = f"{model_args.model_class_name}ForCausalLM"
         model_class = getattr(transformers, actual_model_class_name)
@@ -1553,7 +1594,20 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
                 low_cpu_mem_usage=False,
                 **customized_kwargs,
             )
-        elif "qwen" in model_args.model_name_or_path.lower() or 'experiments/' in model_args.model_name_or_path.lower():
+
+            if "zero3" in training_args.deepspeed:
+                rank0_print("#### Initialize reference model #####")
+                ref_model = LlavaLlamaForCausalLM.from_pretrained(
+                    model_args.model_name_or_path,
+                    cache_dir=training_args.cache_dir,
+                    attn_implementation=training_args.attn_implementation,
+                    torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
+                    low_cpu_mem_usage=False,
+                    **customized_kwargs,
+                )
+
+
+        elif "qwen" in model_args.model_name_or_path.lower():
             if "moe" in model_args.model_name_or_path.lower() or "A14B" in model_args.model_name_or_path:
                 model = LlavaQwenMoeForCausalLM.from_pretrained(
                     model_args.model_name_or_path,
@@ -1575,6 +1629,20 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
                     low_cpu_mem_usage=False,
                     **customized_kwargs,
                 )
+            if "zero3" in training_args.deepspeed:
+                rank0_print("#### Initialize reference model #####")
+                ref_model = LlavaQwenForCausalLM.from_pretrained(
+                    model_args.model_name_or_path,
+                    cache_dir=training_args.cache_dir,
+                    attn_implementation=training_args.attn_implementation,
+                    torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
+                    low_cpu_mem_usage=False,
+                    **customized_kwargs,
+                )
+
+
+
+
         elif "gemma" in model_args.model_name_or_path.lower():
             model = LlavaGemmaForCausalLM.from_pretrained(
                 model_args.model_name_or_path,
@@ -1595,7 +1663,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
             low_cpu_mem_usage=False,
             **customized_kwargs,
         )
-    return model
+    return model, ref_model
 
 
 
@@ -1605,7 +1673,7 @@ def train(attn_implementation=None):
 
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, EK100EvalArguments))
     model_args, data_args, training_args, eval_args = parser.parse_args_into_dataclasses()
-    eval_args.include_time_instruction = data_args.add_time_instruction
+
     if training_args.verbose_logging:
         rank0_print(f"Inspecting experiment hyperparameters:\n")
         rank0_print(f"model_args = {vars(model_args)}\n\n")
@@ -1637,7 +1705,7 @@ def train(attn_implementation=None):
             )
         )
 
-    model = get_model(model_args, training_args, bnb_model_from_pretrained_args)
+    model, ref_model = get_model(model_args, training_args, bnb_model_from_pretrained_args)
     model.config.use_cache = False
     if model_args.rope_scaling_factor is not None and model_args.rope_scaling_type is not None:
         model.config.rope_scaling = {
@@ -1657,12 +1725,18 @@ def train(attn_implementation=None):
     if training_args.gradient_checkpointing:
         if hasattr(model, "enable_input_require_grads"):
             model.enable_input_require_grads()
+            if ref_model is not None:
+                ref_model.enable_input_require_grads()
+
         else:
 
             def make_inputs_require_grad(module, input, output):
                 output.requires_grad_(True)
 
             model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
+
+            if ref_model is not None:
+                ref_model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
     if training_args.lora_enable:
         from peft import LoraConfig, get_peft_model
@@ -1685,7 +1759,7 @@ def train(attn_implementation=None):
 
     if "mistral" in model_args.model_name_or_path.lower() or "mixtral" in model_args.model_name_or_path.lower() or "zephyr" in model_args.model_name_or_path.lower():
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="left")
-    elif "qwen" in model_args.model_name_or_path.lower() or 'experiments/' in model_args.model_name_or_path.lower():
+    elif "qwen" in model_args.model_name_or_path.lower():
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="right")
     elif (
         "wizardlm-2" in model_args.model_name_or_path.lower()
@@ -1830,6 +1904,27 @@ def train(attn_implementation=None):
         model.config.mm_use_im_patch_token = model_args.mm_use_im_patch_token
         model.initialize_vision_tokenizer(model_args, tokenizer=tokenizer)
 
+
+        if ref_model is not None:
+            ref_model.get_model().initialize_vision_modules(model_args=model_args, fsdp=training_args.fsdp)
+            ref_vision_tower = ref_model.get_vision_tower()
+            ref_vision_tower.to(dtype=torch.bfloat16 if training_args.bf16 else torch.float16, device=training_args.device)
+            ref_model.config.image_aspect_ratio = data_args.image_aspect_ratio
+            ref_model.config.image_grid_pinpoints = data_args.image_grid_pinpoints
+            ref_model.config.image_crop_resolution = data_args.image_crop_resolution
+            ref_model.config.image_split_resolution = data_args.image_split_resolution
+            ref_model.config.tokenizer_padding_side = tokenizer.padding_side
+            ref_model.config.tokenizer_model_max_length = tokenizer.model_max_length
+            ref_model.config.mm_use_im_start_end = data_args.mm_use_im_start_end
+            ref_model.config.mm_use_im_patch_token = model_args.mm_use_im_patch_token
+            ref_model.initialize_vision_tokenizer(model_args, tokenizer=tokenizer)
+            parameter_names = [n for n, _ in ref_model.named_parameters()]
+            for param_name in parameter_names:
+                param = ref_model.get_parameter(param_name)
+                param.requires_grad = False
+            ref_model.eval()
+
+
     if training_args.bits in [4, 8]:
         from peft.tuners.lora import LoraLayer
 
@@ -1844,20 +1939,44 @@ def train(attn_implementation=None):
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
-    data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args, eval_args=eval_args)   
 
-    eval_args.pretrained_name = model_args.model_name_or_path.split('/')[1]
 
+    train_dataset = NewDPODataset(tokenizer=tokenizer, data_path=data_args.data_path, data_args=data_args, eval_args = eval_args)
+
+    data_collator = DPODataCollator(
+        tokenizer,
+        label_pad_token_id=IGNORE_INDEX,
+        pad_token_id=tokenizer.pad_token_id,
+    )
+
+
+    eval_args.pretrained_name = model_args.model_name_or_path
 
     # if 'experiments/' in model_args.model_name_or_path:
     #     from llava.action.ek_eval import prepare_llava
     #     _, model, _, _ = prepare_llava(model_args.model_name_or_path)
 
-    trainer = LLaVATrainer(model=model, 
-                           tokenizer = tokenizer, 
-                           eval_args = eval_args, 
-                           model_max_length = training_args.model_max_length,
-                           args=training_args, **data_module)
+    trainer = LLaVADPOTrainer(
+            model,
+            ref_model,
+            eval_args = eval_args,
+            args=training_args,
+            dpo_alpha=training_args.dpo_alpha,
+            beta=training_args.beta,
+            gamma=training_args.gamma,
+            train_dataset=train_dataset,
+            data_collator=data_collator,
+            tokenizer=tokenizer,
+            max_length=training_args.model_max_length,
+            generate_during_eval=False,  # training_args.generate_during_eval,
+            precompute_ref_log_probs=training_args.precompute_ref_log_probs,
+        )
+
+    # trainer = LLaVATrainer(model=model, 
+    #                        tokenizer = tokenizer, 
+    #                        eval_args = eval_args, 
+    #                        model_max_length = training_args.model_max_length,
+    #                        args=training_args, **data_module)
     
 
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
@@ -1881,14 +2000,12 @@ def train(attn_implementation=None):
     else:
         safe_save_model_for_hf_trainer(trainer, training_args.output_dir)
 
-
-    rank0_print("num_train_epochs?", training_args.num_train_epochs)
-    if training_args.num_train_epochs == 0:
-        trainer.evaluate(eval_result_folder = training_args.output_dir)
-
     rank0_print(f"Model saved to {training_args.output_dir}")
 
-
+    # # this needs to be tested. But let's always evaluate the model after training.
+    # # we should also save the predictions into the experiment folder so we can analyze afterwards
+    # if training_args.eval_steps!= trainer.state.global_step:
+    #     trainer.evaluate(eval_result_folder = training_args.output_dir)
 
 
 if __name__ == "__main__":

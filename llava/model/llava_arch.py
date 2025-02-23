@@ -44,6 +44,10 @@ class LlavaMetaModel:
 
             if "unpad" in getattr(config, "mm_patch_merge_type", ""):
                 self.image_newline = nn.Parameter(torch.empty(config.hidden_size, dtype=self.dtype))
+            if "one_token" in getattr(self.config, "vision_supervision", ""):
+                self.action_supervision = nn.Parameter(torch.empty((1, config.hidden_size), dtype=self.dtype))
+            elif "three_token" in getattr(self.config, "vision_supervision", ""):
+                self.action_supervision = nn.Parameter(torch.empty((3, config.hidden_size), dtype=self.dtype))
 
     def get_vision_tower(self):
         vision_tower = getattr(self, "vision_tower", None)
@@ -252,10 +256,12 @@ class LlavaMetaForCausalLM(ABC):
         vision_tower = self.get_vision_tower()
         # rank_print(modalities)
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
-            return input_ids, position_ids, attention_mask, past_key_values, None, labels
+            return input_ids, position_ids, attention_mask, past_key_values, None, labels, None
 
         if isinstance(modalities, str):
             modalities = [modalities]
+
+        vision_supervision = getattr(self.config, "vision_supervision", None)
 
         # import pdb; pdb.set_trace()
         if type(images) is list or images.ndim == 5:
@@ -294,6 +300,7 @@ class LlavaMetaForCausalLM(ABC):
             mm_patch_merge_type = getattr(self.config, "mm_patch_merge_type", "flat")
             image_aspect_ratio = getattr(self.config, "image_aspect_ratio", "square")
             mm_newline_position = getattr(self.config, "mm_newline_position", "one_token")
+            
 
             if mm_patch_merge_type == "flat":
                 image_features = [x.flatten(0, 1) for x in image_features]
@@ -326,25 +333,36 @@ class LlavaMetaForCausalLM(ABC):
                                 image_feature = torch.cat(concat_slow_fater_token)
 
                                 # print("!!!!!!!!!!!!")
+                            if vision_supervision and "token" in vision_supervision:
+                                image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
                         
                             new_image_features.append(image_feature)
                         elif mm_newline_position == "frame":
                             # Frame-wise
-                            image_feature = self.add_token_per_frame(image_feature)
+                            image_feature = self.add_token_per_frame(image_feature).flatten(0, 1)
+                            if vision_supervision and "token" in vision_supervision:
+                                image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
 
-                            new_image_features.append(image_feature.flatten(0, 1))
+                            new_image_features.append(image_feature)
                             
                         elif mm_newline_position == "one_token":
                             # one-token
                             image_feature = image_feature.flatten(0, 1)
+            
                             if 'unpad' in mm_patch_merge_type:
                                 image_feature = torch.cat((
                                     image_feature,
                                     self.model.image_newline[None].to(image_feature.device)
                                 ), dim=0)
+                            
+                            if vision_supervision and "token" in vision_supervision:
+                                image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
                             new_image_features.append(image_feature)      
                         elif mm_newline_position == "no_token":
-                            new_image_features.append(image_feature.flatten(0, 1))
+                            image_feature = image_feature.flatten(0, 1)
+                            if vision_supervision and "token" in vision_supervision:
+                                image_feature = torch.cat((image_feature, self.model.action_supervision.to(image_feature.device)), dim=0)
+                            new_image_features.append()
                         else:
                             raise ValueError(f"Unexpected mm_newline_position: {mm_newline_position}")
                     elif image_feature.shape[0] > 1:  # multi patches and multi images operations
@@ -444,6 +462,7 @@ class LlavaMetaForCausalLM(ABC):
 
         new_input_embeds = []
         new_labels = []
+        new_action_idx = []
         cur_image_idx = 0
         # rank_print("Inserting Images embedding")
         for batch_idx, cur_input_ids in enumerate(input_ids):
@@ -484,6 +503,19 @@ class LlavaMetaForCausalLM(ABC):
                     cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, device=cur_labels.device, dtype=cur_labels.dtype))
 
             cur_new_input_embeds = [x.to(self.device) for x in cur_new_input_embeds]
+
+            if vision_supervision is not None:
+                if "newline" == vision_supervision:
+                    new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])
+                elif "all_newlines" == vision_supervision:
+                    for i in range(1, 225):
+                        new_action_idx.append(len(cur_new_input_embeds[0]) + 15 * i  -1)
+                elif "one_token" == vision_supervision:
+                    new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])
+                elif "three_tokens" == vision_supervision:                    
+                    new_action_idx.append([len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 3, 
+                                        len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 2,
+                                        len(cur_new_input_embeds[0]) + len(cur_new_input_embeds[1]) - 1])
 
             # import pdb; pdb.set_trace()
             cur_new_input_embeds = torch.cat(cur_new_input_embeds)
@@ -552,7 +584,8 @@ class LlavaMetaForCausalLM(ABC):
             position_ids[:, split_position:] += right_add
         # import pdb; pdb.set_trace()
         # rank0_print("Finish preparing")
-        return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
+        new_action_idx = torch.tensor(new_action_idx, device=new_input_embeds.device)
+        return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels, new_action_idx
 
     def initialize_vision_tokenizer(self, model_args, tokenizer):
         if model_args.mm_use_im_patch_token:

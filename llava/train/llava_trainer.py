@@ -43,7 +43,6 @@ def maybe_zero_3(param, ignore_status=False, name=None):
         param = param.detach().cpu().clone()
     return param
 
-
 def get_mm_adapter_state_maybe_zero_3(named_params, keys_to_match):
     to_return = {k: t for k, t in named_params if any(key_match in k for key_match in keys_to_match)}
     to_return = {k: maybe_zero_3(v, ignore_status=True, name=k).cpu() for k, v in to_return.items()}
@@ -246,16 +245,11 @@ class LLaVATrainer(Trainer):
         self.tokenizer = tokenizer
         self.eval_args = eval_args
         self.model_max_length = model_max_length
+    
 
-
-
-
-    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):                
-
-        accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer)
-
+    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
+        accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer, eval_result_folder = self.args.output_dir)
         metrics = {f"{metric_key_prefix}_EK100_accuracy": accuracy}
-
         self.log(metrics)
 
         return metrics
@@ -492,6 +486,24 @@ class LLaVATrainer(Trainer):
 
 
 class LLaVADPOTrainer(DPOTrainer):
+    def __init__(self, 
+                 *args, 
+                 eval_args = None, 
+                 model_max_length = 0,  
+                 **kwargs):
+        super().__init__(*args, **kwargs)
+        self.eval_args = eval_args
+        self.model_max_length = model_max_length
+
+
+    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval", eval_result_folder = None):                
+                
+        accuracy = evaluate_on_EK100(self.eval_args, self.model, self.tokenizer, eval_result_folder = eval_result_folder)
+        metrics = {f"{metric_key_prefix}_EK100_accuracy": accuracy}
+        self.log(metrics)
+
+        return metrics  
+
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
         if self.train_dataset is None or not has_length(self.train_dataset):
             return None

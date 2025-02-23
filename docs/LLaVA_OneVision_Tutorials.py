@@ -75,7 +75,7 @@ os.environ["HF_HOME"] = "/capstor/scratch/cscs/hqi/huggingface"
 
 warnings.filterwarnings("ignore")
 # Load the OneVision model
-pretrained = "lmms-lab/LLaVA-Video-72B-Qwen2"
+pretrained = "lmms-lab/llava-onevision-qwen2-0.5b-ov"
 # pretrained = "/mnt/SV_storage/VFM/LLaVA-NeXT/experiments/EK100_quick_config"
 model_base = None
 model_name = "llava_qwen"

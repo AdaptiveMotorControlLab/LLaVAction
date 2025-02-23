@@ -1,4 +1,0 @@
-datasets:
-  - json_path: /data/shaokai/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl
-  #- json_path: /capstor/scratch/cscs/hqi/llava/EK100/EK100_inst_train/avion_mc_top10/train_convs_narration.jsonl
-    sampling_strategy: all
