@@ -237,19 +237,21 @@ def search_llavaction_win(tim_chatgpt_file,
         llavaction_options = llavaction_pred[uid]['options']
         if llavaction_pred[uid]['pred'] == llavaction_pred[uid]['gt'] and \
             tim_chatgpt_pred[uid]['pred'] != tim_chatgpt_pred[uid]['gt'] and \
-            llava_pred[uid]['pred'] != llava_pred[uid]['gt']:            
+            llava_pred[uid]['pred'] != llava_pred[uid]['gt'] and \
+                random_chatgpt_pred[uid]['pred'] == random_chatgpt_pred[uid]['gt']:        
         
             results[uid] = {'gt': tim_chatgpt_pred[uid]['gt'],
                             'tim_chatgpt_pred': tim_chatgpt_pred[uid]['pred'],
+                            'random_chatgpt_pred': random_chatgpt_pred[uid]['pred'],
                             'llava_pred': llava_pred[uid]['pred'],
                             'llavaction_pred': llavaction_pred[uid]['pred'],
                             'tim_chatgpt_options': tim_chatgpt_options,
                             'llava_options': llava_options,
                             'llavaction_options': llavaction_options,
                             'random_chatgpt_options': random_chatgpt_options}
-        # write results to a file
-        with open('llavaction_win.json', 'w') as f:
-            json.dump(results, f, indent = 4)
+    # write results to a file
+    with open('llavaction_win.json', 'w') as f:
+        json.dump(results, f, indent = 4)
 
 def get_wrong_prediction_uids(prediction_folder, ann_file):
     """
@@ -331,14 +333,14 @@ if __name__ == '__main__':
     ann_file = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'
     prediction_folder = '/data/shaokai/predictions_for_vis/dev_7b_16f_top5_full_includes_tim/'
     #walk_through(ann_file)
-    get_wrong_prediction_uids(prediction_folder, ann_file)
+    #get_wrong_prediction_uids(prediction_folder, ann_file)
     root = '/data/shaokai/predictions_for_vis/'
     chatgpt_tim_file = os.path.join(root, 'gpt-4o-2024-08-06_tim_GT_random_narration_top5_8f_9668samples.json')
     chatgpt_random_file = os.path.join(root, 'gpt-4o-2024-08-06_random_GT_random_narration_top5_8f_9668samples.json')
     llava_zeroshot_folder = os.path.join(root, 'LLaVA_Video_7B')
     llavaction_folder = os.path.join(root, 'LLaVAction_7B')
-    # search_llavaction_win(chatgpt_tim_file, 
-    #                 chatgpt_random_file, 
-    #                 llava_zeroshot_folder, 
-    #                 llavaction_folder)
+    search_llavaction_win(chatgpt_tim_file, 
+                    chatgpt_random_file, 
+                    llava_zeroshot_folder, 
+                    llavaction_folder)
                                 

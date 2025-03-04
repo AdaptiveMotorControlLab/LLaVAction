@@ -163,7 +163,7 @@ def save_visualization(vis_folder, frames, uid):
         video_out.write(bgr_frame)
     video_out.release()
 
-def visualize_with_uid(uid, out_folder):
+def visualize_with_uid(data_root, uid, out_folder):
     from llava.action.utils import avion_video_loader
                    
     vid_path = '_'.join(uid.split('_')[:2]).replace('-', '/')
@@ -252,7 +252,8 @@ if __name__ == '__main__':
     # llava_pretrained_path = 'experiments/LLaVA-Video-7B-Qwen2'
     # uid = 'P01-P01_11_182.65_192.07'
     # visualize_with_llava(llava_pretrained_path, uid, 'caption', 'tim')
-    # visualize_with_uid("P28-P28_16_73.84_74.66")
-    # visualize_with_uid("P28-P28_15_50.66_51.69")
-    # visualize_with_uid("P26-P26_41_113.0_114.1")
-    visualize_with_uid("P28-P28_26_45.97_46.97", "key_confusing_examples")    
+    # visualize_with_uid(root, "P28-P28_16_73.84_74.66")
+    # visualize_with_uid(root, "P28-P28_15_50.66_51.69")
+    # visualize_with_uid(root, "P26-P26_41_113.0_114.1")
+    visualize_with_uid(root, 'P23-P23_05_217.41_218.39', 'figure1_vis')
+    # visualize_with_uid(root, "P28-P28_26_45.97_46.97", "key_confusing_examples")    
