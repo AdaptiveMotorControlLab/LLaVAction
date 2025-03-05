@@ -330,11 +330,11 @@ def walk_through(ann_file):
 
         
 if __name__ == '__main__':
-    ann_file = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-    prediction_folder = '/data/shaokai/predictions_for_vis/dev_7b_16f_top5_full_includes_tim/'
+    ann_file = '/data/anonymous/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    prediction_folder = '/data/anonymous/predictions_for_vis/dev_7b_16f_top5_full_includes_tim/'
     #walk_through(ann_file)
     #get_wrong_prediction_uids(prediction_folder, ann_file)
-    root = '/data/shaokai/predictions_for_vis/'
+    root = '/data/anonymous/predictions_for_vis/'
     chatgpt_tim_file = os.path.join(root, 'gpt-4o-2024-08-06_tim_GT_random_narration_top5_8f_9668samples.json')
     chatgpt_random_file = os.path.join(root, 'gpt-4o-2024-08-06_random_GT_random_narration_top5_8f_9668samples.json')
     llava_zeroshot_folder = os.path.join(root, 'LLaVA_Video_7B')

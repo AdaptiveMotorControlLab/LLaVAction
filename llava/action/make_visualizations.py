@@ -10,7 +10,7 @@ The Finetuned LLaVA's inference of corresponding segment
 Note that in each inference, we should be able to pick the corresponding prompt and checkpoint folder
 """
 from llava.action.utils import generate_label_map  
-from llava.action.chatgpt_utils import GPTInferenceAnnotator
+
 from pathlib import Path
 from llava.action.utils import AvionMultiChoiceGenerator as ActionMultiChoiceGenerator
 from llava.action.llava_inference import llava_inference
@@ -40,6 +40,7 @@ def visualize_with_random(n_samples, offset = 0, question_type = 'mc_'):
     """
     Here we should test gpt-4o, gpt-4o-mini with different prompts
     """
+    from llava.action.chatgpt_utils import GPTInferenceAnnotator
     inferencer = GPTInferenceAnnotator(gpt_model,
                                        root,
                                        annotation_file,
@@ -59,6 +60,7 @@ def visualize_with_gpt_with_tim(n_samples, offset = 0, question_type = 'mc_'):
     """
     Here we should test gpt-4o, gpt-4o-mini with different prompts
     """
+    from llava.action.chatgpt_utils import GPTInferenceAnnotator
     inferencer = GPTInferenceAnnotator(gpt_model,
                                        root,
                                        annotation_file,
@@ -79,7 +81,7 @@ def visualize_with_gpt_with_avion(n_samples, offset = 0, question_type = 'mc_'):
     """
     Here we should test gpt-4o, gpt-4o-mini with different prompts
     """
-    
+    from llava.action.chatgpt_utils import GPTInferenceAnnotator
     inferencer = GPTInferenceAnnotator(gpt_model,
                                        root,
                                        annotation_file,
@@ -172,7 +174,7 @@ def visualize_with_uid(data_root, uid, out_folder):
     end_timestamp = float(end_timestamp)
     print (vid_path, start_timestamp, end_timestamp)
     # split uid to video path and start, end second
-    frames, time_meta = avion_video_loader(root,
+    frames, time_meta = avion_video_loader(data_root,
                                            vid_path,
                                            'MP4',
                                             start_timestamp,
@@ -185,7 +187,8 @@ def visualize_with_uid(data_root, uid, out_folder):
                                             jitter = False)
     
 
-    save_visualization(out_folder, frames, uid)       
+    save_visualization(out_folder, frames, uid)  
+    return frames     
     
 def visualize_with_llava(pretrained_path, uid, question_type, gen_type):
     """    

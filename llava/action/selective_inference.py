@@ -90,10 +90,10 @@ def inference_task_by_uid(data_root, question, checkpoint_folder, uid, task):
     return pred
     
 class SelectiveInferencer:
-    def __init__(self, data_root, checkpoint_folder, include_time_instruction = False, n_frames = 32):
+    def __init__(self, data_root, checkpoint_folder, include_time_instruction = False, n_frames = 32, use_flash_attention = True):
         self.data_root = data_root
         self.checkpoint_folder = checkpoint_folder
-        self.tokenizer, self.model, self.image_processor, self.max_length = prepare_llava(checkpoint_folder)
+        self.tokenizer, self.model, self.image_processor, self.max_length = prepare_llava(checkpoint_folder, use_flash_attention = use_flash_attention)
         self.include_time_instruction = include_time_instruction
         self.n_frames = n_frames
     def inference(self, question, uid, task):

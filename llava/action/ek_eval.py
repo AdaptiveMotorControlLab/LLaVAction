@@ -134,7 +134,7 @@ def get_args_parser():
     parser.add_argument('--gen_type', type = str, default = 'action_model') # action_model, random
     return parser
 
-def prepare_llava(pretrained):
+def prepare_llava(pretrained, use_flash_attention = True):
 
     import warnings
     warnings.filterwarnings("ignore")
@@ -143,19 +143,23 @@ def prepare_llava(pretrained):
 
     device_map = "auto"
 
-    overwrite_config = None
+    overwrite_config = {}
     if 'ov' not in pretrained:
         if 'video' in pretrained or 'Video' in pretrained or '7b' in pretrained:
             overwrite_config =  {'tie_word_embeddings': False, 'use_cache': True, "vocab_size": 152064}
+
     else:
         pass
 
+    if not use_flash_attention:
+        overwrite_config['attn_implementation'] = 'sqpa'
+    print ('overwrite_config', overwrite_config)
     tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, 
-                                                                          None, 
-                                                                          model_name, 
-                                                                          torch_dtype="bfloat16", 
-                                                                          device_map=device_map, 
-                                                                          overwrite_config = overwrite_config)  # Add any other thing you want to pass in llava_model_args
+                                                                        None, 
+                                                                        model_name, 
+                                                                        torch_dtype="bfloat16", 
+                                                                        device_map=device_map, 
+                                                                        overwrite_config = overwrite_config)  # Add any other thing you want to pass in llava_model_args
 
 
     return tokenizer, model, image_processor, max_length

@@ -277,9 +277,9 @@ def generate_hand_object_instruction_tuning_data(root, ann_file, hand_obj_root, 
 
 def get_args():
     parser = argparse.ArgumentParser(description="For generating VQA for EPIC-KITCHEN")
-    parser.add_argument('--train_metadata', default='/data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv', type=str)
-    parser.add_argument('--out_folder', default = '/data/shaokai/EK100_in_LLAVA/', type = str)
-    parser.add_argument('--train_predictions', default = '/data/shaokai/avion_predictions_train.json', type = str)
+    parser.add_argument('--train_metadata', default='/data/anonymous/epic-kitchens-100-annotations/EPIC_100_train.csv', type=str)
+    parser.add_argument('--out_folder', default = '/data/anonymous/EK100_in_LLAVA/', type = str)
+    parser.add_argument('--train_predictions', default = '/data/anonymous/avion_predictions_train.json', type = str)
     parser.add_argument('--gen_type', default = 'avion_mc', type = str, choices = ['naive', 'direct_narration', 'random_mc', 'avion_mc', 'tim_mc'])
     parser.add_argument('--n_options', default = 5, type = int)
     parser.add_argument('--action_representation', default = 'GT_random_narration_cut', type = str, 
@@ -338,16 +338,16 @@ def main():
 def fix_annotations():
 
     instruct_files = [
-        '/data/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl',
-        '/data/shaokai/EK100_inst_train/avion_mc_top5_official_key/train_convs_narration.jsonl',
-        '/data/shaokai/EK100_inst_train/tim_mc_top5_GT_random_narration/train_convs_narration.jsonl',
-        '/data/shaokai/EK100_inst_train/tim_mc_top5_official_key/train_convs_narration.jsonl',
-        '/data/shaokai/first_person_annos/train_anno_gpt-gt-reason_4_first_person_all.jsonl',
-        '/data/shaokai/first_person_annos/train_anno_gpt-gt-instruct-reason_4_first_person_all.jsonl'
+        '/data/anonymous/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl',
+        '/data/anonymous/EK100_inst_train/avion_mc_top5_official_key/train_convs_narration.jsonl',
+        '/data/anonymous/EK100_inst_train/tim_mc_top5_GT_random_narration/train_convs_narration.jsonl',
+        '/data/anonymous/EK100_inst_train/tim_mc_top5_official_key/train_convs_narration.jsonl',
+        '/data/anonymous/first_person_annos/train_anno_gpt-gt-reason_4_first_person_all.jsonl',
+        '/data/anonymous/first_person_annos/train_anno_gpt-gt-instruct-reason_4_first_person_all.jsonl'
     ]
     for instruct_ann_file in instruct_files:
-        _, _, mapping_vn2act, _, _ = generate_label_map('/data/shaokai/epic-kitchens-100-annotations/', 'official_key')
-        append_action_idx_to_existing_ann(instruct_ann_file, '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv', mapping_vn2act)
+        _, _, mapping_vn2act, _, _ = generate_label_map('/data/anonymous/epic-kitchens-100-annotations/', 'official_key')
+        append_action_idx_to_existing_ann(instruct_ann_file, '/data/anonymous/epic-kitchens-100-annotations/EPIC_100_train.csv', mapping_vn2act)
    
 
 if __name__ == "__main__":
@@ -356,9 +356,9 @@ if __name__ == "__main__":
 
     #fix_annotations()
     
-    # reason_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/train_anno_gpt-gt-reason_4_all.jsonl"
-    # mc_path = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl"
-    # out_folder = "/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100_inst_train/avion_mc_top5_GT_random_narration_cot/"
+    # reason_path = "/anoymnous-pure/anoymouns_scratch/anonymous/train_anno_gpt-gt-reason_4_all.jsonl"
+    # mc_path = "/anoymnous-pure/anoymouns_scratch/anonymous/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl"
+    # out_folder = "/anoymnous-pure/anoymouns_scratch/anonymous/EK100_inst_train/avion_mc_top5_GT_random_narration_cot/"
     # combine_reason_and_mc(reason_path, mc_path, out_folder)
 
     # data_root = '/data/EK100/EK100_320p_15sec_30fps_libx264'

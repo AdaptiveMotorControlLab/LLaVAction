@@ -1,17 +1,15 @@
 #!/bin/bash
 #SBATCH --job-name multinode
-#SBATCH --account a03
-#SBATCH --reservation=sai-a03
+#SBATCH -A a-a03
 #SBATCH --hint nomultithread    
 #SBATCH --cpus-per-task 288
-#SBATCH --mem=460000
 #SBATCH --no-requeue
-#SBATCH --nodes 4                   # number of Nodes
+#SBATCH --nodes 8                   # number of Nodes
 #SBATCH --ntasks-per-node 1         # number of MP tasks. IMPORTANT: torchrun represents just 1 Slurm task
 #SBATCH --gres gpu:4                # Number of GPUs
-#SBATCH --time 05:00:00             # maximum execution time (DD-HH:MM:SS). Mandatory field in MN5
-#SBATCH --output logs/R-%x.%j_train_llavavideo_kitchen_7b_avion_mc_32f_top10_5epochs_2.out
-#SBATCH --error logs/R-%x.%j_train_llavavideo_kitchen_7b_avion_mc_32f_top10_5epochs_2.err
+#SBATCH --time 14:00:00             # maximum execution time (DD-HH:MM:SS). Mandatory field in MN5
+#SBATCH --output temp/dev_7b_16f_top20_full_includes_tim_no_avion_narration_only.out
+#SBATCH --error temp/dev_7b_16f_top20_full_includes_tim_no_avion_narration_only.err
 
 mkdir -p logs
 
@@ -57,10 +55,10 @@ LAUNCHER="torchrun \
 PYTHON_FILE=llava/train/train_mem.py
 PYTHON_ARGS=" \
     --deepspeed scripts/zero3.json \
-    --model_name_or_path pretrained_models/LLaVA-Video-7B-Qwen2 \
+    --model_name_or_path lmms-lab/LLaVA-Video-7B-Qwen2 \
     --version qwen_1_5 \
-    --data_path scripts/train/EK100_avion_mc_top10.yaml \
-    --video_folder /capstor/scratch/cscs/hqi/llava/onevision/llava_video \
+    --data_path scripts/train/tim_top20_official_key_gpt4o_direct_detection.yaml \
+    --video_folder /iopsstor/scratch/cscs/anonymous/VFM/onevision/EK100_512 \
     --mm_tunable_parts mm_vision_tower,mm_mlp_adapter,mm_language_model \
     --mm_vision_tower_lr 2e-6 \
     --vision_tower google/siglip-so400m-patch14-384 \
@@ -73,16 +71,16 @@ PYTHON_ARGS=" \
     --image_grid_pinpoints \"(1x1),...,(6x6)\" \
     --mm_patch_merge_type spatial_unpad \
     --bf16 True \
-    --run_name todi_llava_video_7b_avion_mc_top10_5epochs_2 \
-    --output_dir experiments/todi_llava_video_7b_avion_mc_top10_5epochs_2 \
-    --num_train_epochs 5 \
-    --per_device_train_batch_size 2 \
+    --run_name dev_7b_16f_top20_full_includes_tim_no_avion_narration_only \
+    --output_dir temp/dev_7b_16f_top20_full_includes_tim_no_avion_narration_only \
+    --num_train_epochs 2 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 2 \
-    --evaluation_strategy steps \
-    --eval_steps 2000\
+    --evaluation_strategy epoch \
+    --eval_steps 1\
     --save_strategy steps \
-    --save_steps 1000 \
+    --save_steps 5000 \
     --learning_rate 1e-5 \
     --weight_decay 0. \
     --warmup_ratio 0.03 \
@@ -97,20 +95,26 @@ PYTHON_ARGS=" \
     --torch_compile True \
     --torch_compile_backend inductor \
     --dataloader_drop_last True \
-    --frames_upbound 32 \
-    --root /capstor/scratch/cscs/hqi/llava/onevision/llava_video/EK100 \
-    --action_predictions /capstor/scratch/cscs/hqi/llava/EK100/avion_predictions_test.json \
-    --val_metadata /capstor/scratch/cscs/hqi/llava/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \
-    --llava_num_frames 32 \
-    --clip_length 32 \
-    --topk_predictions 10 \
+    --frames_upbound 16 \
+    --root /iopsstor/scratch/cscs/anonymous/VFM/onevision/EK100_512/EK100 \
+    --action_predictions /iopsstor/scratch/cscs/anonymous/VFM/llava_data/TIM_PREDS/tim_pred_ids_val.json \
+    --val_metadata /iopsstor/scratch/cscs/anonymous/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv \
+    --llava_num_frames 16 \
+    --add_time_instruction True \
+    --clip_length 16 \
+    --topk_predictions 20 \
+    --action_representation GT_random_narration \
+    --vision_supervision one_token \
+    --vision_token_training last_layer \
+    --action_types 97,300,3806 \
+    --learn_neighbor_actions prior \
     "
 
 export CMD="$LAUNCHER $PYTHON_FILE $PYTHON_ARGS"
 export HF_HOME=$SCRATCH/huggingface
 export OMP_NUM_THREADS="8"
 export ACCELERATE_CPU_AFFINITY="1"
-export WANDB_API_KEY="65aeda82a75f1eed29c8e9250b175fcc73dca0d7"
+export WANDB_API_KEY=""
 
 echo $CMD
 
@@ -132,7 +136,7 @@ SRUN_ARGS=" \
 
 # bash -c is needed for the delayed interpolation of env vars to work
 srun $SRUN_ARGS numactl --membind=0-3 bash -c "
-    source /capstor/scratch/cscs/hqi/llava/llava_dependency/llava-venv/bin/activate
+    source /iopsstor/scratch/cscs/anonymous/VFM/llava_dependency/llava-venv/bin/activate
     $CMD"
 
 echo "END TIME: $(date)"

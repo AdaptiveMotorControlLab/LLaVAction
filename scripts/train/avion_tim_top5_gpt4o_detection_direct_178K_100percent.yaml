@@ -1,0 +1,89 @@
+datasets:    
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration_actionids.jsonl
+    sampling_strategy: all 
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/EK100_inst_train/cross_validation/tim_mc_top5_GT_random_narration/train_convs_narration_actionids.jsonl
+    sampling_strategy: all      
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/first_person_annos/train_anno_gpt-gt-reason_4_first_person_all_action_idx.jsonl
+    sampling_strategy: all     
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/first_person_annos/train_anno_gpt-gt-instruct-reason_4_first_person_all_action_idx.jsonl
+    sampling_strategy: all  
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/EK100_inst_train/temporal_detection.jsonl
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/EK100_inst_train/direct_narration_GT_random_narration/train_convs_narration_actionids.jsonl
+    sampling_strategy: all        
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_academic_v0_1/0_30_s_academic_v0_1_cap_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_youtube_v0_1/0_30_s_youtube_v0_1_cap_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/30_60_s_academic_v0_1/30_60_s_academic_v0_1_cap_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/30_60_s_youtube_v0_1/30_60_s_youtube_v0_1_cap_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/1_2_m_academic_v0_1/1_2_m_academic_v0_1_cap_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/1_2_m_youtube_v0_1/1_2_m_youtube_v0_1_cap_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_academic_v0_1/0_30_s_academic_oe_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_academic_v0_1/0_30_s_academic_oe_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_youtube_v0_1/0_30_s_youtube_oe_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_youtube_v0_1/0_30_s_youtube_mc_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_activitynetqa/0_30_s_activitynetqa_oe_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_nextqa/0_30_s_nextqa_oe_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_nextqa/0_30_s_nextqa_mc_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/0_30_s_perceptiontest/0_30_s_perceptiontest_mc_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/30_60_s_academic_v0_1/30_60_s_academic_oe_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/30_60_s_academic_v0_1/30_60_s_academic_mc_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/30_60_s_youtube_v0_1/30_60_s_youtube_oe_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/30_60_s_youtube_v0_1/30_60_s_youtube_mc_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/30_60_s_activitynetqa/30_60_s_activitynetqa_oe_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/30_60_s_nextqa/30_60_s_nextqa_oe_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/30_60_s_nextqa/30_60_s_nextqa_mc_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/30_60_s_perceptiontest/30_60_s_perceptiontest_mc_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/1_2_m_academic_v0_1/1_2_m_academic_oe_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/1_2_m_academic_v0_1/1_2_m_academic_mc_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/1_2_m_youtube_v0_1/1_2_m_youtube_oe_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/1_2_m_youtube_v0_1/1_2_m_youtube_mc_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/1_2_m_activitynetqa/1_2_m_activitynetqa_oe_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/1_2_m_nextqa/1_2_m_nextqa_oe_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/1_2_m_nextqa/1_2_m_nextqa_mc_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/2_3_m_academic_v0_1/2_3_m_academic_v0_1_cap_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/2_3_m_youtube_v0_1/2_3_m_youtube_v0_1_cap_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/2_3_m_academic_v0_1/2_3_m_academic_oe_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/2_3_m_academic_v0_1/2_3_m_academic_mc_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/2_3_m_youtube_v0_1/2_3_m_youtube_oe_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/2_3_m_youtube_v0_1/2_3_m_youtube_mc_v0_1_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/2_3_m_nextqa/2_3_m_nextqa_oe_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/2_3_m_nextqa/2_3_m_nextqa_mc_qa_processed.json
+    sampling_strategy: all
+  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/onevision/llava_video/LLaVA-Video-178K/2_3_m_activitynetqa/2_3_m_activitynetqa_oe_qa_processed.json
+    sampling_strategy: all

@@ -1005,20 +1005,20 @@ if __name__ == '__main__':
     # avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
     # handobj_root = '/data/epic_kitchen/Save_dir'
 
-    # haozhe's path
-    # root = '/mediaPFM/data/haozhe/onevision/llava_video/EK100'
-    # val_file = '/mediaPFM/data/haozhe/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-    # avion_prediction_file = '/mediaPFM/data/haozhe/EK100/EK100_in_LLAVA/avion_pred_ids_val.json'
+    # anonymous's path
+    # root = '/mediaPFM/data/anonymous/onevision/llava_video/EK100'
+    # val_file = '/mediaPFM/data/anonymous/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    # avion_prediction_file = '/mediaPFM/data/anonymous/EK100/EK100_in_LLAVA/avion_pred_ids_val.json'
     # handobj_root = '/mnt/SV_storage/VFM/hand_object_detector/Save_dir'
 
 
-    #root = '/storage-rcp-pure/upmwmathis_scratch/shaokai/EK100'
-    #train_file_path = '/storage-rcp-pure/upmwmathis_scratch/shaokai/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
+    #root = '/anoymnous-pure/anoymouns_scratch/anonymous/EK100'
+    #train_file_path = '/anoymnous-pure/anoymouns_scratch/anonymous/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
 
-    #train_file_path = '/data/epic_kitchen/shaokai_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_all.jsonl'
+    #train_file_path = '/data/epic_kitchen/anonymous_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_all.jsonl'
     # train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
 
-    # # train_file_path = '/data/epic_kitchen/shaokai_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_first_person_all.jsonl'
+    # # train_file_path = '/data/epic_kitchen/anonymous_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_first_person_all.jsonl'
     # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
     # multi_process_annotate(train_file_path, 
     #                 root, 
@@ -1049,7 +1049,7 @@ if __name__ == '__main__':
 
     #convert_instruct_json_to_jsonl('train_anno_gpt-gt-instruct-reason_4_all.json')
 
-    # train_file_path = '/data/epic_kitchen/haozhe/handobj_imageset/train/EPIC_100_handobj_imageset_train_8.jsonl'
+    # train_file_path = '/data/epic_kitchen/anonymous/handobj_imageset/train/EPIC_100_handobj_imageset_train_8.jsonl'
     # ann = GPTHandObjectAnnotator(train_file_path, debug = False)
     # ann.multi_process_run(n_samples = -1)
 

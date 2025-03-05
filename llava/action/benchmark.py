@@ -27,10 +27,10 @@ def process_raw_pred(raw_pred):
 # avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
 # tim_prediction_file = '/data/epic_kitchen/TIM_PREDS/tim_pred_ids_val.json'
 
-root = '/data/shaokai/EK100/'
-annotation_file = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-avion_prediction_file = '/data/shaokai/AVION_PREDS/avion_pred_ids_val.json'
-tim_prediction_file = '/data/shaokai/TIM_PREDS/tim_pred_ids_val.json'
+root = '/data/anonymous/EK100/'
+annotation_file = '/data/anonymous/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+avion_prediction_file = '/data/anonymous/AVION_PREDS/avion_pred_ids_val.json'
+tim_prediction_file = '/data/anonymous/TIM_PREDS/tim_pred_ids_val.json'
 
 
 n_frames = 8

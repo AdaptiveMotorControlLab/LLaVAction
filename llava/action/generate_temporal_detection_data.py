@@ -71,11 +71,11 @@ def get_temporal_detection(train_ann, delta = 5):
     return ret
         
         
-res = get_temporal_detection('/data/shaokai/epic-kitchens-100-annotations/EPIC_100_train.csv')
+res = get_temporal_detection('/data/anonymous/epic-kitchens-100-annotations/EPIC_100_train.csv')
 
 # write to jsonl
 
-with open('/data/shaokai/EK100_inst_train/temporal_detection.jsonl', 'w') as f:
+with open('/data/anonymous/EK100_inst_train/temporal_detection.jsonl', 'w') as f:
     for item in res:
         f.write(json.dumps(item) + '\n')
 
