@@ -6,9 +6,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "llava"
-version = "1.7.0.dev0"
-description = "LLaVA OneVision: The Next Generation of LLaVA with Better Image and Video Understanding Capabilities"
+name = "llavaction"
+version = "0.0.1"
+description = "LLaVAction: Evaluating and Training Multi-Modal Large Language Models for Action Recognition"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
@@ -26,7 +26,7 @@ standalone = [
 
 
 train = [
-    "llava[standalone]",
+    "llavaction[standalone]",
     "open_clip_torch",
     "fastapi",
     "markdown2[all]",
@@ -52,11 +52,11 @@ train = [
 ]
 
 [project.urls]
-"Homepage" = "https://llava-vl.github.io"
-"Bug Tracker" = "https://github.com/haotian-liu/LLaVA/issues"
+"Homepage" = ""
+"Bug Tracker" = ""
 
 [tool.setuptools.packages.find]
-include = ["llava*", "trl*"]
+include = ["llavaction*"]
 exclude = [
     "assets*",
     "benchmark*",
