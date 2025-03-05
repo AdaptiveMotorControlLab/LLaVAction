@@ -1,12 +1,12 @@
-from llava.mm_utils import get_model_name_from_path, process_images, tokenizer_image_token
-from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IGNORE_INDEX
-from llava.conversation import conv_templates, SeparatorStyle
+from llavaction.mm_utils import get_model_name_from_path, process_images, tokenizer_image_token
+from llavaction.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IGNORE_INDEX
+from llavaction.conversation import conv_templates, SeparatorStyle
 
 import torch
 import numpy as np
 import copy
-from llava.action.utils import format_llava_prompt
-from llava.utils import rank0_print
+from llavaction.action.utils import format_llava_prompt
+from llavaction.utils import rank0_print
 
 
 def llava_inference(

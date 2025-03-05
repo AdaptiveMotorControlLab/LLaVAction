@@ -1,6 +1,6 @@
 import csv
-from llava.action.dataset import datetime2sec
-from llava.action.utils import generate_label_map  
+from llavaction.action.dataset import datetime2sec
+from llavaction.action.utils import generate_label_map  
 from pathlib import Path
 import glob
 import os

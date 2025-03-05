@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from einops import rearrange, repeat
 import logging
-from llava.utils import rank0_print
+from llavaction.utils import rank0_print
 
 
 def broadcat(tensors, dim=-1):

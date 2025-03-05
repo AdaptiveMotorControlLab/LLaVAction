@@ -7,9 +7,9 @@ import time
 import gradio as gr
 import requests
 
-from llava.conversation import default_conversation, conv_templates, SeparatorStyle
-from llava.constants import LOGDIR
-from llava.utils import build_logger, server_error_msg, violates_moderation, moderation_msg
+from llavaction.conversation import default_conversation, conv_templates, SeparatorStyle
+from llavaction.constants import LOGDIR
+from llavaction.utils import build_logger, server_error_msg, violates_moderation, moderation_msg
 import hashlib
 
 

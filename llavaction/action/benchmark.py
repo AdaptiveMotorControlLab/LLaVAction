@@ -1,7 +1,7 @@
 # benchmark gpt-4o on avion_mcq_top5_500
 # benchmark gpt-4o on tim_mcq_top5_500
 # benchmark gpt-4o on random_mcq_top5_500
-from llava.action.chatgpt_utils import GPTInferenceAnnotator
+from llavaction.action.chatgpt_utils import GPTInferenceAnnotator
 import glob
 import json
 import os

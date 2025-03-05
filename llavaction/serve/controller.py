@@ -19,8 +19,8 @@ import numpy as np
 import requests
 import uvicorn
 
-from llava.constants import CONTROLLER_HEART_BEAT_EXPIRATION
-from llava.utils import build_logger, server_error_msg
+from llavaction.constants import CONTROLLER_HEART_BEAT_EXPIRATION
+from llavaction.utils import build_logger, server_error_msg
 
 
 logger = build_logger("controller", "controller.log")

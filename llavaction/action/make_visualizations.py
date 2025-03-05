@@ -9,11 +9,11 @@ The Finetuned LLaVA's inference of corresponding segment
 
 Note that in each inference, we should be able to pick the corresponding prompt and checkpoint folder
 """
-from llava.action.utils import generate_label_map  
+from llavaction.action.utils import generate_label_map  
 
 from pathlib import Path
-from llava.action.utils import AvionMultiChoiceGenerator as ActionMultiChoiceGenerator
-from llava.action.llava_inference import llava_inference
+from llavaction.action.utils import AvionMultiChoiceGenerator as ActionMultiChoiceGenerator
+from llavaction.action.llava_inference import llava_inference
 import json
 import cv2
 # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
@@ -40,7 +40,7 @@ def visualize_with_random(n_samples, offset = 0, question_type = 'mc_'):
     """
     Here we should test gpt-4o, gpt-4o-mini with different prompts
     """
-    from llava.action.chatgpt_utils import GPTInferenceAnnotator
+    from llavaction.action.chatgpt_utils import GPTInferenceAnnotator
     inferencer = GPTInferenceAnnotator(gpt_model,
                                        root,
                                        annotation_file,
@@ -60,7 +60,7 @@ def visualize_with_gpt_with_tim(n_samples, offset = 0, question_type = 'mc_'):
     """
     Here we should test gpt-4o, gpt-4o-mini with different prompts
     """
-    from llava.action.chatgpt_utils import GPTInferenceAnnotator
+    from llavaction.action.chatgpt_utils import GPTInferenceAnnotator
     inferencer = GPTInferenceAnnotator(gpt_model,
                                        root,
                                        annotation_file,
@@ -81,7 +81,7 @@ def visualize_with_gpt_with_avion(n_samples, offset = 0, question_type = 'mc_'):
     """
     Here we should test gpt-4o, gpt-4o-mini with different prompts
     """
-    from llava.action.chatgpt_utils import GPTInferenceAnnotator
+    from llavaction.action.chatgpt_utils import GPTInferenceAnnotator
     inferencer = GPTInferenceAnnotator(gpt_model,
                                        root,
                                        annotation_file,
@@ -100,7 +100,7 @@ def visualize_with_gpt_with_avion(n_samples, offset = 0, question_type = 'mc_'):
     
 def search_option_data_by_uid(uid, anno_file, gen_type = 'tim'):
     import csv
-    from llava.action.dataset import datetime2sec
+    from llavaction.action.dataset import datetime2sec
     csv_reader = csv.reader(open(anno_file, 'r'))
     _ = next(csv_reader) # skip the header
     query_vid_path = '_'.join(uid.split('_')[:2]).replace('-', '/')
@@ -166,7 +166,7 @@ def save_visualization(vis_folder, frames, uid):
     video_out.release()
 
 def visualize_with_uid(data_root, uid, out_folder):
-    from llava.action.utils import avion_video_loader
+    from llavaction.action.utils import avion_video_loader
                    
     vid_path = '_'.join(uid.split('_')[:2]).replace('-', '/')
     start_timestamp, end_timestamp = uid.split('_')[2:]
@@ -193,12 +193,12 @@ def visualize_with_uid(data_root, uid, out_folder):
 def visualize_with_llava(pretrained_path, uid, question_type, gen_type):
     """    
     """
-    from llava.action.ek_eval import prepare_llava
-    from llava.action.dataset import VideoMultiChoiceDataset
+    from llavaction.action.ek_eval import prepare_llava
+    from llavaction.action.dataset import VideoMultiChoiceDataset
   
     import torch
     
-    from llava.action.utils import avion_video_loader
+    from llavaction.action.utils import avion_video_loader
     val_metadata = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'
         
     gpu_val_transform_ls = []

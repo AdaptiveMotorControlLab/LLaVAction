@@ -6,11 +6,11 @@ import argparse
 import sys
 import numpy as np
 sys.path[0] = os.path.dirname(os.path.dirname(sys.path[0]))
-from llava.action.utils import generate_label_map, RandomMultiChoiceGenerator, AvionMultiChoiceGenerator, format_llava_prompt, remove_sub_nouns
-from llava.action.dataset import datetime2sec
+from llavaction.action.utils import generate_label_map, RandomMultiChoiceGenerator, AvionMultiChoiceGenerator, format_llava_prompt, remove_sub_nouns
+from llavaction.action.dataset import datetime2sec
 from pathlib import Path
-from llava.action.utils import hand_obj_ann_loader
-from llava.action.generate_interval_pred import build_uid_pad_dict
+from llavaction.action.utils import hand_obj_ann_loader
+from llavaction.action.generate_interval_pred import build_uid_pad_dict
 import ast
 
 def generate_train_ann(ann_file, labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps, gen_type = 'naive', prediction_path = '', n_options = 5,

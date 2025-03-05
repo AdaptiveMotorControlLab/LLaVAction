@@ -14,10 +14,10 @@ from collections import Counter
 import pickle
 from PIL import Image, ImageFile
 import cv2
-from llava.action.render_utils import render_frame
+from llavaction.action.render_utils import render_frame
 from collections import defaultdict
 import json
-from llava.utils import rank0_print
+from llavaction.utils import rank0_print
 import re
 # set random seed
 random.seed(42)

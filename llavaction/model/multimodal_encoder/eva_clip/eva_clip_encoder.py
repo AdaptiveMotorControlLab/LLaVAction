@@ -5,7 +5,7 @@ from .eva_clip_processors import EvaClipImageTrainProcessor
 from .eva_vit import EVAEncoderWrapper
 from .factory import list_models, add_model_config, get_model_config
 
-from llava.utils import rank0_print
+from llavaction.utils import rank0_print
 
 
 class EvaClipVisionTower(nn.Module):

@@ -10,7 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 from tqdm import tqdm
 from collections import Counter
-from llava.action.utils import generate_label_map
+from llavaction.action.utils import generate_label_map
 
 def datetime2sec(str):
     hh, mm, ss = str.split(':')

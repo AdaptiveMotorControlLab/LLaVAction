@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from transformers import AutoModel, AutoImageProcessor, AutoConfig, CLIPImageProcessor
-from llava.utils import rank0_print
+from llavaction.utils import rank0_print
 
 
 class HFVisionTower(nn.Module):

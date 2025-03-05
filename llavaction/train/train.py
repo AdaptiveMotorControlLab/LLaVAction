@@ -37,18 +37,18 @@ import transformers
 import tokenizers
 import deepspeed
 import sys
-import llava
+import llavaction
 from transformers import AutoConfig
 from torch.utils.data import Dataset
-from llava.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
-from llava.train.llava_trainer import LLaVATrainer
-from llava import conversation as conversation_lib
-from llava.model import *
-from llava.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token
-from llava.utils import rank0_print,  process_video_with_decord
-from llava.action.utils import avion_video_loader, EK100_frame_loader
+from llavaction.constants import IGNORE_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, IMAGE_TOKEN_INDEX
+from llavaction.train.llava_trainer import LLaVATrainer
+from llavaction import conversation as conversation_lib
+from llavaction.model import *
+from llavaction.mm_utils import process_highres_image, process_anyres_image, process_highres_image_crop_split, tokenizer_image_token
+from llavaction.utils import rank0_print,  process_video_with_decord
+from llavaction.action.utils import avion_video_loader, EK100_frame_loader
 
-from llava.action.utils import format_llava_prompt
+from llavaction.action.utils import format_llava_prompt
 from pathlib import Path
 import ast
 
@@ -989,7 +989,7 @@ class LazySupervisedDataset(Dataset):
         # add a temporal dict for following processing
         self.EK100_anno_root = Path(self.eval_args.val_metadata).parent
         
-        from llava.action.generate_interval_pred import get_lookup_dict
+        from llavaction.action.generate_interval_pred import get_lookup_dict
         
         self.train_triple_lookup_official = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_train.csv'), 'official_key')
         self.train_triple_lookup_narration = get_lookup_dict(os.path.join(self.EK100_anno_root, 'EPIC_100_train.csv'), 'GT_random_narration')

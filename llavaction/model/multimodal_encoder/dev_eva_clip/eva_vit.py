@@ -19,7 +19,7 @@ import torch
 import torchvision
 import time
 
-from llava.utils import rank0_print
+from llavaction.utils import rank0_print
 
 
 class EvaViTWrapper(nn.Module):

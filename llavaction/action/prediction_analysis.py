@@ -2,7 +2,7 @@ import json
 import glob
 import os
 import numpy as np
-from llava.action.utils import generate_label_map
+from llavaction.action.utils import generate_label_map
 from tqdm import tqdm
 class PredictionAnalysis:
     """
@@ -94,7 +94,7 @@ class PredictionAnalysis:
         self.load()
         llava_preds = [v['llava_pred'] for k, v in self.data.items()]
         gts = [v['gt_name'] for k, v in self.data.items()]
-        from llava.action.retrieval import SemanticRetriever
+        from llavaction.action.retrieval import SemanticRetriever
         retrieval = SemanticRetriever()
         retrieval.load_from_file('embeddings')
         

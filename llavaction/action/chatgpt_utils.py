@@ -6,11 +6,11 @@ from pydantic import BaseModel
 import json
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
-from llava.action.utils import AvionMultiChoiceGenerator as ActionMultiChoiceGenerator
-from llava.action.utils import RandomMultiChoiceGenerator
-from llava.action.utils import avion_video_loader, avion_video_render_loader, generate_label_map
-from llava.action.dataset import datetime2sec
-from llava.action.ek_eval import process_raw_pred
+from llavaction.action.utils import AvionMultiChoiceGenerator as ActionMultiChoiceGenerator
+from llavaction.action.utils import RandomMultiChoiceGenerator
+from llavaction.action.utils import avion_video_loader, avion_video_render_loader, generate_label_map
+from llavaction.action.dataset import datetime2sec
+from llavaction.action.ek_eval import process_raw_pred
 import csv
 import copy 
 import torch
@@ -543,7 +543,7 @@ class GPTInferenceAnnotator(ChatGPT):
         """
         Predict the action from the images
         """
-        from llava.action.utils import format_task_related_prompt
+        from llavaction.action.utils import format_task_related_prompt
         options = parsed_item['options']
         start_second = 0
         end_second = parsed_item['end_second'] - parsed_item['start_second']

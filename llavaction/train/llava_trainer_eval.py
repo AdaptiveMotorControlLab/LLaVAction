@@ -1,7 +1,7 @@
 import json
 import subprocess
 
-from llava.train.llava_trainer import LLaVATrainer
+from llavaction.train.llava_trainer import LLaVATrainer
 
 
 class LLaVAEvalTrainer(LLaVATrainer):

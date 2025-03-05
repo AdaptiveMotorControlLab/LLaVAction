@@ -7,14 +7,14 @@ from pathlib import Path
 import sys
 import os
 import numpy as np
-from llava.action.llava_inference import llava_inference
+from llavaction.action.llava_inference import llava_inference
 import json
 import logging
-from llava.utils import rank0_print
-from llava.action.utils import generate_label_map
+from llavaction.utils import rank0_print
+from llavaction.action.utils import generate_label_map
 from collections import Counter 
 import torch.distributed as dist
-from llava.action.dataset import VideoMultiChoiceDataset
+from llavaction.action.dataset import VideoMultiChoiceDataset
 import torchvision.io as io
 import re
 
@@ -138,7 +138,7 @@ def prepare_llava(pretrained, use_flash_attention = True):
 
     import warnings
     warnings.filterwarnings("ignore")
-    from llava.model.builder import load_pretrained_model    
+    from llavaction.model.builder import load_pretrained_model    
     model_name = "llava_qwen"
 
     device_map = "auto"
@@ -359,7 +359,7 @@ def evaluate_on_EK100(eval_args,
     lookup_table = None
     meta_data = None
     if eval_args.learn_neighbor_actions:
-        from llava.action.generate_interval_pred import  get_lookup_dict
+        from llavaction.action.generate_interval_pred import  get_lookup_dict
         if eval_args.test_type.startswith('temporal_cot'):
             lookup_table = get_lookup_dict(eval_args.val_metadata, 
                                            eval_args.action_representation,

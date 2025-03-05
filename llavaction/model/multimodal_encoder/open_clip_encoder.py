@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from transformers import CLIPImageProcessor
-from llava.utils import rank0_print
+from llavaction.utils import rank0_print
 
 try:
     import open_clip

@@ -1,12 +1,12 @@
 """
 Instead of running the whole validation set, 
 """
-from llava.action.ek_eval import prepare_llava
-from llava.action.generate_interval_pred import  get_lookup_dict
-from llava.action.llava_inference import llava_inference
-from llava.action.utils import avion_video_loader
+from llavaction.action.ek_eval import prepare_llava
+from llavaction.action.generate_interval_pred import  get_lookup_dict
+from llavaction.action.llava_inference import llava_inference
+from llavaction.action.utils import avion_video_loader
 
-from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
+from llavaction.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
 # val_metadata = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'  
 # root = '/data/shaokai/EK100_512/EK100'
 val_metadata = '/iopsstor/scratch/cscs/hqi/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv'

@@ -6,8 +6,8 @@ import pandas as pd
 import torch
 import decord
 from pathlib import Path
-from llava.action.utils import  AvionMultiChoiceGenerator,  RandomMultiChoiceGenerator, avion_video_loader, EK100_frame_loader
-from llava.action.prediction_analysis import PredictionAnalysis
+from llavaction.action.utils import  AvionMultiChoiceGenerator,  RandomMultiChoiceGenerator, avion_video_loader, EK100_frame_loader
+from llavaction.action.prediction_analysis import PredictionAnalysis
 import torch.distributed as dist
 
 def datetime2sec(str):

@@ -14,8 +14,8 @@ from transformers.trainer_pt_utils import get_length_grouped_indices as get_leng
 from transformers.trainer_pt_utils import AcceleratorConfig
 from typing import List, Optional
 from datetime import timedelta
-import llava
-from llava.action.ek_eval import evaluate_on_EK100
+import llavaction
+from llavaction.action.ek_eval import evaluate_on_EK100
 
 if is_accelerate_available():
     from accelerate import Accelerator, skip_first_batches, InitProcessGroupKwargs
@@ -23,7 +23,7 @@ if is_accelerate_available():
 if is_datasets_available():
     import datasets
 
-from llava.utils import rank0_print
+from llavaction.utils import rank0_print
 
 
 def maybe_zero_3(param, ignore_status=False, name=None):
