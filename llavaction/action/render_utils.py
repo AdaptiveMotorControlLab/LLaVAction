@@ -43,7 +43,7 @@ def filter_object(obj_dets, hand_dets):
     return img_obj_id
 
 def draw_obj_mask(image, draw, obj_idx, obj_bbox, obj_score, width, height):
-    font = ImageFont.truetype('llava/action/times_b.ttf', size=vis_settings['font_size'])
+    font = ImageFont.truetype('llavaction/action/times_b.ttf', size=vis_settings['font_size'])
     mask = Image.new('RGBA', (width, height))
     pmask = ImageDraw.Draw(mask)
     pmask.rectangle(obj_bbox, outline=vis_settings['obj_color'], width=vis_settings['line_width'], fill=vis_settings['obj_alpha']) 
@@ -57,7 +57,7 @@ def draw_obj_mask(image, draw, obj_idx, obj_bbox, obj_score, width, height):
     return image
 
 def draw_hand_mask(image, draw, hand_idx, hand_bbox, hand_score, side, state, width, height):
-    font = ImageFont.truetype('llava/action/times_b.ttf', size=vis_settings['font_size'])
+    font = ImageFont.truetype('llavaction/action/times_b.ttf', size=vis_settings['font_size'])
     if side == 0:
         side_idx = 0
     elif side == 1:

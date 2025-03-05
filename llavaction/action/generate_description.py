@@ -353,17 +353,3 @@ def fix_annotations():
 if __name__ == "__main__":
 
     main()
-
-    #fix_annotations()
-    
-    # reason_path = "/anoymnous-pure/anoymouns_scratch/anonymous/train_anno_gpt-gt-reason_4_all.jsonl"
-    # mc_path = "/anoymnous-pure/anoymouns_scratch/anonymous/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl"
-    # out_folder = "/anoymnous-pure/anoymouns_scratch/anonymous/EK100_inst_train/avion_mc_top5_GT_random_narration_cot/"
-    # combine_reason_and_mc(reason_path, mc_path, out_folder)
-
-    # data_root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-    # ann_file_path = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_train.csv'
-    # hand_obj_root = '/data/epic_kitchen/hand_obj_anns/'
-    # out_image_folder = ''
-
-    # generate_hand_object_instruction_tuning_data(data_root, ann_file_path, hand_obj_root, out_image_folder)

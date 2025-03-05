@@ -223,7 +223,6 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                 shift_labels = shift_labels.to(shift_logits.device)
                 loss = loss_fct(shift_logits, shift_labels)
 
-                # 这部分张量移动的代码不知道可不可以优化
                 if getattr(self.config, "vision_supervision", None) is not None and actions is not None:
                     device = shift_logits.device
                  

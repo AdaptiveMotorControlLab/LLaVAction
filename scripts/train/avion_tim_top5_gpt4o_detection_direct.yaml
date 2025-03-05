@@ -1,14 +1,14 @@
 datasets:    
-  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration_actionids.jsonl
+  - json_path: /anonymous/VFM/llava_data/EK100_inst_train/avion_mc_top5_GT_random_narration/train_convs_narration_actionids.jsonl
     sampling_strategy: all 
-  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/EK100_inst_train/cross_validation/tim_mc_top5_GT_random_narration/train_convs_narration_actionids.jsonl
+  - json_path: /anonymous/VFM/llava_data/EK100_inst_train/cross_validation/tim_mc_top5_GT_random_narration/train_convs_narration_actionids.jsonl
     sampling_strategy: all      
-  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/first_person_annos/train_anno_gpt-gt-reason_4_first_person_all_action_idx.jsonl
+  - json_path: /anonymous/VFM/llava_data/first_person_annos/train_anno_gpt-gt-reason_4_first_person_all_action_idx.jsonl
     sampling_strategy: all     
-  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/first_person_annos/train_anno_gpt-gt-instruct-reason_4_first_person_all_action_idx.jsonl
+  - json_path: /anonymous/VFM/llava_data/first_person_annos/train_anno_gpt-gt-instruct-reason_4_first_person_all_action_idx.jsonl
     sampling_strategy: all  
-  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/EK100_inst_train/temporal_detection.jsonl
+  - json_path: /anonymous/VFM/llava_data/EK100_inst_train/temporal_detection.jsonl
     sampling_strategy: all
-  - json_path: /iopsstor/scratch/anonymous_server/anonymous/VFM/llava_data/EK100_inst_train/direct_narration_GT_random_narration/train_convs_narration_actionids.jsonl
+  - json_path: /anonymous/VFM/llava_data/EK100_inst_train/direct_narration_GT_random_narration/train_convs_narration_actionids.jsonl
     sampling_strategy: all        
   

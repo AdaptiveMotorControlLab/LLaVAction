@@ -16,16 +16,12 @@ from llavaction.action.utils import AvionMultiChoiceGenerator as ActionMultiChoi
 from llavaction.action.llava_inference import llava_inference
 import json
 import cv2
-# root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-# annotation_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-# avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
-# tim_prediction_file = '/data/epic_kitchen/TIM_PREDS/tim_pred_ids_val.json'
 
-root = '/data/shaokai/EK100_512/EK100'
-annotation_file = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-avion_prediction_file = '/data/shaokai/AVION_PREDS/avion_pred_ids_val.json'
-tim_prediction_file = '/data/shaokai/TIM_PREDS/tim_pred_ids_val.json'
-val_metadata = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv' 
+root = '/data/anonymous/EK100_512/EK100'
+annotation_file = '/data/anonymous/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+avion_prediction_file = '/data/anonymous/AVION_PREDS/avion_pred_ids_val.json'
+tim_prediction_file = '/data/anonymous/TIM_PREDS/tim_pred_ids_val.json'
+val_metadata = '/data/anonymous/epic-kitchens-100-annotations/EPIC_100_validation.csv' 
 
 n_frames = 32
 topk = 5
@@ -199,7 +195,7 @@ def visualize_with_llava(pretrained_path, uid, question_type, gen_type):
     import torch
     
     from llavaction.action.utils import avion_video_loader
-    val_metadata = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'
+    val_metadata = '/data/anonymous/epic-kitchens-100-annotations/EPIC_100_validation.csv'
         
     gpu_val_transform_ls = []
 
@@ -250,13 +246,4 @@ def visualize_with_llava(pretrained_path, uid, question_type, gen_type):
     print (pred)
 if __name__ == '__main__':
     
-    #visualize_with_gpt_with_avion(10, offset = 100, question_type = "caption")
-    #llava_pretrained_path = 'lmms-lab/LLaVA-Video-7B-Qwen2'
-    # llava_pretrained_path = 'experiments/LLaVA-Video-7B-Qwen2'
-    # uid = 'P01-P01_11_182.65_192.07'
-    # visualize_with_llava(llava_pretrained_path, uid, 'caption', 'tim')
-    # visualize_with_uid(root, "P28-P28_16_73.84_74.66")
-    # visualize_with_uid(root, "P28-P28_15_50.66_51.69")
-    # visualize_with_uid(root, "P26-P26_41_113.0_114.1")
-    visualize_with_uid(root, 'P23-P23_05_217.41_218.39', 'figure1_vis')
-    # visualize_with_uid(root, "P28-P28_26_45.97_46.97", "key_confusing_examples")    
+    visualize_with_uid(root, 'P23-P23_05_217.41_218.39', 'figure1_vis')  

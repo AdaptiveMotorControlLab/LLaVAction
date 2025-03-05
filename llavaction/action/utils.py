@@ -78,12 +78,6 @@ def remove_sub_nouns(nlp, narration, verb, nouns):
             if not noun_added:
                 keep_words.append(' '.join(n_words))
             new_narration = ' '.join(keep_words)
-        
-        # # debug
-        # if new_narration == 'pick up teaspoon honey' or new_narration == 'pick up measure' \
-        #         or new_narration == 'remove tap on' or new_narration == 'pick up glass water' \
-        #         or new_narration == 'pick up washing up brush' or new_narration == 'pick up glass water':
-        #     aa = 1
          
     else:
         new_narration = narration
@@ -207,13 +201,7 @@ def generate_label_map(anno_root, action_representation):
         frequency_count = Counter(narrations)
         sorted_unique_list = [item for item, count in frequency_count.most_common()]
         labels[vn] = sorted_unique_list
-        
-    # debug section
-    # print (mapping_vnstr2narration)
-    # with open('mapping_vnstr2narration.json', 'w') as f:
-    #     json.dump(mapping_vnstr2narration, f)
 
-    #
     return labels, mapping_vn2narration, mapping_vn2act, verb_maps, noun_maps
 
 def remove_sub_nouns_with_doc(doc, verb: str, noun: str) -> str:

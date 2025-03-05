@@ -7,10 +7,9 @@ from llavaction.action.llava_inference import llava_inference
 from llavaction.action.utils import avion_video_loader
 
 from llavaction.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
-# val_metadata = '/data/shaokai/epic-kitchens-100-annotations/EPIC_100_validation.csv'  
-# root = '/data/shaokai/EK100_512/EK100'
-val_metadata = '/iopsstor/scratch/cscs/hqi/VFM/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-root = '/iopsstor/scratch/cscs/hqi/VFM/onevision/EK100_512/EK100'
+
+val_metadata = '/data/anonymous/epic-kitchens-100-annotations/EPIC_100_validation.csv'  
+data_root = '/data/anonymous/EK100_512/EK100'
 
 n_frames = 32
 action_representation = 'GT_random_narration'
@@ -130,7 +129,7 @@ class SelectiveInferencer:
         
     
 if __name__ == '__main__':
-    pretrained_model_folder = 'experiments/dev_LLaVA-Video-7B-Qwen2_64f_top5_gpt4o_avion_tim_last_layer_one_token_detection_direct_neighbor_178K_100percent_time'
+    pretrained_model_folder = 'experiments/dev_LLaVA-Video-7B-Qwen2'
     uid = 'P28-P28_15_50.66_51.69'
     task = 'open-ended'
     question = "What is the object that is to the left of the knife?"

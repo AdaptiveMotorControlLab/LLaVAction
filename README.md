@@ -9,6 +9,7 @@
   - - /model/language_model/llava_qwen.py
   - - /train/train.py
   - - /train/llava_trainer.py
-A diff can be generated against the commit (79ef45a6d8b89b92d7a8525f077c3a3a9894a87d) of LLaVA-NeXT to see our modifications.
+  - - /utils.py
+  - - A diff can be generated against the commit (79ef45a6d8b89b92d7a8525f077c3a3a9894a87d) of LLaVA-NeXT to see our modifications.
 - The code will be made publicly available when published. For review, the provided code and model license is [no license](https://choosealicense.com/no-permission/).
 - Please see the `\example` directory for a demo notebook and installation instructions.

@@ -205,15 +205,6 @@ def create_merged_captions(triple_file, caption_file):
 
 if __name__ == '__main__':
 
-    # res = sample_uid_triples('/mnt/anoymouns/scratch/anonymous/epic-kitchens-100-annotations/EPIC_100_train.csv')
-
-    # # save to jsonl
-    # with open('ek100_triples.jsonl', 'w') as f:
-    #     for item in res:
-    #         f.write(json.dumps(item) + '\n')
-    # triple_file_path = 'ek100_triples.jsonl'
-    # caption_file_path = '/data/anonymous/first_person_annos/train_anno_gpt-gt-reason_4_first_person_all_action_idx.jsonl'
-    # create_merged_captions(triple_file_path, caption_file_path)
     ann_file = '/data/anonymous/epic-kitchens-100-annotations/EPIC_100_train.csv'
     actoin_representation = 'GT_random_narration'
     ret = get_lookup_dict(ann_file, actoin_representation)

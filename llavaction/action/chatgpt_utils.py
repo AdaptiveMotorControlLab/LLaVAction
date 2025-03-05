@@ -998,39 +998,9 @@ def convert_instruct_json_to_jsonl(path, apply_filter = False):
 
 if __name__ == '__main__':    
 
-    # amg0
-    # train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
-    # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-    # val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-    # avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'
-    # handobj_root = '/data/epic_kitchen/Save_dir'
-
-    # anonymous's path
-    # root = '/mediaPFM/data/anonymous/onevision/llava_video/EK100'
-    # val_file = '/mediaPFM/data/anonymous/EK100/epic-kitchens-100-annotations/EPIC_100_validation.csv'
-    # avion_prediction_file = '/mediaPFM/data/anonymous/EK100/EK100_in_LLAVA/avion_pred_ids_val.json'
-    # handobj_root = '/mnt/SV_storage/VFM/hand_object_detector/Save_dir'
-
-
-    #root = '/anoymnous-pure/anoymouns_scratch/anonymous/EK100'
-    #train_file_path = '/anoymnous-pure/anoymouns_scratch/anonymous/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
-
-    #train_file_path = '/data/epic_kitchen/anonymous_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_all.jsonl'
-    # train_file_path = '/data/epic_kitchen/AVION_PREDS/avion_mc_top5_GT_random_narration/train_convs_narration.jsonl'
-
-    # # train_file_path = '/data/epic_kitchen/anonymous_explore/LLaVA-NeXT/train_anno_gpt-gt-reason_4_first_person_all.jsonl'
-    # root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
-    # multi_process_annotate(train_file_path, 
-    #                 root, 
-    #                 debug = False, 
-    #                 clip_length = 4,
-    #                 n_samples = -1, 
-    #                 anno_type = 'gpt-gt-reason')
-
     root = '/data/EK100/EK100_320p_15sec_30fps_libx264'
     val_file = '/data/epic_kitchen/epic-kitchens-100-annotations/EPIC_100_validation.csv'
     avion_prediction_file = '/data/epic_kitchen/AVION_PREDS/avion_pred_ids_val.json'    
-
 
     annotator = GPTInferenceAnnotator(root, 
     val_file,
@@ -1043,20 +1013,3 @@ if __name__ == '__main__':
 
     annotator.multi_process_run(n_samples = 100)
     print ('# json errors', InferenceAnswer.json_errors)
-
-
-    #convert_json_to_jsonl('train_anno_gpt-gt-strong-reason_4_all.json')
-
-    #convert_instruct_json_to_jsonl('train_anno_gpt-gt-instruct-reason_4_all.json')
-
-    # train_file_path = '/data/epic_kitchen/anonymous/handobj_imageset/train/EPIC_100_handobj_imageset_train_8.jsonl'
-    # ann = GPTHandObjectAnnotator(train_file_path, debug = False)
-    # ann.multi_process_run(n_samples = -1)
-
-    # convert_json_to_jsonl('train_anno_gpt-gt-reason_4_first_person_all.json')
-
-    #calc_disagree_ratio_from_jsonl('train_anno_gpt-gt-reason_4_first_person_all.jsonl')
-
-    #convert_instruct_json_to_jsonl('train_anno_gpt-hand-object_all.json', apply_filter = True)
-
-    #convert_instruct_json_to_jsonl('train_anno_gpt-gt-instruct-reason_4_first_person_all.json', apply_filter = True)
