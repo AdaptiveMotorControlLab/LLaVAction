@@ -51,9 +51,6 @@ train = [
     "scipy",
 ]
 
-[project.urls]
-"Homepage" = ""
-"Bug Tracker" = ""
 
 [tool.setuptools.packages.find]
 include = ["llavaction*"]
