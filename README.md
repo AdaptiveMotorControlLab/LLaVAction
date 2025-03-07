@@ -12,4 +12,16 @@
   - - /utils.py
   - - A diff can be generated against the commit (79ef45a6d8b89b92d7a8525f077c3a3a9894a87d) of LLaVA-NeXT to see our modifications.
 - The code will be made publicly available when published. For review, the provided code and model license is [no license](https://choosealicense.com/no-permission/).
-- Please see the `\example` directory for a demo notebook and installation instructions.
+
+
+## Demo 
+- Currently, we provide code to run video inference in a Jupyter Notebook (which can be run on Google Colaboratory).
+**Installation guide for video inference:**
+```bash
+conda create -n llavaction python=3.10 -y
+conda activate llavaction
+pip install --upgrade pip  # Enable PEP 660 support.
+pip install -e .
+```
+
+- Please see the `/example` directory for a demo notebook.
