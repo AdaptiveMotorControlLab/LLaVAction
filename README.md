@@ -43,3 +43,7 @@ pip install -e .
 ## EPIC-KITCHENS-100-MQA 
 
 In our work, we introduce a new way to evaluate MLMMs for action recognition by casting EPIC-KITCHENS-100 into a multi-question-answer benchmark. This has not yet been released [as of 3/2025], but please check the issues or open an issue if you are interested in accessing this resource before the paper is published. We also plan to integrate this the package [lmms-eval](https://github.com/EvolvingLMMs-Lab/lmms-eval).
+
+# Acknowledgments 
+We thank the Swiss AI Initiative Project ID a03 from the Swiss National Supercomputing Centre (CSCS); Boehringer Ingelheim Fonds PhD stipend (H.Q.); M.W.M. thanks the Vallee Foundation; M.W.M. and A.M. thank the SNSF by grant No. 320030-227871.
+
