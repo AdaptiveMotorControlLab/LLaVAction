@@ -47,5 +47,5 @@ jobs:
         run: |
           make dist
           ls dist/
-          tar tvf dist/aros_node-*.tar.gz
+          tar tvf dist/llavaction-*.tar.gz
           python3 -m twine upload dist/*
