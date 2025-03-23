@@ -47,3 +47,5 @@ In our work, we introduce a new way to evaluate MLMMs for action recognition by 
 # Acknowledgments 
 We thank the Swiss AI Initiative Project ID a03 from the Swiss National Supercomputing Centre (CSCS); Boehringer Ingelheim Fonds PhD stipend (H.Q.); M.W.M. thanks the Vallee Foundation; M.W.M. and A.M. thank the SNSF by grant No. 320030-227871.
 
+![group-logo](https://github.com/user-attachments/assets/ad034dc3-5e92-4e8b-915b-85e443b3bdb2)
+
