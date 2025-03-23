@@ -13,7 +13,7 @@ set -e # abort on error
 pip uninstall -y llavaction
 
 # Get version
-VERSION=0.0.1
+VERSION=0.0.1rc1
 echo "Upgrading to LLaVAction v${VERSION}"
 
 # Upgrade the build system (PEP517/518 compatible)
