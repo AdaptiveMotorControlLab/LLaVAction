@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llavaction"
-version = "0.0.1"
+version = "0.0.1rc1"
 description = "LLaVAction: Evaluating and Training Multi-Modal Large Language Models for Action Recognition"
 readme = "README.md"
 requires-python = ">=3.8"
