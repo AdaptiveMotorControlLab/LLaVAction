@@ -1,4 +1,4 @@
-LLAVACTION_VERSION := 0.0.1rc1
+LLAVACTION_VERSION := 0.0.1
 
 dist:
 	python3 -m pip install virtualenv
