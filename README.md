@@ -1,6 +1,6 @@
 # LLaVAction: Evaluating and Training Multi-Modal Large Language Models for Action Recognition
 
-[![Static Badge](https://img.shields.io/badge/LLaVAction-paper-green)](http://arxiv.org/abs/tbd)
+[![Static Badge](https://img.shields.io/badge/LLaVAction-paper-green)](https://arxiv.org/abs/2503.18712)
 [![Demo Website](https://img.shields.io/badge/LLaVAction-website-red)](https://mmathislab.github.io/llavaction/)
 [![llavaction-checkpoints](https://img.shields.io/badge/LLaVAction-checkpoints_🤗-blue)](https://huggingface.co/MLAdaptiveIntelligence)
 
