@@ -4,6 +4,8 @@
 [![Demo Website](https://img.shields.io/badge/LLaVAction-website-red)](https://mmathislab.github.io/llavaction/)
 [![llavaction-checkpoints](https://img.shields.io/badge/LLaVAction-checkpoints_🤗-blue)](https://huggingface.co/MLAdaptiveIntelligence)
 
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/llavaction-evaluating-and-training-multi/action-recognition-on-epic-kitchens-100)](https://paperswithcode.com/sota/action-recognition-on-epic-kitchens-100?p=llavaction-evaluating-and-training-multi)
+
 [![Downloads](https://static.pepy.tech/badge/llavaction)](https://pepy.tech/project/llavaction)
 [![Downloads](https://static.pepy.tech/badge/llavaction/month)](https://pepy.tech/project/llavaction)
 [![PyPI version](https://badge.fury.io/py/llavaction.svg)](https://badge.fury.io/py/llavaction)
